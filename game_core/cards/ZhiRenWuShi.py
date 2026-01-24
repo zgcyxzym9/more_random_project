@@ -1,4 +1,7 @@
 from enums import *
+import sys
+sys.path.insert(0, "E:\more_random_project")
+from game_core.action import *
 
 class WuShiZhiQuan:
     id = 1
@@ -14,8 +17,9 @@ class WuShiZhiDi:
     type = "spell"
     hero = "ZhiRenWuShi"
     name = "武士之笛"
-    #attributes = (CardAttributes.INSTANT,)
     level_req = 1
+    attributes = (CardAttributes.INSTANT,)
+    on_play = (lambda s: GiveBuff("round_buff_atk", 1, s.owner.heroes),)
 
 
 class WuShiZhiLi:
@@ -24,6 +28,9 @@ class WuShiZhiLi:
     hero = "ZhiRenWuShi"
     name = "武士之笠"
     level_req = 2
+    on_play = (lambda s: GiveBuff("current_max_hp", 2, s.get_corresponding_hero()), 
+               lambda s: GiveBuff("hp", 2, s.get_corresponding_hero()), 
+               lambda s: GiveBuff("atk", 2, s.get_corresponding_hero()))
 
 class WuShiZhiRen:
     id = 4

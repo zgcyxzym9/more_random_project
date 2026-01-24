@@ -1,9 +1,13 @@
 from heroes import *
 
 class Hero:
+    original_hp: int = 0
+    original_atk: int = 0
     hp: int = 0
     atk: int = 0
+    current_max_hp: int = 0
     defense: int = 0
+    round_buff_atk: int = 0
     level: int = 0
     state: str = None
     is_alive: bool = False
@@ -13,8 +17,12 @@ class Hero:
         self.id = hero_obj.id
         self.name = hero_obj.name
         self.owner = None
+        self.original_hp = hero_obj.hp
+        self.original_atk = hero_obj.atk
+        self.current_max_hp = hero_obj.hp
         self.hp = hero_obj.hp
         self.atk = hero_obj.atk
+        self.round_buff_atk = 0
         self.defense = 0
         self.level = 0
         self.is_alive = True
@@ -45,5 +53,26 @@ class Hero:
             self.is_alive = False
             self.state = "dead"
             self.round_until_alive = 3
+            self.round_buff_atk = 0
             if self.owner.attack_zone == self:
                 self.owner.attack_zone = None
+    
+    def assign_owner(self, player):
+        self.owner = player
+    
+    def revive(self):
+        self.is_alive = True
+        self.hp = self.original_hp
+        self.current_max_hp = self.original_hp
+        self.atk = self.original_atk
+        self.defense = 0
+        self.round_until_alive = 0
+        self.state = "pending"
+    
+    def receive_damage(self, damage:int):
+        effective_damage = damage - self.defense
+        if effective_damage < 0:
+            self.defense -= damage
+        else:
+            self.hp -= effective_damage
+            self.defense = 0

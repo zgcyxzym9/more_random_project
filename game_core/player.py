@@ -15,18 +15,28 @@ class Player:
         self.starting_deck = deck
         self.state: str = None
         self.hp: int = 30
+        self.defense: int = 0
         self.deck: CardList = None
         self.hand: CardList = None
+        self.used_card: CardList = None
         self.attack_zone: Hero = None
         self.attack_available: bool = False
         self.fire_cnt: int = 0
         self.instant_used: bool = True
         self.picked_upgrade: bool = True
+        self.candidate_targets = []
+        self.pending_card: Card = None
+        self.selected_targets = []
 
     def start_game(self):
         self.deck = CardList(Card.GetCards(self.starting_deck))
+        for card in self.deck:
+            card.assign_owner(self)
         self.deck.shuffle()
+        for hero in self.heroes:
+            hero.assign_owner(self)
         self.hand = CardList([])
+        self.used_card = CardList([])
     
     def draw(self):
         if self.deck.is_empty():
@@ -54,17 +64,32 @@ class Player:
         if self.hp <=0:
             self.state = "lost"
     
+    def clear_round_effects(self):
+        for hero in self.heroes:
+            hero.round_buff_atk = 0
+    
+    def move_card_to_used(self, card:Card):
+        self.hand.remove(card)
+        self.used_card.append(card)
+    
+    def receive_damage(self, damage:int):
+        effective_damage = damage - self.defense
+        if effective_damage < 0:
+            self.defense -= damage
+        else:
+            self.hp -= effective_damage
+            self.defense = 0
+    
     def get_legal_actions(self):
         match self.state:
             case "initial pick":
                 actions = [RejectInitialPick(card) for card in self.hand]
                 actions.append(EndTurn())
                 return actions
+            
             case "playing":
                 actions = []
                 actions.append(EndTurn())
-                print(self)
-                print(self.picked_upgrade)
                 if not self.picked_upgrade:
                     for hero in self.heroes:
                         is_min_level = True
@@ -83,3 +108,11 @@ class Player:
                     if hero.is_alive and self.attack_available and self.fire_cnt > 0:
                         actions.append(HeroAttack(hero))
                 return actions
+            
+            case "selecting target":
+                actions = [SelectTarget(target) for target in self.candidate_targets]
+                return actions
+
+            case _:
+                print(f"getting legal actions with an undefined state {self.state}, check code!")
+                return []

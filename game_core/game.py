@@ -1,8 +1,9 @@
 from player import Player
-from action import Action
+from action import *
 import random as r
 from hero import Hero
 from card import Card
+from enums import *
 
 class Game:
     def __init__(self, players:list[Player]):
@@ -50,6 +51,13 @@ class Game:
         self.current_player.fire_cnt = 2
         self.current_player.instant_used = False
         self.current_player.picked_upgrade = False
+        self.player1.clear_round_effects()
+        self.player2.clear_round_effects()
+        for hero in self.player1.heroes:
+            if hero.state == "dead":
+                hero.round_until_alive -= 1
+                if hero.round_until_alive <= 0:
+                    hero.revive()
 
         self.current_player.draw()
 
@@ -110,6 +118,14 @@ class Game:
                 if not action.card.owner == player:
                     print("trying to play a card doesn't owned")
                     return
+                if hasattr(action.card, "attributes"):
+                    if CardAttributes.INSTANT in action.card.attributes:
+                        player.fire_cnt += 1
+                if player.fire_cnt <= 0:
+                    print("trying to play a card when there's no fire remaining")
+                    return
+                player.fire_cnt -= 1
+                self.play_card(player, action.card, action.target)
             
             case "hero attack":
                 if not self.current_player == player:
@@ -134,12 +150,95 @@ class Game:
                     self.attack(action.hero, player.opponent)
                 player.fire_cnt -= 1
                 player.attack_available = False
+            
+            case "hero attack by card":
+                if not self.current_player == player:
+                    print("trying to attack by card when it's not his turn")
+                    return
+                if not action.hero.is_alive:
+                    print("trying to attack with a dead hero by card")
+                    return
+                player.advance_hero(action.hero)
+                if hasattr("buff_atk", action.card):
+                    hero.atk += action.card.buff_atk
+                if player.opponent.attack_zone is not None:
+                    self.attack(action.hero, player.opponent.attack_zone)
+                else:
+                    self.attack(action.hero, player.opponent)
+                if hasattr("buff_atk", action.card):
+                    hero.atk -= action.card.buff_atk
+            
+            case "call selector":
+                action.func(action.player, action.target_list, action.card)
+            
+            case "select target":
+                player.selected_targets = [action.target]
 
+            case "give buff":
+                for e in action.target:
+                    if e.state == "dead":
+                        continue
+                    setattr(e, action.attr, getattr(e, action.attr) + action.value)
+            
+            case "heal":
+                for e in action.target:
+                    if e.state == "dead":
+                        continue
+                    e.hp += action.value
+                    if e.hp > e.current_max_hp:
+                        e.hp = e.current_max_hp
+            
+            case "deal damage":
+                for e in action.target:
+                    if e.state == "dead":
+                        continue
+                    e.receive_damage(action.value)
+                    e.check_death()
+
+
+    def play_card(self, player:Player, card:Card, target):
+        match card.type:
+            case "attack":
+                if hasattr(card, "on_play"):
+                    for event in card.on_play:
+                        if type(event(card)).__name__ == "Action":
+                            self.step(player, event(card))
+                        else:
+                            event(card)
+                for hero in player.heroes:
+                    if hero.name == card.hero:
+                        attacking_hero = hero
+                if hasattr(card, "buff_def"):
+                    attacking_hero.defense += card.buff_def
+                self.step(player, HeroAttackByCard(attacking_hero, card))
+
+            case "spell":
+                if hasattr(card, "on_play"):
+                    for event in card.on_play:
+                        if type(event(card)).__name__ == "Action":
+                            self.step(player, event(card))
+                        else:
+                            event(card)
+
+        player.move_card_to_used(card)
+        player.fire_cnt -= 1
 
 
     def attack(self, entity1, entity2):
-        entity2.hp -= entity1.atk if hasattr(entity1, "atk") else 0
-        entity1.hp -= entity2.atk if hasattr(entity2, "atk") else 0
+        atk1 = 0
+        if hasattr(entity1, "atk"):
+            atk1 += entity1.atk
+        if hasattr(entity1, "round_buff_atk"):
+            atk1 += entity1.round_buff_atk
+        entity2.receive_damage(atk1)
+
+        atk2 = 0
+        if hasattr(entity2, "atk"):
+            atk2 += entity2.atk
+        if hasattr(entity2, "round_buff_atk"):
+            atk2 += entity2.round_buff_atk
+        entity1.receive_damage(atk2)
+
         entity1.check_death()
         entity2.check_death()
 
@@ -147,6 +246,8 @@ class Game:
     def start_game(self):
         self.player1.opponent = self.player2
         self.player2.opponent = self.player1
+        self.player1.game = self
+        self.player2.game = self
 
         first, second = self.pick_first_player()
         self.player1 = first
@@ -167,7 +268,6 @@ class Game:
         self.begin_turn()
 
         while True:
-            print("game:", self.current_player)
             action = self.current_player.agent.act()
             self.step(self.current_player, action)
     
@@ -180,8 +280,8 @@ class Game:
         opponent_hp = player.opponent.hp
         player_heroes = player.heroes
         opponent_heroes = player.opponent.heroes
-        player_deck_volume = len(player.deck)
-        opponent_deck_volume = len(player.opponent.deck)
+        player_deck_size = len(player.deck)
+        opponent_deck_size = len(player.opponent.deck)
         player_hand = [card.name for card in player.hand.cards]
         opponent_hand_size = len(player.opponent.hand)
         player_starting_deck = player.starting_deck
@@ -196,8 +296,8 @@ class Game:
             "opponent_hp": opponent_hp,
             "player_heroes": player_heroes,
             "opponent_heroes": opponent_heroes,
-            "player_deck_volume": player_deck_volume,
-            "opponent_deck_volume": opponent_deck_volume,
+            "player_deck_size": player_deck_size,
+            "opponent_deck_size": opponent_deck_size,
             "player_hand": player_hand,
             "opponent_hand_size": opponent_hand_size,
             "player_starting_deck": player_starting_deck,
