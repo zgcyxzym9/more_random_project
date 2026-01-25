@@ -17,6 +17,8 @@ class QuanShen:
     name = "犬神"
     atk = 2
     hp = 5
+    on_upgrade = (lambda s: s.owner.GiveCardToHand(["XinShenLianMo"]), )
+    xin_shen_lian_mo_cnt = 0
 
 
 class TaoHuaYao:

@@ -80,6 +80,14 @@ class Player:
             self.hp -= effective_damage
             self.defense = 0
     
+    def GiveCardToHand(self, cards:list[str]):
+        for card in cards:
+            self.hand.append(Card.GetCard(card))
+    
+    def GiveCardToDeck(self, cards:list[str]):
+        for card in cards:
+            self.deck.append(Card.GetCard(card))
+    
     def get_legal_actions(self):
         match self.state:
             case "initial pick":

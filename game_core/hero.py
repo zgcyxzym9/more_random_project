@@ -37,7 +37,13 @@ class Hero:
     def GetHero(id:str):
         hero_class = globals()[id]
         hero_obj = hero_class()
-        return Hero(hero_obj)
+        hero = Hero(hero_obj)
+        for attr_name, attr_value in vars(hero_obj).items():
+            setattr(hero, attr_name, attr_value)
+        return hero
+
+        # should be legacy
+        # return Hero(hero_obj)
     
     def GetHeroes(ids:list[str]):
         heroes = []

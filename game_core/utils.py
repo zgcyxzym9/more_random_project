@@ -29,3 +29,9 @@ class CardList(list[Card]):
 
     def is_empty(self):
         return len(self.cards) == 0
+
+    def contain(self, card:str):
+        for c in self.cards:
+            if type(c).__name__ == card:
+                return True
+        return False

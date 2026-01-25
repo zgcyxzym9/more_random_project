@@ -109,6 +109,12 @@ class Game:
                         print("trying to upgrade a hero whose current level is not lowest")
                         return
                 action.hero.Upgrade()
+                if hasattr(action.hero, "on_upgrade"):
+                    for event in action.hero.on_upgrade:
+                        if type(event(action.hero)).__name__ == "Action":
+                            self.step(player, event(action.hero))
+                        else:
+                            event(action.hero)
                 self.current_player.picked_upgrade = True
             
             case "play card":
@@ -192,6 +198,18 @@ class Game:
                 for e in action.target:
                     if e.state == "dead":
                         continue
+                    if type(e).__name__ == "Hero":
+                        for h in e.owner.heroes:
+                            if h == e:
+                                continue
+                            if hasattr(h, "on_firendly_hero_take_damage"):
+                                for event in h.on_friendly_hero_take_damage:
+                                    if event(h) == "negate damage":
+                                        return
+                                    if type(event(h)).__name__ == "Action":
+                                        self.step(player, event(h))
+                                    else:
+                                        event(h)
                     e.receive_damage(action.value)
                     e.check_death()
 
@@ -211,6 +229,12 @@ class Game:
                 if hasattr(card, "buff_def"):
                     attacking_hero.defense += card.buff_def
                 self.step(player, HeroAttackByCard(attacking_hero, card))
+                if hasattr(card, "after_play"):
+                    for event in card.after_play:
+                        if type(event(card)).__name__ == "Action":
+                            self.step(player, event(card))
+                        else:
+                            event(card)
 
             case "spell":
                 if hasattr(card, "on_play"):
@@ -219,6 +243,17 @@ class Game:
                             self.step(player, event(card))
                         else:
                             event(card)
+            
+            case "morph":
+                if hasattr(card, "on_play"):
+                    for event in card.on_play:
+                        if type(event(card)).__name__ == "Action":
+                            self.step(player, event(card))
+                        else:
+                            event(card)
+                card.get_corresponding_hero().current_max_hp = card.hp
+                card.get_corresponding_hero().atk = card.atk
+                card.get_corresponding_hero().hp = card.hp
 
         player.move_card_to_used(card)
         player.fire_cnt -= 1
@@ -230,17 +265,13 @@ class Game:
             atk1 += entity1.atk
         if hasattr(entity1, "round_buff_atk"):
             atk1 += entity1.round_buff_atk
-        entity2.receive_damage(atk1)
-
         atk2 = 0
         if hasattr(entity2, "atk"):
             atk2 += entity2.atk
         if hasattr(entity2, "round_buff_atk"):
             atk2 += entity2.round_buff_atk
-        entity1.receive_damage(atk2)
-
-        entity1.check_death()
-        entity2.check_death()
+        DealDamage(atk1, entity2)
+        DealDamage(atk2, entity1)
 
 
     def start_game(self):
