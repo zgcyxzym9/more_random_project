@@ -1,13 +1,16 @@
-from action import *
-from utils import CardList
-from card import Card
-from hero import Hero
+from .action import *
+from .utils import CardList
+from .card import Card
+from .hero import Hero
+from .entity import Entity
+from .enums import *
 
-class Player:
+class Player():
     def __init__(self, deck:list[str], heroes:list[str]):
-        from game import Game
-        from agent import Agent
+        from .game import Game
+        from .agent import Agent
         self.game: Game = None
+        self.entity_type = "player"
         self.opponent: Player = None
         self.agent: Agent = None
         self.is_first_player: bool = False
@@ -15,6 +18,7 @@ class Player:
         self.starting_deck = deck
         self.state: str = None
         self.hp: int = 30
+        self.current_max_hp: int = 30
         self.defense: int = 0
         self.deck: CardList = None
         self.hand: CardList = None
@@ -23,10 +27,11 @@ class Player:
         self.attack_available: bool = False
         self.fire_cnt: int = 0
         self.instant_used: bool = True
-        self.picked_upgrade: bool = True
+        self.upgrade_remaining: int = 0
         self.candidate_targets = []
         self.pending_card: Card = None
         self.selected_targets = []
+        self.listeners = []
 
     def start_game(self):
         self.deck = CardList(Card.GetCards(self.starting_deck))
@@ -59,6 +64,10 @@ class Player:
             self.attack_zone.state = "pending"
         self.attack_zone = hero
         hero.state = "attacking"
+        hero.atk += hero.inspiration_atk
+        hero.inspiration_atk = 0
+        hero.defense += hero.inspiration_def
+        hero.inspiration_def = 0
     
     def check_death(self):
         if self.hp <=0:
@@ -88,6 +97,9 @@ class Player:
         for card in cards:
             self.deck.append(Card.GetCard(card))
     
+    def can_end_turn(self):
+        return self.game.current_player is self and self.upgrade_remaining == 0
+    
     def get_legal_actions(self):
         match self.state:
             case "initial pick":
@@ -109,8 +121,10 @@ class Player:
                     return actions
                 for card in self.hand:
                     if self.fire_cnt > 0:
-                        # for simplicity, we will not consider targets for now
-                        # WIP here!!!!!!!!!!!!!!!!!!!!!!
+                        if [] in [req(card) for req in card.require_target]:
+                            continue
+                        if card.get_corresponding_hero.state == "dead" and CardAttributes.CAN_PLAY_WHEN_DEAD not in card.attributes:
+                            continue
                         actions.append(PlayCard(card, None))
                 for hero in self.heroes:
                     if hero.is_alive and self.attack_available and self.fire_cnt > 0:

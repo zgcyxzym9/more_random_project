@@ -1,6 +1,6 @@
-from card import Card
+from .card import Card
 import random as r
-from action import *
+from .action import *
 
 class CardList(list[Card]):
     def __init__(self, cards:list[Card]):

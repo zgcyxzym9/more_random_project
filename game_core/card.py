@@ -1,9 +1,11 @@
-from cards import *
+from .cards import *
+from .entity import Entity
 import copy
 
-class Card:
+class Card(Entity):
     def __init__(self, card_obj):
         self.id = card_obj.id
+        self.entity_type = "card"
         self.type = card_obj.type
         self.hero = card_obj.hero
         self.level_req = card_obj.level_req
@@ -16,7 +18,8 @@ class Card:
         if hasattr(card_obj, "on_play"):
             self.on_play = card_obj.on_play
         self.attributes = card_obj.attributes if hasattr(card_obj, "attributes") else []
-        self.require_target = card_obj.require_target if hasattr(card_obj, "require_target") else False
+        self.require_target = card_obj.require_target if hasattr(card_obj, "require_target") else []
+        self.listeners = card_obj.listeners if hasattr(card_obj, "listeners") else []
         self.owner = None
 
     def __str__(self):

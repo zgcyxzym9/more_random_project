@@ -1,6 +1,8 @@
-from heroes import *
+from .heroes import *
+from .entity import Entity
+from .enums import HeroAttributes
 
-class Hero:
+class Hero(Entity):
     original_hp: int = 0
     original_atk: int = 0
     hp: int = 0
@@ -15,6 +17,9 @@ class Hero:
 
     def __init__(self, hero_obj):
         self.id = hero_obj.id
+        self.morphed_id = 0
+        self.entity_type = "hero"
+        self.type_name = type(hero_obj).__name__
         self.name = hero_obj.name
         self.owner = None
         self.original_hp = hero_obj.hp
@@ -27,6 +32,12 @@ class Hero:
         self.level = 0
         self.is_alive = True
         self.round_until_alive = 0
+        self.listeners = hero_obj.listeners if hasattr(hero_obj, "listeners") else []
+        self.inspiration_atk = 0
+        self.inspiration_hp = 0
+        self.inspiration_def = 0
+        self.attributes = []
+        self.counter = hero_obj.counter if hasattr(hero_obj, "counter") else {}
 
     def __str__(self):
         return f"{self.name}"
@@ -72,6 +83,8 @@ class Hero:
         self.current_max_hp = self.original_hp
         self.atk = self.original_atk
         self.defense = 0
+        self.listeners = self.GetHero(self.type_name).listeners
+        self.morphed_id = 0
         self.round_until_alive = 0
         self.state = "pending"
     
@@ -82,3 +95,12 @@ class Hero:
         else:
             self.hp -= effective_damage
             self.defense = 0
+        
+    def get_permanent_buff(self, field:str, value):
+        if field == "hp":
+            self.original_hp += value
+            self.current_max_hp += value
+            self.hp += value
+        elif field == "atk":
+            self.original_atk += value
+            self.atk += value

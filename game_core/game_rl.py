@@ -1,10 +1,10 @@
-from .player import Player
-from .action import *
+from player import Player
+from action import *
 import random as r
-from .hero import Hero
-from .card import Card
-from .enums import *
-from .event import Event
+from hero import Hero
+from card import Card
+from enums import *
+from event import Event
 
 class Game:
     def __init__(self, players:list[Player]):
@@ -53,11 +53,7 @@ class Game:
         self.current_player.attack_available = True
         self.current_player.fire_cnt = 2
         self.current_player.instant_used = False
-        self.current_player.upgrade_remaining = 1
-        if self.current_player.is_first_player and self.turn_count == 13:
-            self.current_player.upgrade_remaining += 1
-        if not self.current_player.is_first_player and self.turn_count == 6:
-            self.current_player.upgrade_remaining += 1
+        self.current_player.picked_upgrade = False
         self.player1.clear_round_effects()
         self.player2.clear_round_effects()
         for hero in self.player1.heroes:
@@ -119,7 +115,7 @@ class Game:
                 if not self.current_player == player:
                     print("trying to upgrade a hero when it's not his turn, will ignore")
                     return
-                if self.current_player.upgrade_remaining <= 0:
+                if self.current_player.picked_upgrade:
                     print("trying to upgrade multiple heroes, will ignore")
                     return
                 if action.hero.level >= 3:
@@ -142,7 +138,7 @@ class Game:
                             self.step(player, event(action.hero))
                         else:
                             event(action.hero)
-                self.current_player.upgrade_remaining -= 1
+                self.current_player.picked_upgrade = True
             
             case "play card":
                 if not self.current_player == player:
@@ -357,7 +353,7 @@ class Game:
         fire_remaining = player.fire_cnt
         attack_available = player.attack_available
         is_first_player = player.is_first_player
-        pending_card = player.pending_card
+        selected_targets = player.selected_targets
         return {
             "player_state": player_state,
             "game_state": game_state,
@@ -374,5 +370,5 @@ class Game:
             "fire_remaining": fire_remaining,
             "attack_available": attack_available,
             "is_first_player": is_first_player,
-            "pending_card": pending_card,
+            "selected_targets": player.selected_targets,
         }
