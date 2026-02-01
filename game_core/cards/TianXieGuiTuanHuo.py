@@ -10,7 +10,7 @@ class TianXieGuiChiRanShao:
     hero = "TianXieGuiTuanHuo"
     name = "天邪鬼赤·燃烧"
     level_req = 1
-    on_play = (lambda s: DealDamage(1, s.owner.opponent.heroes),)
+    on_play = (lambda s: DealDamage(1, s.get_corresponding_hero(), s.owner.opponent.heroes),)
 
 
 class TianXieGuiHuangGuWu:
@@ -27,9 +27,9 @@ class TianXieGuiQingYuanJi:
     type = "spell"
     hero = "TianXieGuiTuanHuo"
     name = "天邪鬼青·鸢击"
-    level_req = 1 ####NEED TO REVERT TO 2
-    on_play = (lambda s: CallSelector(select_target, s.owner, s.owner.opponent.heroes, s),
-               lambda s: DealDamage(4, s.owner.selected_targets),)
+    level_req = 2
+    select_target = (lambda s: select_target(s.owner, s.owner.opponent.heroes, s),)
+    on_play = (lambda s: DealDamage(4, s.get_corresponding_hero(), s.owner.selected_targets),)
 
 
 class TianXieGuiLvPaiDa:
@@ -38,4 +38,4 @@ class TianXieGuiLvPaiDa:
     hero = "TianXieGuiTuanHuo"
     name = "天邪鬼绿·拍打"
     level_req = 3
-    on_play = (lambda s: DealDamage(4, s.owner.opponent),)
+    on_play = (lambda s: DealDamage(4, s.get_corresponding_hero(), s.owner.opponent),)

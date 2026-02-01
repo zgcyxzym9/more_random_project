@@ -13,7 +13,13 @@ class Listener:
     def trigger(self, event, owner):
         for effect in self.effects:
             if type(owner).__name__ == "Player":
-                owner.game.step(action=effect)
+                if type(effect(event, owner)).__name__ == "Action":
+                    owner.game.step(owner, action=effect(event, owner))
+                else:
+                    effect(event, owner)
             else:
-                owner.owner.game.step(action=effect)
+                if type(effect(event, owner)).__name__ == "Action":
+                    owner.owner.game.step(owner.owner, action=effect(event, owner))
+                else:
+                    effect(event, owner)
             # effect.apply(event, owner)

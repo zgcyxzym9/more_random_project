@@ -1,5 +1,3 @@
-from .utils import *
-
 class Action:
     type: str = None
 
@@ -64,7 +62,11 @@ class Heal(Action):
     def __init__(self, value, source, target):
         self.type = "heal"
         self.value = value
+        self.source = source
         self.target = target
+    
+    def __str__(self):
+        return f"Healing {self.target} for {self.value} from {self.source}"
 
 class DealDamage(Action):
     def __init__(self, value, source, target):

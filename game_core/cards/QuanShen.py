@@ -11,7 +11,7 @@ class JiBanDeJiaZhi:
     hero = "QuanShen"
     name = "羁绊的价值"
     level_req = 1
-    on_play = (lambda s: Heal(s.get_corresponding_hero().current_max_hp, s.get_corresponding_hero()),)
+    on_play = (lambda s: Heal(s.get_corresponding_hero().current_max_hp, (s.get_corresponding_hero(),)),)
 
 class XinZhan:
     id = 10
@@ -33,7 +33,7 @@ class XinJiGuiChu:
     name = "心即归处"
     level_req = 2
     attributes = (CardAttributes.INSTANT,)
-    on_play = (lambda s: s.get_corresponding_hero().revive())
+    on_play = (lambda s: s.get_corresponding_hero().revive(),)
 
 class EJiZhan:
     id = 12

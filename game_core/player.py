@@ -16,7 +16,7 @@ class Player():
         self.is_first_player: bool = False
         self.heroes: list[Hero] = Hero.GetHeroes(heroes)
         self.starting_deck = deck
-        self.state: str = None
+        self.state = PlayerState.WAITING
         self.hp: int = 30
         self.current_max_hp: int = 30
         self.defense: int = 0
@@ -30,8 +30,9 @@ class Player():
         self.upgrade_remaining: int = 0
         self.candidate_targets = []
         self.pending_card: Card = None
-        self.selected_targets = []
+        self.selected_targets = None
         self.listeners = []
+        self.initial_pick_reject_left = 3
 
     def start_game(self):
         self.deck = CardList(Card.GetCards(self.starting_deck))
@@ -42,11 +43,14 @@ class Player():
             hero.assign_owner(self)
         self.hand = CardList([])
         self.used_card = CardList([])
+        for i in range(5):
+            self.draw()
+        self.state = PlayerState.INITIAL_PICK
     
     def draw(self):
         if self.deck.is_empty():
-            # should automatically concede here
-            print("deck is empty!")
+            self.hp = 0
+            self.state = PlayerState.LOST
             return
         drawn_card = self.deck.pop(0)
         self.hand.append(drawn_card)
@@ -71,7 +75,7 @@ class Player():
     
     def check_death(self):
         if self.hp <=0:
-            self.state = "lost"
+            self.state = PlayerState.LOST
     
     def clear_round_effects(self):
         for hero in self.heroes:
@@ -102,15 +106,15 @@ class Player():
     
     def get_legal_actions(self):
         match self.state:
-            case "initial pick":
+            case PlayerState.INITIAL_PICK:
                 actions = [RejectInitialPick(card) for card in self.hand]
                 actions.append(EndTurn())
                 return actions
             
-            case "playing":
+            case PlayerState.PLAYING:
                 actions = []
                 actions.append(EndTurn())
-                if not self.picked_upgrade:
+                if self.upgrade_remaining > 0:
                     for hero in self.heroes:
                         is_min_level = True
                         for hero_tmp in self.heroes:
@@ -121,9 +125,9 @@ class Player():
                     return actions
                 for card in self.hand:
                     if self.fire_cnt > 0:
-                        if [] in [req(card) for req in card.require_target]:
+                        if card.require_target is not None and [] in [req(card) for req in card.require_target]:
                             continue
-                        if card.get_corresponding_hero.state == "dead" and CardAttributes.CAN_PLAY_WHEN_DEAD not in card.attributes:
+                        if card.get_corresponding_hero().state == "dead" and CardAttributes.CAN_PLAY_WHEN_DEAD not in card.attributes:
                             continue
                         actions.append(PlayCard(card, None))
                 for hero in self.heroes:
@@ -131,7 +135,7 @@ class Player():
                         actions.append(HeroAttack(hero))
                 return actions
             
-            case "selecting target":
+            case PlayerState.SELECTING_TARGET:
                 actions = [SelectTarget(target) for target in self.candidate_targets]
                 return actions
 

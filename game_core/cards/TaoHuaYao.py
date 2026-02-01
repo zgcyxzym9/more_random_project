@@ -21,10 +21,11 @@ class HuaXinFeng:
     hero = "TaoHuaYao"
     name = "花信风"
     level_req = 1
+    require_target = (lambda s: [hero for hero in s.owner.heroes if len([card for card in s.owner.deck if card.hero == hero]) > 0],)
     attributes = (CardAttributes.INSTANT,)
-    on_play = (lambda s: select_target(s.owner, s.owner.heroes, s),
-               lambda s: DrawSelectedCardFromDeck(s.owner, r.choice([card for card in s.owner.deck if card.name == type(s.selected_targets[0]).__name__])),
-               lambda s: s.deck.shuffle())
+    select_target = (lambda s: select_target(s.owner, [hero for hero in s.owner.heroes if len([card for card in s.owner.deck if card.hero == hero]) > 0], s),)
+    on_play = (lambda s: DrawSelectedCardFromDeck(s.owner, r.choice([card for card in s.owner.deck if card.hero == s.owner.selected_targets[0].type_name])),
+               lambda s: s.owner.deck.shuffle())
 
 class TaoZhiYaoYao:
     id = 20
@@ -44,8 +45,9 @@ class FengShi:
     level_req = 2
     atk = 3
     hp = 7
-    on_play = (lambda s: s.get_corresponding_hero().listeners.append(
-        Listener("begin turn", lambda e, s: e.next_player == s.owner, (lambda e, s: Heal(3, s.get_corresponding_hero(), r.choice(IsDamaged(s.owner.heroes)))),)),)
+    on_play = (lambda s: setattr(s.get_corresponding_hero(), "listeners", getattr(s.get_corresponding_hero(), "listeners") + 
+        (Listener("begin turn", lambda e, s: e.next_player == s.owner, (
+            lambda e, s: Heal(3, s, (r.choice(IsDamaged(s.owner.heroes)) if len(IsDamaged(s.owner.heroes)) > 0 else None,)),),),)),)
 
 class TaoYuChunFeng:
     id = 22
@@ -54,8 +56,8 @@ class TaoYuChunFeng:
     name = "桃语春风"
     level_req = 2
     require_target = (lambda s: IsDead(s.owner.heroes),)
-    on_play = (lambda s: select_target(s.owner, IsDead(s.owner.heroes)),
-               lambda s: s.owner.selected_targets[0].revive(),
+    select_target = (lambda s: select_target(s.owner, IsDead(s.owner.heroes), s),)
+    on_play = (lambda s: s.owner.selected_targets[0].revive(),
                lambda s: s.owner.selected_targets[0].attributes.append(HeroAttributes.AGILE))
 
 class ShengKai:
@@ -66,9 +68,9 @@ class ShengKai:
     level_req = 3
     atk = 4
     hp = 9
-    on_play = (lambda s: s.get_corresponding_hero().counter.update("ShengKai", 2),
-               lambda s: s.get_correspond_hero().listeners.append(
-                   Listener("begin turn", lambda e, s: e.next_player == s.owner and s.owner.counter["ShengKai"] > 0 and len(IsDamaged(s.owner.heroes)) > 0, 
-                            (lambda e, s: Heal(2, s.owner, r.choice(IsDamaged(s.owner.heroes),)),
-                             lambda e, s: s.get_corresponding_hero.counter.update("ShengKai", s.get_corresponding_hero.counter["ShengKai"] - 1)))
-               ))
+    on_play = (lambda s: s.get_corresponding_hero().counter.update({"ShengKai": 2,}),
+               lambda s: setattr(s.get_corresponding_hero(), "listeners", getattr(s.get_corresponding_hero(), "listeners") + (
+                   Listener("begin turn", lambda e, s: e.next_player == s.owner and s.counter["ShengKai"] > 0 and len(IsDamaged(s.owner.heroes)) > 0, 
+                            (lambda e, s: Heal(2, s, (r.choice(IsDamaged(s.owner.heroes),),)),
+                             lambda e, s: s.counter.update({"ShengKai": s.counter["ShengKai"] - 1,}))),
+               )))

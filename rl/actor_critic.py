@@ -28,7 +28,7 @@ class ActorCritic(nn.Module):
     def forward(self, obs):
         raise NotImplementedError
 
-    def get_action_and_value(self, obs, action=None):
+    def get_action_and_value(self, obs, action=None, action_mask=None):
         """
         用于训练：
         - 采样动作
@@ -36,6 +36,8 @@ class ActorCritic(nn.Module):
         - 计算 value
         """
         logits = self.actor(obs)
+        if action_mask is not None:
+            logits = logits.masked_fill(action_mask, float('-inf'))
         dist_ = dist.Categorical(logits=logits)
 
         if action is None:

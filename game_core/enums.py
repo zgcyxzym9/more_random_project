@@ -7,3 +7,11 @@ class CardAttributes(IntEnum):
 
 class HeroAttributes(IntEnum):
     AGILE = 1
+
+class PlayerState(IntEnum):
+    INITIAL_PICK = 1
+    PLAYING = 2
+    WAITING = 3
+    SELECTING_TARGET = 4
+    LOST = 5
+    WON = 6

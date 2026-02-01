@@ -17,8 +17,12 @@ class Card(Entity):
                 self.buff_def = card_obj.buff_def
         if hasattr(card_obj, "on_play"):
             self.on_play = card_obj.on_play
+        if self.type == "morph":
+            self.hp = card_obj.hp
+            self.atk = card_obj.atk
         self.attributes = card_obj.attributes if hasattr(card_obj, "attributes") else []
-        self.require_target = card_obj.require_target if hasattr(card_obj, "require_target") else []
+        self.require_target = card_obj.require_target if hasattr(card_obj, "require_target") else None
+        self.select_target = card_obj.select_target if hasattr(card_obj, "select_target") else None
         self.listeners = card_obj.listeners if hasattr(card_obj, "listeners") else []
         self.owner = None
 
@@ -43,7 +47,7 @@ class Card(Entity):
         self.owner = player
 
     def get_corresponding_hero(self):
-        from hero import Hero
+        from .hero import Hero
         for hero in self.owner.heroes:
             if Hero.GetHero(self.hero).name == hero.name:
                 return hero

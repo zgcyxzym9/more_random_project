@@ -14,6 +14,7 @@ class Game:
         self.current_player:Player = None
         self.state:str = None
         self.action_queue:list = []
+        self.pending_card: Card = None
 
 
     def pick_first_player(self):
@@ -24,32 +25,11 @@ class Game:
             return self.player2, self.player1
         
 
-    def initial_pick(self):
-        self.player1.state = "initial pick"
-        self.player2.state = "initial pick"
-        for i in range(5):
-            self.player1.draw()
-        
-        for i in range(3):
-            action = self.player1.agent.act()
-            self.step(self.player1, action)
-        
-        for i in range(5):
-            self.player2.draw()
-        
-        for i in range(3):
-            action = self.player2.agent.act()
-            self.step(self.player2, action)
-
-        self.state = "playing"
-        self.current_player = self.player1
-    
-
     def begin_turn(self):
         self.broadcast("begin turn", next_player=self.current_player)
         self.turn_count += 1
-        self.current_player.state = "playing"
-        self.current_player.opponent.state = "waiting"
+        self.current_player.state = PlayerState.PLAYING
+        self.current_player.opponent.state = PlayerState.WAITING
         self.current_player.attack_available = True
         self.current_player.fire_cnt = 2
         self.current_player.instant_used = False
@@ -70,7 +50,7 @@ class Game:
 
     
     def check_end_condition(self):
-        if self.player1.state == "lost" or self.player2.state == "lost":
+        if self.player1.state == PlayerState.LOST or self.player2.state == PlayerState.LOST:
             return True
         return False
     
@@ -84,21 +64,22 @@ class Game:
 
     
     def iter_entities(self):
-        yield from self.players
-        for player in self.players:
-            yield from player.hand
-            yield from player.secrets
-            yield from player.board
-            yield from player.graveyard
+        yield self.player1
+        yield self.player2
+        yield from self.player1.hand
+        yield from self.player2.hand
+        yield from self.player1.heroes
+        yield from self.player2.heroes
 
 
     def step(self, player:Player, action:Action):
-        self.broadcast(action.type, action)
+        self.broadcast(action.type, action=action)
+        # print(f"player {player} uses action {action}")
         if hasattr(action, "revert") and action.revert == True:
             return
         match action.type:
             case "reject initial pick":
-                if self.state != "initial pick":
+                if player.state != PlayerState.INITIAL_PICK:
                     print("trying to reject initial pick while playing, will ignore")
                     return
                 if type(action.card) is not Card:
@@ -107,8 +88,16 @@ class Game:
                 player.hand.remove(action.card)
                 player.deck.append(action.card)
                 player.hand.append(player.deck.pop(0))
+                player.initial_pick_reject_left -= 1
+                if player.initial_pick_reject_left == 0:
+                    self.step(player, EndTurn())
             
             case "end turn":
+                if player.state == PlayerState.INITIAL_PICK:
+                    player.state = PlayerState.WAITING
+                    self.current_player = self.current_player.opponent
+                    self.begin_turn()
+                    return
                 if not self.current_player == player:
                     print("trying to end a turn when it's not his turn, will ignore")
                     return
@@ -128,8 +117,8 @@ class Game:
                 if type(action.hero) != Hero:
                     print("target to upgrade is not a hero")
                     return
-                if action.hero not in player.heroes:
-                    print("hero to upgrade does not belong to player")
+                if action.hero.owner is not player:
+                    print(f"hero to upgrade does not belong to player, hero belongs to {action.hero.owner} but player is {player}")
                     return
                 for hero in player.heroes:
                     if hero.level < action.hero.level:
@@ -178,9 +167,9 @@ class Game:
                     return
                 player.advance_hero(action.hero)
                 if player.opponent.attack_zone is not None:
-                    self.step(player, EntitiesAttack(action.hero, player.opponent.attack_zone))
+                    self.attack(action.hero, player.opponent.attack_zone)
                 else:
-                    self.step(player, EntitiesAttack(action.hero, player.opponent))
+                    self.attack(action.hero, player.opponent)
                 player.fire_cnt -= 1
                 player.attack_available = False
             
@@ -192,20 +181,26 @@ class Game:
                     print("trying to attack with a dead hero by card")
                     return
                 player.advance_hero(action.hero)
-                if hasattr("buff_atk", action.card):
-                    hero.atk += action.card.buff_atk
+                if hasattr(action.card, "buff_atk"):
+                    action.hero.atk += action.card.buff_atk
                 if player.opponent.attack_zone is not None:
                     self.attack(action.hero, player.opponent.attack_zone)
                 else:
                     self.attack(action.hero, player.opponent)
-                if hasattr("buff_atk", action.card):
-                    hero.atk -= action.card.buff_atk
+                if hasattr(action.card, "buff_atk"):
+                    action.hero.atk -= action.card.buff_atk
             
             case "call selector":
                 action.func(action.player, action.target_list, action.card)
             
             case "select target":
                 player.selected_targets = [action.target]
+                player.state = PlayerState.PLAYING
+                player.candidate_targets = []
+                player.pending_card = None
+                self.play_card(player, self.pending_card,)
+                self.pending_card = None
+                player.selected_targets = None
 
             case "give buff":
                 for e in action.target:
@@ -252,7 +247,14 @@ class Game:
                 action.player.hand.append(action.card)
 
 
-    def play_card(self, player:Player, card:Card, target):
+    def play_card(self, player:Player, card:Card, target=None):
+        if card.select_target is not None:
+            if player.selected_targets is None:
+                self.pending_card = card
+                for event in card.select_target:
+                    event(card)
+                return
+                
         match card.type:
             case "attack":
                 if hasattr(card, "on_play"):
@@ -262,7 +264,7 @@ class Game:
                         else:
                             event(card)
                 for hero in player.heroes:
-                    if hero.name == card.hero:
+                    if hero.type_name == card.hero:
                         attacking_hero = hero
                 if hasattr(card, "buff_def"):
                     attacking_hero.defense += card.buff_def
@@ -294,6 +296,7 @@ class Game:
                 card.get_corresponding_hero().hp = card.hp
 
         player.move_card_to_used(card)
+        player.selected_targets = None
         player.fire_cnt -= 1
 
 
@@ -308,8 +311,8 @@ class Game:
             atk2 += entity2.atk
         if hasattr(entity2, "round_buff_atk"):
             atk2 += entity2.round_buff_atk
-        self.step(DealDamage(atk1, entity1, entity2))
-        self.step(DealDamage(atk2, entity2, entity1))
+        self.step(self.current_player, DealDamage(atk1, entity1, [entity2,]))
+        self.step(self.current_player, DealDamage(atk2, entity2, [entity1,]))
 
 
     def start_game(self):
@@ -323,17 +326,16 @@ class Game:
         self.player2 = second
         self.player1.is_first_player = True
         self.player2.is_first_player = False
+        self.current_player = first
 
         self.player1.start_game()
         self.player2.start_game()
 
-        self.state = "initial pick"
+        self.state = "playing"
 
     
     def play(self):
         self.start_game()
-        self.pick_first_player()
-        self.initial_pick()
         self.begin_turn()
 
         while True:
@@ -351,7 +353,7 @@ class Game:
         opponent_heroes = player.opponent.heroes
         player_deck_size = len(player.deck)
         opponent_deck_size = len(player.opponent.deck)
-        player_hand = [card.name for card in player.hand.cards]
+        player_hand = player.hand
         opponent_hand_size = len(player.opponent.hand)
         player_starting_deck = player.starting_deck
         fire_remaining = player.fire_cnt

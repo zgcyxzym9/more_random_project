@@ -29,6 +29,9 @@ class CardList(list[Card]):
 
     def is_empty(self):
         return len(self.cards) == 0
+    
+    def index(self, card):
+        return self.cards.index(card)
 
     def contain(self, card:str):
         for c in self.cards:

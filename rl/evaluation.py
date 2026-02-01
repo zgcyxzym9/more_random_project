@@ -1,0 +1,35 @@
+import sys
+sys.path.insert(0, "E:\more_random_project")
+import torch
+from actor_critic import ActorCritic
+from env.env import RandomOpponentGameEnv
+
+def eval(env, model_path="ppo_actor_critic.pt"):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    obs_dim = 155
+    # end_turn + upgrade + attack + play_card_by_slot + select_target + reject_initial_pick
+    act_dim = 1 + 4 + 4 + 15 + 10 + 5 # 39
+
+    model = ActorCritic(obs_dim, act_dim).to(device)
+    model.load_state_dict(torch.load(model_path))
+    model.eval()
+
+    total = 100
+    won = 0
+
+    for i in range(total):
+        obs = torch.tensor(env.reset(), dtype=torch.float32, device=device)
+
+        done = False
+        while not done:
+            with torch.no_grad():
+                action = model.act_inference(obs)
+
+            obs, _, done, _ = env.step(action.item())
+            obs = torch.tensor(obs, dtype=torch.float32, device=device)
+        if env.game.player1.state != 5 and env.game.player2.state == 5:
+            won += 1
+        print(f"{won} / {i + 1}")
+
+eval(RandomOpponentGameEnv())

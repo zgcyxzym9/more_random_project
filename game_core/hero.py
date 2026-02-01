@@ -83,7 +83,7 @@ class Hero(Entity):
         self.current_max_hp = self.original_hp
         self.atk = self.original_atk
         self.defense = 0
-        self.listeners = self.GetHero(self.type_name).listeners
+        self.listeners = Hero.GetHero(self.type_name).listeners
         self.morphed_id = 0
         self.round_until_alive = 0
         self.state = "pending"

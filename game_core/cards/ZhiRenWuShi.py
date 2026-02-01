@@ -19,7 +19,7 @@ class WuShiZhiDi:
     name = "武士之笛"
     level_req = 1
     attributes = (CardAttributes.INSTANT,)
-    on_play = (lambda s: GiveBuff("round_buff_atk", 1, s.owner.heroes),)
+    on_play = (lambda s: GiveBuff("round_buff_atk", 1, s.get_corresponding_hero(), s.owner.heroes),)
 
 
 class WuShiZhiLi:
@@ -28,9 +28,9 @@ class WuShiZhiLi:
     hero = "ZhiRenWuShi"
     name = "武士之笠"
     level_req = 2
-    on_play = (lambda s: GiveBuff("current_max_hp", 2, s.get_corresponding_hero()), 
-               lambda s: GiveBuff("hp", 2, s.get_corresponding_hero()), 
-               lambda s: GiveBuff("atk", 2, s.get_corresponding_hero()))
+    on_play = (lambda s: GiveBuff("current_max_hp", 2, s.get_corresponding_hero(), s.get_corresponding_hero()), 
+               lambda s: GiveBuff("hp", 2, s.get_corresponding_hero(), s.get_corresponding_hero()), 
+               lambda s: GiveBuff("atk", 2, s.get_corresponding_hero(), s.get_corresponding_hero()))
 
 class WuShiZhiRen:
     id = 4
