@@ -16,7 +16,9 @@ class PPO:
         self.value_coef = value_coef
         self.entropy_coef = entropy_coef
 
-    def update(self, buffer, returns, advantages, epochs=4, batch_size=64):
+    def update(self, buffer, returns, advantages, epochs=4, batch_size=512):
+        mean_policy_loss = 0
+        mean_value_loss = 0
         for _ in range(epochs):
             indices = torch.randperm(buffer.size)
 
@@ -46,6 +48,13 @@ class PPO:
                     - self.entropy_coef * entropy_loss
                 )
 
+                mean_policy_loss += policy_loss.item()
+                mean_value_loss += value_loss.item()
+
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
+
+        mean_policy_loss /= epochs * buffer.size / batch_size
+        mean_value_loss /= epochs * buffer.size / batch_size
+        return mean_value_loss, mean_policy_loss
