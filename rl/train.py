@@ -25,6 +25,8 @@ def train(env, total_steps=2_000_000, rollout_size=4096):
     log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     log_dir = os.path.join("logs", log_dir)
     writer = SummaryWriter(log_dir)
+    # load model here to resume training
+    model.load_state_dict(torch.load("2026-02-05_23-00-51_wr83.pt"))
 
     obs = torch.tensor(env.reset(), dtype=torch.float32, device=device)
 

@@ -4,7 +4,7 @@ import torch
 from actor_critic import ActorCritic
 from env.env import RandomOpponentGameEnv
 
-def eval(env, model_path="ppo_actor_critic.pt"):
+def eval(env, model_path="./logs/2026-02-13_22-21-10/ppo_actor_critic.pt"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     obs_dim = 155
@@ -24,7 +24,8 @@ def eval(env, model_path="ppo_actor_critic.pt"):
         done = False
         while not done:
             with torch.no_grad():
-                action = model.act_inference(obs)
+                action_mask = env.get_action_masks(player=env.player1)
+                action = model.act_inference(obs, action_mask)
 
             obs, _, done, _ = env.step(action.item())
             obs = torch.tensor(obs, dtype=torch.float32, device=device)

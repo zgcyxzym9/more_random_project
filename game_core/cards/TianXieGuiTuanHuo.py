@@ -38,4 +38,4 @@ class TianXieGuiLvPaiDa:
     hero = "TianXieGuiTuanHuo"
     name = "天邪鬼绿·拍打"
     level_req = 3
-    on_play = (lambda s: DealDamage(4, s.get_corresponding_hero(), s.owner.opponent),)
+    on_play = (lambda s: DealDamage(4, s.get_corresponding_hero(), [s.owner.opponent]),)

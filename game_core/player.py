@@ -4,7 +4,10 @@ from .card import Card
 from .hero import Hero
 from .entity import Entity
 from .enums import *
+import os
 
+
+# Player: generic, can directly use for training
 class Player():
     def __init__(self, deck:list[str], heroes:list[str]):
         from .game import Game
@@ -43,6 +46,9 @@ class Player():
             hero.assign_owner(self)
         self.hand = CardList([])
         self.used_card = CardList([])
+        self.heroes[0].Upgrade()
+        if not self.is_first_player:
+            self.defense = 5
         for i in range(5):
             self.draw()
         self.state = PlayerState.INITIAL_PICK
@@ -73,6 +79,11 @@ class Player():
         hero.defense += hero.inspiration_def
         hero.inspiration_def = 0
     
+    def retract_hero(self):
+        if self.attack_zone is not None:
+            self.attack_zone.state = "pending"
+            self.attack_zone = None
+    
     def check_death(self):
         if self.hp <=0:
             self.state = PlayerState.LOST
@@ -95,11 +106,15 @@ class Player():
     
     def GiveCardToHand(self, cards:list[str]):
         for card in cards:
-            self.hand.append(Card.GetCard(card))
+            card_obj = Card.GetCard(card)
+            card_obj.assign_owner(self)
+            self.hand.append(card_obj)
     
     def GiveCardToDeck(self, cards:list[str]):
         for card in cards:
-            self.deck.append(Card.GetCard(card))
+            card_obj = Card.GetCard(card)
+            card_obj.assign_owner(self)
+            self.deck.append(card_obj)
     
     def can_end_turn(self):
         return self.game.current_player is self and self.upgrade_remaining == 0
@@ -113,7 +128,6 @@ class Player():
             
             case PlayerState.PLAYING:
                 actions = []
-                actions.append(EndTurn())
                 if self.upgrade_remaining > 0:
                     for hero in self.heroes:
                         is_min_level = True
@@ -123,6 +137,7 @@ class Player():
                         if hero.level < 3 and is_min_level:
                             actions.append(UpgradeHero(hero))
                     return actions
+                actions.append(EndTurn())
                 for card in self.hand:
                     if self.fire_cnt > 0:
                         if card.require_target is not None and [] in [req(card) for req in card.require_target]:
@@ -142,3 +157,33 @@ class Player():
             case _:
                 print(f"getting legal actions with an undefined state {self.state}, check code!")
                 return []
+
+
+"""
+InferencePlayer: for full game inference, DO NOT USE FOR TRAINING OR 
+PLAYING WITH THE SIMULATOR
+"""
+class InferencePlayer(Player):
+    def __init__(self, deck:list[str], heroes:list[str]):
+        super().__init__(deck, heroes)
+        root_dict = "E:/more_random_project"
+        with open(os.path.join(root_dict, "game_core/cards/card_names.txt"), 'r', encoding='utf-8') as file:
+            self.card_names = [line.strip() for line in file if line.strip()]
+        with open(os.path.join(root_dict, "game_core/hero_names.txt"), 'r', encoding='utf-8') as file:
+            self.hero_names = [line.strip() for line in file if line.strip()]
+
+    """
+    The implementation of this draw function will generate a card from 
+    nowhere and pop a random card from the deck, and therefore should only 
+    be used in circumstances where you will determine drawn cards manually.
+    """
+    def draw(self):
+        from rl.utils import match_by_caps
+        while True:
+            _ = input(f"Please enter the name of the card you just drawn: ")
+            card_name = match_by_caps(self.card_names, _)
+            if card_name is not None:
+                self.GiveCardToHand([card_name])
+                break
+        self.deck.pop()
+

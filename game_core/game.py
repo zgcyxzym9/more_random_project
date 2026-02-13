@@ -28,16 +28,21 @@ class Game:
     def begin_turn(self):
         self.broadcast("begin turn", next_player=self.current_player)
         self.turn_count += 1
-        self.current_player.state = PlayerState.PLAYING
+        self.current_player.state = PlayerState.PLAYING if self.current_player.initial_pick_reject_left == 0 else PlayerState.INITIAL_PICK
         self.current_player.opponent.state = PlayerState.WAITING
         self.current_player.attack_available = True
         self.current_player.fire_cnt = 2
         self.current_player.instant_used = False
         self.current_player.upgrade_remaining = 1
+        self.current_player.retract_hero()
         if self.current_player.is_first_player and self.turn_count == 13:
             self.current_player.upgrade_remaining += 1
         if not self.current_player.is_first_player and self.turn_count == 6:
             self.current_player.upgrade_remaining += 1
+        avail_upgrades = 0
+        for hero in self.current_player.heroes:
+            avail_upgrades += 3 - hero.level
+        self.current_player.upgrade_remaining = min(self.current_player.upgrade_remaining, avail_upgrades)
         self.player1.clear_round_effects()
         self.player2.clear_round_effects()
         for hero in self.player1.heroes:
@@ -46,7 +51,8 @@ class Game:
                 if hero.round_until_alive <= 0:
                     hero.revive()
 
-        self.current_player.draw()
+        if self.current_player.state != PlayerState.INITIAL_PICK:
+            self.current_player.draw()
 
     
     def check_end_condition(self):
@@ -73,8 +79,9 @@ class Game:
 
 
     def step(self, player:Player, action:Action):
+        if action is None:
+            return
         self.broadcast(action.type, action=action)
-        # print(f"player {player} uses action {action}")
         if hasattr(action, "revert") and action.revert == True:
             return
         match action.type:
@@ -95,6 +102,7 @@ class Game:
             case "end turn":
                 if player.state == PlayerState.INITIAL_PICK:
                     player.state = PlayerState.WAITING
+                    player.initial_pick_reject_left = 0
                     self.current_player = self.current_player.opponent
                     self.begin_turn()
                     return
@@ -259,10 +267,10 @@ class Game:
             case "attack":
                 if hasattr(card, "on_play"):
                     for event in card.on_play:
-                        if type(event(card)).__name__ == "Action":
-                            self.step(player, event(card))
-                        else:
+                        if type(event(card)).__name__ == "function":
                             event(card)
+                        else:
+                            self.step(player, event(card))
                 for hero in player.heroes:
                     if hero.type_name == card.hero:
                         attacking_hero = hero
@@ -271,26 +279,26 @@ class Game:
                 self.step(player, HeroAttackByCard(attacking_hero, card))
                 if hasattr(card, "after_play"):
                     for event in card.after_play:
-                        if type(event(card)).__name__ == "Action":
-                            self.step(player, event(card))
-                        else:
+                        if type(event(card)).__name__ == "function":
                             event(card)
+                        else:
+                            self.step(player, event(card))
 
             case "spell":
                 if hasattr(card, "on_play"):
                     for event in card.on_play:
-                        if type(event(card)).__name__ == "Action":
-                            self.step(player, event(card))
-                        else:
+                        if type(event(card)).__name__ == "function":
                             event(card)
+                        else:
+                            self.step(player, event(card))
             
             case "morph":
                 if hasattr(card, "on_play"):
                     for event in card.on_play:
-                        if type(event(card)).__name__ == "Action":
-                            self.step(player, event(card))
-                        else:
+                        if type(event(card)).__name__ == "function":
                             event(card)
+                        else:
+                            self.step(player, event(card))
                 card.get_corresponding_hero().current_max_hp = card.hp
                 card.get_corresponding_hero().atk = card.atk
                 card.get_corresponding_hero().hp = card.hp
@@ -348,7 +356,9 @@ class Game:
         game_state = self.state
         turn_count = self.turn_count
         player_hp = player.hp
+        player_defense = player.defense
         opponent_hp = player.opponent.hp
+        opponent_defense = player.opponent.defense
         player_heroes = player.heroes
         opponent_heroes = player.opponent.heroes
         player_deck_size = len(player.deck)
@@ -365,7 +375,9 @@ class Game:
             "game_state": game_state,
             "turn_count": turn_count,
             "player_hp": player_hp,
+            "player_defense": player_defense,
             "opponent_hp": opponent_hp,
+            "opponent_defense": opponent_defense,
             "player_heroes": player_heroes,
             "opponent_heroes": opponent_heroes,
             "player_deck_size": player_deck_size,

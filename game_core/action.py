@@ -74,6 +74,9 @@ class DealDamage(Action):
         self.value = value
         self.source = source
         self.target = target
+    
+    def __str__(self):
+        return f"Dealing {self.value} damage to {self.target} from {self.source}"
 
 class CallSelector(Action):
     def __init__(self, func, player, target_list, card):

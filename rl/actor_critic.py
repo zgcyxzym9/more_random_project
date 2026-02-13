@@ -53,10 +53,12 @@ class ActorCritic(nn.Module):
 
         return action, log_prob, entropy, value
 
-    def act_inference(self, obs):
+    def act_inference(self, obs, action_mask=None):
         """
         用于推理（不采样、不算 log_prob）
         """
         logits = self.actor(obs)
+        if action_mask is not None:
+            logits = logits.masked_fill(action_mask, float('-inf'))
         action = torch.argmax(logits, dim=-1)
         return action

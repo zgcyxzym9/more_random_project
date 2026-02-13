@@ -23,7 +23,7 @@ class IOAgent(Agent):
                 print(f"Your heroes: {state["player_heroes"]}")
                 print(f"Your hand: {state["player_hand"]}")
             case "playing":
-                print(f"Opponent hp: {state["opponent_hp"]}           Opponent hand size: {state["opponent_hand_size"]}           Opponent deck size: {state["opponent_deck_size"]}")
+                print(f"Opponent hp: {state["opponent_hp"]}+{state["opponent_defense"]}           Opponent hand size: {state["opponent_hand_size"]}           Opponent deck size: {state["opponent_deck_size"]}")
                 print("")
                 print(f"Opponent heroes: ")
                 for hero in state["opponent_heroes"]:
@@ -65,5 +65,5 @@ class IOAgent(Agent):
                 for card in state["player_hand"]:
                     print(card, end="    ")
                 print("\n")
-                print(f"Your hp: {state["player_hp"]}    Attack available: {state["attack_available"]}    Your fire count: {state["fire_remaining"]}    Your deck size: {state["player_deck_size"]}")
+                print(f"Your hp: {state["player_hp"]}+{state["player_defense"]}    Attack available: {state["attack_available"]}    Your fire count: {state["fire_remaining"]}    Your deck size: {state["player_deck_size"]}")
                 print("")

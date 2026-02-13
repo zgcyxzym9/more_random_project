@@ -4,18 +4,32 @@ sys.path.insert(0, "E:\more_random_project")
 from game_core.game import Game
 from game_core.player import Player
 from game_core.card import Card
+from rl.actor_critic import ActorCritic
 from .actions import *
 from game_core.action import *
 import torch
 
 class RandomOpponentGameEnv:
+    def __init__(self):
+        self.model = ActorCritic(155, 39).to(device="cuda")
+        self.model.load_state_dict(torch.load("./logs/2026-02-05_23-00-51/ppo_actor_critic.pt"))
+
+
     def step(self, action):
         original_state = self.game.get_observations(self.player1)
         self.game.step(self.player1, self.decode_action(self.player1, action))
-        while self.game.current_player is not self.player1 and not self.game.check_end_condition():
-            import random as r
-            legal_actions = self.get_legal_actions(self.player2)
-            self.game.step(self.player2, self.decode_action(self.player2, r.choice(legal_actions)))
+        if self.opponent == "random":
+            while self.game.current_player is not self.player1 and not self.game.check_end_condition():
+                import random as r
+                legal_actions = self.get_legal_actions(self.player2)
+                self.game.step(self.player2, self.decode_action(self.player2, r.choice(legal_actions)))
+        else:
+            while self.game.current_player is not self.player1 and not self.game.check_end_condition():
+                with torch.inference_mode():
+                    action_mask = self.get_action_masks(self.player2)
+                    obs = torch.tensor(self.get_obs(self.player2), dtype=torch.float32, device="cuda")
+                    action = self.model.act_inference(obs, action_mask)
+                    self.game.step(self.player2, self.decode_action(self.player2, action))
         
         done = self.game.check_end_condition()
         new_state = self.game.get_observations(self.player1)
@@ -25,14 +39,23 @@ class RandomOpponentGameEnv:
         
 
     def reset(self):
-        self.player1 = Player(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZhiDi", "WuShiZhiLi", "WuShiZhiLi", "WuShiZhiRen", "WuShiZhiRen", "TianXieGuiChiRanShao", "TianXieGuiChiRanShao", "TianXieGuiHuangGuWu", "TianXieGuiHuangGuWu", "TianXieGuiQingYuanJi", "TianXieGuiQingYuanJi", "TianXieGuiLvPaiDa", "TianXieGuiLvPaiDa", "XinZhan", "XinZhan", "XinJiGuiChu", "XinJiGuiChu", "EJiZhan", "EJiZhan", "XinJianLuanWu", "XinJianLuanWu", "HuaXinFeng", "HuaXinFeng", "TaoZhiYaoYao", "FengShi", "FengShi", "TaoYuChunFeng", "TaoYuChunFeng", "ShengKai"], ["ZhiRenWuShi", "TianXieGuiTuanHuo", "QuanShen", "TaoHuaYao"])
-        self.player2 = Player(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZhiDi", "WuShiZhiLi", "WuShiZhiLi", "WuShiZhiRen", "WuShiZhiRen", "TianXieGuiChiRanShao", "TianXieGuiChiRanShao", "TianXieGuiHuangGuWu", "TianXieGuiHuangGuWu", "TianXieGuiQingYuanJi", "TianXieGuiQingYuanJi", "TianXieGuiLvPaiDa", "TianXieGuiLvPaiDa", "XinZhan", "XinZhan", "XinJiGuiChu", "XinJiGuiChu", "EJiZhan", "EJiZhan", "XinJianLuanWu", "XinJianLuanWu", "HuaXinFeng", "HuaXinFeng", "TaoZhiYaoYao", "FengShi", "FengShi", "TaoYuChunFeng", "TaoYuChunFeng", "ShengKai"], ["ZhiRenWuShi", "TianXieGuiTuanHuo", "QuanShen", "TaoHuaYao"])
+        self.player1 = Player(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZhiDi", "WuShiZhiLi", "WuShiZhiLi", "WuShiZhiRen", "WuShiZhiRen", "TianXieGuiChiRanShao", "TianXieGuiChiRanShao", "TianXieGuiHuangGuWu", "TianXieGuiHuangGuWu", "TianXieGuiQingYuanJi", "TianXieGuiQingYuanJi", "TianXieGuiLvPaiDa", "TianXieGuiLvPaiDa", "XinZhan", "XinZhan", "XinJiGuiChu", "XinJiGuiChu", "EJiZhan", "EJiZhan", "XinJianLuanWu", "XinJianLuanWu", "TaoZhiXinXi", "TaoZhiXinXi", "HuaXinFeng", "HuaXinFeng", "FengShi", "FengShi", "TaoYuChunFeng", "TaoYuChunFeng", "ShengKai"], ["ZhiRenWuShi", "TianXieGuiTuanHuo", "QuanShen", "TaoHuaYao"])
+        self.player2 = Player(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZhiDi", "WuShiZhiLi", "WuShiZhiLi", "WuShiZhiRen", "WuShiZhiRen", "TianXieGuiChiRanShao", "TianXieGuiChiRanShao", "TianXieGuiHuangGuWu", "TianXieGuiHuangGuWu", "TianXieGuiQingYuanJi", "TianXieGuiQingYuanJi", "TianXieGuiLvPaiDa", "TianXieGuiLvPaiDa", "XinZhan", "XinZhan", "XinJiGuiChu", "XinJiGuiChu", "EJiZhan", "EJiZhan", "XinJianLuanWu", "XinJianLuanWu", "TaoZhiXinXi", "TaoZhiXinXi", "HuaXinFeng", "HuaXinFeng", "FengShi", "FengShi", "TaoYuChunFeng", "TaoYuChunFeng", "ShengKai"], ["ZhiRenWuShi", "TianXieGuiTuanHuo", "QuanShen", "TaoHuaYao"])
         self.game = Game([self.player1, self.player2])
         self.game.start_game()
-        while self.game.current_player is not self.player1 and not self.game.check_end_condition():
-            import random as r
-            legal_actions = self.get_legal_actions(self.player2)
-            self.game.step(self.player2, self.decode_action(self.player2, r.choice(legal_actions)))
+        self.get_opponent_agent()
+        if self.opponent == "random":
+            while self.game.current_player is not self.player1 and not self.game.check_end_condition():
+                import random as r
+                legal_actions = self.get_legal_actions(self.player2)
+                self.game.step(self.player2, self.decode_action(self.player2, r.choice(legal_actions)))
+        else:
+            while self.game.current_player is not self.player1 and not self.game.check_end_condition():
+                with torch.inference_mode():
+                    action_mask = self.get_action_masks(self.player2)
+                    obs = torch.tensor(self.get_obs(self.player2), dtype=torch.float32, device="cuda")
+                    action = self.model.act_inference(obs, action_mask)
+                    self.game.step(self.player2, self.decode_action(self.player2, action))
         return self.get_obs(self.player1)
 
     def get_obs(self, player):
@@ -162,3 +185,10 @@ class RandomOpponentGameEnv:
         reward += (original_state["opponent_hp"] - new_state["opponent_hp"]) * 2
         reward += (original_state["fire_remaining"] - new_state["fire_remaining"]) * 1
         return reward
+    
+
+    def get_opponent_agent(self):
+        import random as r
+        x = r.random()
+        # self.opponent = "random" if x < 0.5 else "trained"
+        self.opponent = "random"

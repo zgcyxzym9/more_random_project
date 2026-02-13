@@ -12,8 +12,9 @@ class TaoZhiXinXi:
     hero = "TaoHuaYao"
     name = "桃之馨息"
     level_req = 1
-    on_play = (lambda s: select_target(s.owner, IsDamaged(s.owner.heroes + s.owner.opponent.heroes + s.owner + s.owner.opponent), s),
-               lambda s: Heal(5, s, s.owner.selected_targets))
+    require_target = (lambda s: IsDamaged(s.owner.heroes + s.owner.opponent.heroes + [s.owner, s.owner.opponent]),)
+    select_target = (lambda s: select_target(s.owner, IsDamaged(s.owner.heroes + s.owner.opponent.heroes + [s.owner, s.owner.opponent]), s),)
+    on_play = (lambda s: Heal(5, s, s.owner.selected_targets),)
 
 class HuaXinFeng:
     id = 19

@@ -16,7 +16,7 @@ class PPO:
         self.value_coef = value_coef
         self.entropy_coef = entropy_coef
 
-    def update(self, buffer, returns, advantages, epochs=4, batch_size=512):
+    def update(self, buffer, returns, advantages, epochs=4, batch_size=1024):
         mean_policy_loss = 0
         mean_value_loss = 0
         for _ in range(epochs):
