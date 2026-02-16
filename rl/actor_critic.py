@@ -9,24 +9,24 @@ class ActorCritic(nn.Module):
 
         # Actor
         self.actor = nn.Sequential(
-            nn.Linear(obs_dim, 1024),
+            nn.Linear(obs_dim, 384),
             nn.ReLU(),
-            nn.Linear(1024, 512),
+            nn.Linear(384, 256),
             nn.ReLU(),
-            nn.Linear(512, 512),
+            nn.Linear(256, 128),
             nn.ReLU(),
-            nn.Linear(512, act_dim)
+            nn.Linear(128, act_dim)
         )
 
         # Critic
         self.critic = nn.Sequential(
-            nn.Linear(obs_dim, 1024),
+            nn.Linear(obs_dim, 384),
             nn.ReLU(),
-            nn.Linear(1024, 512),
+            nn.Linear(384, 256),
             nn.ReLU(),
-            nn.Linear(512, 512),
+            nn.Linear(256, 128),
             nn.ReLU(),
-            nn.Linear(512, 1)
+            nn.Linear(128, 1)
         )
 
     def forward(self, obs):

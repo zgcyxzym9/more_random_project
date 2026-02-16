@@ -10,6 +10,7 @@ class Card(Entity):
         self.hero = card_obj.hero
         self.level_req = card_obj.level_req
         self.name = card_obj.name
+        self.eng_name = type(card_obj).__name__
         if self.type == "attack":
             if hasattr(card_obj, "buff_atk"):
                 self.buff_atk = card_obj.buff_atk

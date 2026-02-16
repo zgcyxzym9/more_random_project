@@ -4,19 +4,20 @@ class PPO:
     def __init__(
         self,
         model,
-        lr=3e-4,
+        lr=5e-5,
+        weight_decay = 1e-4,
         clip_ratio=0.2,
-        value_coef=0.5,
+        value_coef=0.35,
         entropy_coef=0.01,
     ):
         self.model = model
-        self.optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+        self.optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
         self.clip_ratio = clip_ratio
         self.value_coef = value_coef
         self.entropy_coef = entropy_coef
 
-    def update(self, buffer, returns, advantages, epochs=4, batch_size=1024):
+    def update(self, buffer, returns, advantages, epochs=4, batch_size=2048):
         mean_policy_loss = 0
         mean_value_loss = 0
         for _ in range(epochs):
@@ -57,4 +58,5 @@ class PPO:
 
         mean_policy_loss /= epochs * buffer.size / batch_size
         mean_value_loss /= epochs * buffer.size / batch_size
-        return mean_value_loss, mean_policy_loss
+        mean_reward = returns.mean().item()
+        return mean_value_loss, mean_policy_loss, entropy_loss, mean_reward

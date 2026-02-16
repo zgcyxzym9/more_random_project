@@ -11,14 +11,16 @@ class Listener:
         )
 
     def trigger(self, event, owner):
+        from .action import Action
+        from .player import Player
         for effect in self.effects:
-            if type(owner).__name__ == "Player":
-                if type(effect(event, owner)).__name__ == "Action":
+            if isinstance(owner, Player):
+                if isinstance(effect(event, owner), Action):
                     owner.game.step(owner, action=effect(event, owner))
                 else:
                     effect(event, owner)
             else:
-                if type(effect(event, owner)).__name__ == "Action":
+                if isinstance(effect(event, owner), Action):
                     owner.owner.game.step(owner.owner, action=effect(event, owner))
                 else:
                     effect(event, owner)

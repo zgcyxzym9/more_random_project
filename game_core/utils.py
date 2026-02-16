@@ -35,6 +35,6 @@ class CardList(list[Card]):
 
     def contain(self, card:str):
         for c in self.cards:
-            if type(c).__name__ == card:
+            if c.eng_name == card:
                 return True
         return False

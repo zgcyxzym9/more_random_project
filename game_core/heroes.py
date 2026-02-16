@@ -33,4 +33,4 @@ class TaoHuaYao:
     hp = 6
     listeners = (Listener("heal", 
                           lambda e, s: e.action.target in s.owner.heroes and (e.action.source.owner == s if type(e).__name__ == "Card" else e.action.source == s), 
-                          (lambda e, s: GiveBuff("atk", 1, s, e.action.target),)),)
+                          (lambda e, s: GiveBuff("atk", 1, s, [e.action.target,]),)),)

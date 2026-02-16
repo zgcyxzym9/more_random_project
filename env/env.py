@@ -11,8 +11,9 @@ import torch
 
 class RandomOpponentGameEnv:
     def __init__(self):
-        self.model = ActorCritic(155, 39).to(device="cuda")
-        self.model.load_state_dict(torch.load("./logs/2026-02-05_23-00-51/ppo_actor_critic.pt"))
+        pass
+        # self.model = ActorCritic(243, 39).to(device="cuda")
+        # self.model.load_state_dict(torch.load("./logs/2026-02-13_23-24-29/ppo_actor_critic.pt"))
 
 
     def step(self, action):
@@ -60,7 +61,7 @@ class RandomOpponentGameEnv:
 
     def get_obs(self, player):
         state = self.game.get_observations(player)  #state: dict
-        obs = [0] * 155
+        obs = [0] * 243
         obs[0] = player.state #player_state need to use enum
         obs[1] = 0 # game_state, currently just a placeholder since game_state has no usage now
         obs[2] = state["turn_count"]
@@ -107,6 +108,38 @@ class RandomOpponentGameEnv:
         obs[152] = 1 if state["attack_available"] == True else 0
         obs[153] = 1 if state["is_first_player"] == True else 0
         obs[154] = state["pending_card"].id if state["pending_card"] is not None else 0
+        for i in range(len(state["player_used_card"])):
+            obs[155 + i] = state["player_used_card"][i].id
+        for i in range(len(state["opponent_used_card"])):
+            obs[187 + i] = state["opponent_used_card"][i].id
+        for hero in state["player_heroes"]:
+            if hero.state == "attacking":
+                obs[219] = hero.id
+                obs[220] = hero.morphed_id
+                obs[221] = hero.current_max_hp
+                obs[222] = hero.hp
+                obs[223] = hero.atk
+                obs[224] = hero.round_buff_atk
+                obs[225] = hero.defense
+                obs[226] = hero.level
+                obs[227] = hero.round_until_alive
+                obs[228] = hero.inspiration_atk
+                obs[229] = hero.inspiration_hp
+                obs[230] = hero.inspiration_def
+        for hero in state["opponent_heroes"]:
+            if hero.state == "attacking":
+                obs[231] = hero.id
+                obs[232] = hero.morphed_id
+                obs[233] = hero.current_max_hp
+                obs[234] = hero.hp
+                obs[235] = hero.atk
+                obs[236] = hero.round_buff_atk
+                obs[237] = hero.defense
+                obs[238] = hero.level
+                obs[239] = hero.round_until_alive
+                obs[240] = hero.inspiration_atk
+                obs[241] = hero.inspiration_hp
+                obs[242] = hero.inspiration_def
         return obs
         
 
@@ -179,16 +212,21 @@ class RandomOpponentGameEnv:
 
     def get_reward(self, original_state, new_state):
         reward = 0
-        if new_state["player_state"] == "lost": reward -= 500
-        if new_state["opponent_hp"] <= 0 or new_state["opponent_deck_size"] <= 0: reward += 500
-        reward += (new_state["player_hp"] - original_state["player_hp"]) * 2
-        reward += (original_state["opponent_hp"] - new_state["opponent_hp"]) * 2
-        reward += (original_state["fire_remaining"] - new_state["fire_remaining"]) * 1
+        if new_state["player_state"] == "lost": reward -= 50
+        if new_state["opponent_hp"] <= 0 or new_state["opponent_deck_size"] <= 0: reward += 50
+        reward += (new_state["player_hp"] - original_state["player_hp"]) * 4
+        reward += (original_state["opponent_hp"] - new_state["opponent_hp"]) * 10
+        reward += (original_state["fire_remaining"] - new_state["fire_remaining"]) * 2
+        if self.player1.state == 2:
+            for i in range(4):
+                reward += 5 * (original_state["opponent_heroes"][i].hp - new_state["opponent_heroes"][i].hp + original_state["opponent_heroes"][i].defense - new_state["opponent_heroes"][i].defense)
+        if len(new_state["player_hand"]) > 15:
+            reward -= 10 * (len(new_state["player_hand"]) - 15)
         return reward
     
 
     def get_opponent_agent(self):
         import random as r
         x = r.random()
-        # self.opponent = "random" if x < 0.5 else "trained"
+        # self.opponent = "random" if x < 0.3 else "trained"
         self.opponent = "random"

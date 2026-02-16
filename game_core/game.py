@@ -135,7 +135,7 @@ class Game:
                 action.hero.Upgrade()
                 if hasattr(action.hero, "on_upgrade"):
                     for event in action.hero.on_upgrade:
-                        if type(event(action.hero)).__name__ == "Action":
+                        if isinstance(event(action.hero), Action):
                             self.step(player, event(action.hero))
                         else:
                             event(action.hero)
@@ -232,7 +232,7 @@ class Game:
                 for e in action.target:
                     if e.state == "dead":
                         continue
-                    if type(e).__name__ == "Hero":
+                    if isinstance(e, Hero):
                         for h in e.owner.heroes:
                             if h == e:
                                 continue
@@ -240,7 +240,7 @@ class Game:
                                 for event in h.on_friendly_hero_take_damage:
                                     if event(h) == "negate damage":
                                         return
-                                    if type(event(h)).__name__ == "Action":
+                                    if isinstance(event(h), Action):
                                         self.step(player, event(h))
                                     else:
                                         event(h)
@@ -267,10 +267,10 @@ class Game:
             case "attack":
                 if hasattr(card, "on_play"):
                     for event in card.on_play:
-                        if type(event(card)).__name__ == "function":
-                            event(card)
-                        else:
+                        if isinstance(event(card), Action):
                             self.step(player, event(card))
+                        else:
+                            event(card)
                 for hero in player.heroes:
                     if hero.type_name == card.hero:
                         attacking_hero = hero
@@ -279,33 +279,32 @@ class Game:
                 self.step(player, HeroAttackByCard(attacking_hero, card))
                 if hasattr(card, "after_play"):
                     for event in card.after_play:
-                        if type(event(card)).__name__ == "function":
-                            event(card)
-                        else:
+                        if isinstance(event(card), Action):
                             self.step(player, event(card))
+                        else:
+                            event(card)
 
             case "spell":
                 if hasattr(card, "on_play"):
                     for event in card.on_play:
-                        if type(event(card)).__name__ == "function":
-                            event(card)
-                        else:
+                        if isinstance(event(card), Action):
                             self.step(player, event(card))
+                        else:
+                            event(card)
             
             case "morph":
                 if hasattr(card, "on_play"):
                     for event in card.on_play:
-                        if type(event(card)).__name__ == "function":
-                            event(card)
-                        else:
+                        if isinstance(event(card), Action):
                             self.step(player, event(card))
+                        else:
+                            event(card)
                 card.get_corresponding_hero().current_max_hp = card.hp
                 card.get_corresponding_hero().atk = card.atk
                 card.get_corresponding_hero().hp = card.hp
 
         player.move_card_to_used(card)
         player.selected_targets = None
-        player.fire_cnt -= 1
 
 
     def attack(self, entity1, entity2):
@@ -359,17 +358,19 @@ class Game:
         player_defense = player.defense
         opponent_hp = player.opponent.hp
         opponent_defense = player.opponent.defense
-        player_heroes = player.heroes
-        opponent_heroes = player.opponent.heroes
+        player_heroes = player.heroes.copy()
+        opponent_heroes = player.opponent.heroes.copy()
         player_deck_size = len(player.deck)
         opponent_deck_size = len(player.opponent.deck)
-        player_hand = player.hand
+        player_hand = player.hand.copy()
         opponent_hand_size = len(player.opponent.hand)
         player_starting_deck = player.starting_deck
         fire_remaining = player.fire_cnt
         attack_available = player.attack_available
         is_first_player = player.is_first_player
         pending_card = player.pending_card
+        player_used_card = player.used_card
+        opponent_used_card = player.opponent.used_card
         return {
             "player_state": player_state,
             "game_state": game_state,
@@ -389,4 +390,6 @@ class Game:
             "attack_available": attack_available,
             "is_first_player": is_first_player,
             "pending_card": pending_card,
+            "player_used_card": player_used_card,
+            "opponent_used_card": opponent_used_card
         }

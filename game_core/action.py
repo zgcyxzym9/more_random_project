@@ -57,6 +57,9 @@ class GiveBuff(Action):
         self.value = value
         self.source = source
         self.target = target
+    
+    def __str__(self):
+        return f"Give {self.attr} buff of {self.value} to {self.target} from {self.source}"
 
 class Heal(Action):
     def __init__(self, value, source, target):
