@@ -13,7 +13,7 @@ from actor_critic import ActorCritic
 from ppo import PPO
 from env.env import RandomOpponentGameEnv
 
-def train(env, total_steps=800_000, rollout_size=4096):
+def train(env, total_steps=4_000_000, rollout_size=4096):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
 
@@ -27,12 +27,13 @@ def train(env, total_steps=800_000, rollout_size=4096):
     log_dir = os.path.join("logs", log_dir)
     writer = SummaryWriter(log_dir)
     # load model here to resume training
-    # model.load_state_dict(torch.load("./logs/2026-02-16_12-20-32/ppo_actor_critic.pt"))
+    model.load_state_dict(torch.load("./logs/2026-02-16_21-13-37/ppo_actor_critic.pt"))
 
     obs = torch.tensor(env.reset(), dtype=torch.float32, device=device)
 
     step = 0
     game_cnt = 0
+    chkpt = 1
     while step < total_steps:
         rollout_start = time.time()
         buffer = RolloutBuffer(rollout_size, obs_dim, device)
@@ -78,8 +79,11 @@ def train(env, total_steps=800_000, rollout_size=4096):
         writer.add_scalar('Loss/policy_loss', mean_policy_loss, step / rollout_size)
         writer.add_scalar('Loss/value_loss', mean_value_loss, step / rollout_size)
         writer.add_scalar('Loss/entropy_loss', entropy_loss, step / rollout_size)
-        writer.add_scalar('Stats/mean_return', returns.mean().item(), step / rollout_size)
-        
+        writer.add_scalar('Stats/mean_return', mean_reward, step / rollout_size)
+
+        if step > chkpt * 500_000:
+            chkpt += 1
+            torch.save(model.state_dict(), os.path.join(log_dir, f"ppo_actor_critic_{chkpt-1}.pt"))
 
     torch.save(model.state_dict(), os.path.join(log_dir, f"ppo_actor_critic.pt"))
 

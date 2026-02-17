@@ -8,7 +8,7 @@ class PPO:
         weight_decay = 1e-4,
         clip_ratio=0.2,
         value_coef=0.35,
-        entropy_coef=0.01,
+        entropy_coef=0.005,
     ):
         self.model = model
         self.optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)

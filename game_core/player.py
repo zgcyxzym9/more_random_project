@@ -144,6 +144,8 @@ class Player():
                             continue
                         if card.get_corresponding_hero().state == "dead" and CardAttributes.CAN_PLAY_WHEN_DEAD not in card.attributes:
                             continue
+                        if card.level_req > card.get_corresponding_hero().level:
+                            continue
                         actions.append(PlayCard(card, None))
                 for hero in self.heroes:
                     if hero.is_alive and self.attack_available and self.fire_cnt > 0:

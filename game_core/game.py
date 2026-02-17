@@ -137,8 +137,6 @@ class Game:
                     for event in action.hero.on_upgrade:
                         if isinstance(event(action.hero), Action):
                             self.step(player, event(action.hero))
-                        else:
-                            event(action.hero)
                 self.current_player.upgrade_remaining -= 1
             
             case "play card":
@@ -153,6 +151,9 @@ class Game:
                         player.fire_cnt += 1
                 if player.fire_cnt <= 0:
                     print("trying to play a card when there's no fire remaining")
+                    return
+                if action.card.level_req > action.card.get_corresponding_hero().level:
+                    print("trying to play a card when corresponding hero level is not enough")
                     return
                 player.fire_cnt -= 1
                 self.play_card(player, action.card, action.target)
@@ -242,8 +243,6 @@ class Game:
                                         return
                                     if isinstance(event(h), Action):
                                         self.step(player, event(h))
-                                    else:
-                                        event(h)
                     e.receive_damage(action.value)
                     e.check_death()
                 
@@ -267,10 +266,10 @@ class Game:
             case "attack":
                 if hasattr(card, "on_play"):
                     for event in card.on_play:
+                        # it's worth noting that if event(card) is a function, it will
+                        # be executed while checking if it's an Action type.
                         if isinstance(event(card), Action):
                             self.step(player, event(card))
-                        else:
-                            event(card)
                 for hero in player.heroes:
                     if hero.type_name == card.hero:
                         attacking_hero = hero
@@ -281,24 +280,18 @@ class Game:
                     for event in card.after_play:
                         if isinstance(event(card), Action):
                             self.step(player, event(card))
-                        else:
-                            event(card)
 
             case "spell":
                 if hasattr(card, "on_play"):
                     for event in card.on_play:
                         if isinstance(event(card), Action):
                             self.step(player, event(card))
-                        else:
-                            event(card)
             
             case "morph":
                 if hasattr(card, "on_play"):
                     for event in card.on_play:
                         if isinstance(event(card), Action):
                             self.step(player, event(card))
-                        else:
-                            event(card)
                 card.get_corresponding_hero().current_max_hp = card.hp
                 card.get_corresponding_hero().atk = card.atk
                 card.get_corresponding_hero().hp = card.hp
@@ -362,7 +355,7 @@ class Game:
         opponent_heroes = player.opponent.heroes.copy()
         player_deck_size = len(player.deck)
         opponent_deck_size = len(player.opponent.deck)
-        player_hand = player.hand.copy()
+        player_hand = player.hand.cards.copy()
         opponent_hand_size = len(player.opponent.hand)
         player_starting_deck = player.starting_deck
         fire_remaining = player.fire_cnt

@@ -214,14 +214,17 @@ class RandomOpponentGameEnv:
         reward = 0
         if new_state["player_state"] == "lost": reward -= 50
         if new_state["opponent_hp"] <= 0 or new_state["opponent_deck_size"] <= 0: reward += 50
-        reward += (new_state["player_hp"] - original_state["player_hp"]) * 4
-        reward += (original_state["opponent_hp"] - new_state["opponent_hp"]) * 10
+        reward += (new_state["player_hp"] - original_state["player_hp"]) * 3
+        reward += (original_state["opponent_hp"] - new_state["opponent_hp"]) * 8
         reward += (original_state["fire_remaining"] - new_state["fire_remaining"]) * 2
         if self.player1.state == 2:
             for i in range(4):
-                reward += 5 * (original_state["opponent_heroes"][i].hp - new_state["opponent_heroes"][i].hp + original_state["opponent_heroes"][i].defense - new_state["opponent_heroes"][i].defense)
+                reward += 4 * (original_state["opponent_heroes"][i].hp - new_state["opponent_heroes"][i].hp + original_state["opponent_heroes"][i].defense - new_state["opponent_heroes"][i].defense)
         if len(new_state["player_hand"]) > 15:
             reward -= 10 * (len(new_state["player_hand"]) - 15)
+        if original_state["player_state"] != 1 and original_state["turn_count"] != new_state["turn_count"]:
+            if original_state["fire_remaining"] == 2:
+                reward -= 8
         return reward
     
 

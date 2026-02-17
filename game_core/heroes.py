@@ -21,8 +21,9 @@ class QuanShen:
     name = "犬神"
     atk = 2
     hp = 5
-    on_upgrade = (lambda s: s.GiveCardToHand(["XinShenLianMo"]),
-                  lambda s: [(c.attributes.append(CardAttributes.INSTANT) if c.id == 17 else None) for c in s.hand] if s.level == 2 else [])
+    on_upgrade = (lambda s: s.owner.GiveCardToHand(["XinShenLianMo"]),
+                  lambda s: print("triggering on upgrade"),
+                  lambda s: [(c.attributes.append(CardAttributes.INSTANT) if c.id == 17 else None) for c in s.owner.hand] if s.level == 2 else [])
     xin_shen_lian_mo_cnt = 0
 
 

@@ -4,7 +4,7 @@ import torch
 from actor_critic import ActorCritic
 from env.env import RandomOpponentGameEnv
 
-def eval(env, model_path="./logs/2026-02-16_12-59-30/ppo_actor_critic.pt"):
+def eval(env, model_path="./logs/2026-02-16_23-20-37/ppo_actor_critic.pt"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     obs_dim = 243
@@ -15,7 +15,7 @@ def eval(env, model_path="./logs/2026-02-16_12-59-30/ppo_actor_critic.pt"):
     model.load_state_dict(torch.load(model_path))
     model.eval()
 
-    total = 100
+    total = 500
     won = 0
 
     for i in range(total):
@@ -31,8 +31,6 @@ def eval(env, model_path="./logs/2026-02-16_12-59-30/ppo_actor_critic.pt"):
             obs = torch.tensor(obs, dtype=torch.float32, device=device)
         if env.player1.state != 5 and env.player2.state == 5:
             won += 1
-        print(f"{env.player1.hp} {env.player2.hp}")
-        print(f"{len(env.player1.deck.cards), len(env.player2.deck.cards)}")
         print(f"{won} / {i + 1}")
 
 eval(RandomOpponentGameEnv())

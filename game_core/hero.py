@@ -38,6 +38,7 @@ class Hero(Entity):
         self.inspiration_def = 0
         self.attributes = []
         self.counter = hero_obj.counter if hasattr(hero_obj, "counter") else {}
+        self.on_upgrade = hero_obj.on_upgrade if hasattr(hero_obj, "on_upgrade") else []
 
     def __str__(self):
         return f"{self.name}"
