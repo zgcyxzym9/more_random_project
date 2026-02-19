@@ -9,7 +9,7 @@ def select_random_target(player, target_list):
     if type(player).__name__ == "Player":
         import random as r
         return r.choice(target_list)
-    elif type(player).__name__ == "InferencePlayer":
+    elif type(player).__name__ == "InferencePlayer" or type(player).__name__ == "InferenceOpponent":
         for i in range(len(target_list)):
             print(f"[{i+1}] {target_list[i]}")
         target_id = int(input("Which target was chosen randomly?\n")) - 1

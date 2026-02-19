@@ -25,7 +25,7 @@ class HuaXinFeng:
     require_target = (lambda s: [hero for hero in s.owner.heroes if len([card for card in s.owner.deck if card.hero == hero]) > 0],)
     attributes = (CardAttributes.INSTANT,)
     select_target = (lambda s: select_target(s.owner, [hero for hero in s.owner.heroes if len([card for card in s.owner.deck if card.hero == hero]) > 0], s),)
-    on_play = (lambda s: DrawSelectedCardFromDeck(s.owner, r.choice([card for card in s.owner.deck if card.hero == s.owner.selected_targets[0].type_name])),
+    on_play = (lambda s: DrawSelectedCardFromDeck(s.owner, select_random_target(s.owner, [card for card in s.owner.deck if card.hero == s.owner.selected_targets[0].type_name])),
                lambda s: s.owner.deck.shuffle())
 
 class TaoZhiYaoYao:
@@ -48,7 +48,7 @@ class FengShi:
     hp = 7
     on_play = (lambda s: setattr(s.get_corresponding_hero(), "listeners", getattr(s.get_corresponding_hero(), "listeners") + 
         (Listener("begin turn", lambda e, s: e.next_player == s.owner, (
-            lambda e, s: Heal(3, s, (r.choice(IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,),),)),)
+            lambda e, s: Heal(3, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,),),)),)
 
 class TaoYuChunFeng:
     id = 22
@@ -72,6 +72,6 @@ class ShengKai:
     on_play = (lambda s: s.get_corresponding_hero().counter.update({"ShengKai": 2,}),
                lambda s: setattr(s.get_corresponding_hero(), "listeners", getattr(s.get_corresponding_hero(), "listeners") + (
                    Listener("begin turn", lambda e, s: e.next_player == s.owner and s.counter["ShengKai"] > 0 and len(IsDamaged(s.owner.heroes)) > 0, 
-                            (lambda e, s: Heal(2, s, (r.choice(IsDamaged(s.owner.heroes),),)),
+                            (lambda e, s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes),),)),
                              lambda e, s: s.counter.update({"ShengKai": s.counter["ShengKai"] - 1,}))),
                )))

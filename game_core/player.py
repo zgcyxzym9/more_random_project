@@ -189,3 +189,12 @@ class InferencePlayer(Player):
                 break
         self.deck.pop()
 
+
+class InferenceOpponent(Player):
+    def __init__(self, deck:list[str], heroes:list[str]):
+        super().__init__(deck, heroes)
+        root_dict = "E:/more_random_project"
+        with open(os.path.join(root_dict, "game_core/cards/card_names.txt"), 'r', encoding='utf-8') as file:
+            self.card_names = [line.strip() for line in file if line.strip()]
+        with open(os.path.join(root_dict, "game_core/hero_names.txt"), 'r', encoding='utf-8') as file:
+            self.hero_names = [line.strip() for line in file if line.strip()]
