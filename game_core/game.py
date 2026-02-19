@@ -27,11 +27,12 @@ class Game:
 
     def begin_turn(self):
         self.broadcast("begin turn", next_player=self.current_player)
-        self.turn_count += 1
         self.current_player.state = PlayerState.PLAYING if self.current_player.initial_pick_reject_left == 0 else PlayerState.INITIAL_PICK
         self.current_player.opponent.state = PlayerState.WAITING
+        if self.player1.state != PlayerState.INITIAL_PICK and self.player2.state != PlayerState.INITIAL_PICK:
+            self.turn_count += 1
         self.current_player.attack_available = True
-        self.current_player.fire_cnt = 2
+        self.current_player.fire_cnt = 2 if self.turn_count > 1 else 1
         self.current_player.instant_used = False
         self.current_player.upgrade_remaining = 1
         self.current_player.retract_hero()
@@ -43,9 +44,11 @@ class Game:
         for hero in self.current_player.heroes:
             avail_upgrades += 3 - hero.level
         self.current_player.upgrade_remaining = min(self.current_player.upgrade_remaining, avail_upgrades)
+        if self.turn_count == 2:
+            self.current_player.defense = 0
         self.player1.clear_round_effects()
         self.player2.clear_round_effects()
-        for hero in self.player1.heroes:
+        for hero in self.current_player.heroes:
             if hero.state == "dead":
                 hero.round_until_alive -= 1
                 if hero.round_until_alive <= 0:
@@ -320,6 +323,7 @@ class Game:
         self.player2.opponent = self.player1
         self.player1.game = self
         self.player2.game = self
+        self.turn_count = 0
 
         first, second = self.pick_first_player()
         self.player1 = first
