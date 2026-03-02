@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, "E:\more_random_project")
+sys.path.insert(0, "E:/more_random_project")
 
 from game_core.game import Game
 from game_core.player import Player
@@ -12,8 +12,8 @@ import torch
 class RandomOpponentGameEnv:
     def __init__(self):
         pass
-        # self.model = ActorCritic(243, 39).to(device="cuda")
-        # self.model.load_state_dict(torch.load("./logs/2026-02-13_23-24-29/ppo_actor_critic.pt"))
+        self.model = ActorCritic(243, 39).to(device="cuda")
+        self.model.load_state_dict(torch.load("./logs/2026-02-20_00-13-35/ppo_actor_critic_2.pt"))
 
 
     def step(self, action):
@@ -212,7 +212,7 @@ class RandomOpponentGameEnv:
 
     def get_reward(self, original_state, new_state):
         reward = 0
-        if new_state["player_state"] == "lost": reward -= 50
+        if new_state["player_state"] == 5: reward -= 50
         if new_state["opponent_hp"] <= 0 or new_state["opponent_deck_size"] <= 0: reward += 50
         reward += (new_state["player_hp"] - original_state["player_hp"]) * 3
         reward += (original_state["opponent_hp"] - new_state["opponent_hp"]) * 8
@@ -231,5 +231,9 @@ class RandomOpponentGameEnv:
     def get_opponent_agent(self):
         import random as r
         x = r.random()
-        # self.opponent = "random" if x < 0.3 else "trained"
-        self.opponent = "random"
+        self.opponent = "random" if x < 0.1 else "trained"
+        # self.opponent = "random"
+    
+
+    def load_model(self, model_path):
+        self.model.load_state_dict(torch.load(model_path))

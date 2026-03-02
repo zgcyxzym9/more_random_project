@@ -8,13 +8,14 @@ from game_core.player import InferencePlayer, InferenceOpponent
 from rl.actor_critic import ActorCritic
 from game_core.agent import IOAgent
 from game_core.card import Card
+from game_core.enums import CardAttributes
 from env.env import RandomOpponentGameEnv
 from rl.utils import match_by_caps
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 root_dict = "E:/more_random_project"
 model = ActorCritic(243, 39).to(device=device)
-model.load_state_dict(torch.load("./logs/2026-02-17_22-10-19/ppo_actor_critic.pt"))
+model.load_state_dict(torch.load("./logs/2026-02-20_00-13-35/ppo_actor_critic_2.pt"))
 
 with open(os.path.join(root_dict, "game_core/cards/card_names.txt"), 'r', encoding='utf-8') as file:
     card_names = [line.strip() for line in file if line.strip()]
@@ -22,11 +23,10 @@ with open(os.path.join(root_dict, "game_core/hero_names.txt"), 'r', encoding='ut
     hero_names = [line.strip() for line in file if line.strip()]
 
 # We will not manually input this part for the sake of debugging
-"""
 player_heroes = []
 for i in range(4):
     while True:
-        _ = input(f"Please enter hero No.{i+1} of the player")
+        _ = input(f"Please enter hero No.{i+1} of the player: ")
         hero_name = match_by_caps(hero_names, _)
         if hero_name is not None:
             player_heroes.append(hero_name)
@@ -34,7 +34,7 @@ for i in range(4):
 opponent_heroes = []
 for i in range(4):
     while True:
-        _ = input(f"Please enter hero No.{i+1} of the opponent")
+        _ = input(f"Please enter hero No.{i+1} of the opponent: ")
         hero_name = match_by_caps(hero_names, _)
         if hero_name is not None:
             opponent_heroes.append(hero_name)
@@ -42,7 +42,7 @@ for i in range(4):
 """
 player_heroes = ["ZhiRenWuShi", "TianXieGuiTuanHuo", "QuanShen", "TaoHuaYao"]
 opponent_heroes = ["ZhiRenWuShi", "TianXieGuiTuanHuo", "QuanShen", "TaoHuaYao"]
-
+"""
 
 player1 = InferencePlayer(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZhiDi", "WuShiZhiLi", "WuShiZhiLi", "WuShiZhiRen", "WuShiZhiRen", "TianXieGuiChiRanShao", "TianXieGuiChiRanShao", "TianXieGuiHuangGuWu", "TianXieGuiHuangGuWu", "TianXieGuiQingYuanJi", "TianXieGuiQingYuanJi", "TianXieGuiLvPaiDa", "TianXieGuiLvPaiDa", "XinZhan", "XinZhan", "XinJiGuiChu", "XinJiGuiChu", "EJiZhan", "EJiZhan", "XinJianLuanWu", "XinJianLuanWu", "TaoZhiXinXi", "TaoZhiXinXi", "HuaXinFeng", "HuaXinFeng", "FengShi", "FengShi", "TaoYuChunFeng", "TaoYuChunFeng", "ShengKai"], player_heroes)
 player2 = InferenceOpponent(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZhiDi", "WuShiZhiLi", "WuShiZhiLi", "WuShiZhiRen", "WuShiZhiRen", "TianXieGuiChiRanShao", "TianXieGuiChiRanShao", "TianXieGuiHuangGuWu", "TianXieGuiHuangGuWu", "TianXieGuiQingYuanJi", "TianXieGuiQingYuanJi", "TianXieGuiLvPaiDa", "TianXieGuiLvPaiDa", "XinZhan", "XinZhan", "XinJiGuiChu", "XinJiGuiChu", "EJiZhan", "EJiZhan", "XinJianLuanWu", "XinJianLuanWu", "TaoZhiXinXi", "TaoZhiXinXi", "HuaXinFeng", "HuaXinFeng", "FengShi", "FengShi", "TaoYuChunFeng", "TaoYuChunFeng", "ShengKai"], opponent_heroes)
@@ -67,18 +67,6 @@ else:
 game.player1.is_first_player = True
 game.player2.is_first_player = False
 game.current_player = game.player1
-
-# We will not use this part for the sake of debugging
-"""
-player1.hand.cards = []
-for i in range(5):
-    while True:
-        _ = input(f"Please enter card No.{i+1} in the player's hand")
-        card_name = match_by_caps(card_names, _)
-        if card_name is not None:
-            player1.GiveCardToHand([card_name])
-            break
-"""
 
 game.begin_turn()
 
@@ -124,6 +112,13 @@ while not game.check_end_condition():
                 if card_name is not None:
                     card_obj = Card.GetCard(card_name)
                     break
+            if card_obj.id == 17:
+                for hero in player2.heroes:
+                    if hero.id == 3:
+                        qs = hero
+                        break
+                print(qs.level)
+                card_obj.attributes = [CardAttributes.INSTANT] if qs.level == 2 else [CardAttributes.NO_FIRE_CONSUMPTION] if qs.level == 3 else []
             while True:
                 for attribute, value in vars(card_obj).items():
                     print(attribute, "=", value)

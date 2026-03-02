@@ -46,7 +46,6 @@ class Player():
             hero.assign_owner(self)
         self.hand = CardList([])
         self.used_card = CardList([])
-        self.heroes[0].Upgrade()
         if not self.is_first_player:
             self.defense = 5
         for i in range(5):
@@ -139,16 +138,20 @@ class Player():
                     return actions
                 actions.append(EndTurn())
                 for card in self.hand:
+                    if card.require_target is not None and [] in [req(card) for req in card.require_target]:
+                        continue
+                    if card.get_corresponding_hero().state == "dead" and CardAttributes.CAN_PLAY_WHEN_DEAD not in card.attributes:
+                        continue
+                    if card.level_req > card.get_corresponding_hero().level:
+                        continue
                     if self.fire_cnt > 0:
-                        if card.require_target is not None and [] in [req(card) for req in card.require_target]:
-                            continue
-                        if card.get_corresponding_hero().state == "dead" and CardAttributes.CAN_PLAY_WHEN_DEAD not in card.attributes:
-                            continue
-                        if card.level_req > card.get_corresponding_hero().level:
-                            continue
+                        actions.append(PlayCard(card, None))
+                    elif CardAttributes.INSTANT in card.attributes and self.instant_used == False:
+                        actions.append(PlayCard(card, None))
+                    elif CardAttributes.NO_FIRE_CONSUMPTION in card.attributes:
                         actions.append(PlayCard(card, None))
                 for hero in self.heroes:
-                    if hero.is_alive and self.attack_available and self.fire_cnt > 0:
+                    if hero.is_alive and hero.level > 0 and self.attack_available and self.fire_cnt > 0:
                         actions.append(HeroAttack(hero))
                 return actions
             
@@ -189,7 +192,10 @@ class InferencePlayer(Player):
                 break
         self.deck.pop()
 
-
+"""
+InferenceOpponent: for full game inference, DO NOT USE FOR TRAINING OR 
+PLAYING WITH THE SIMULATOR
+"""
 class InferenceOpponent(Player):
     def __init__(self, deck:list[str], heroes:list[str]):
         super().__init__(deck, heroes)

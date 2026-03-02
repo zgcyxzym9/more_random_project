@@ -31,6 +31,12 @@ class Game:
         self.current_player.opponent.state = PlayerState.WAITING
         if self.player1.state != PlayerState.INITIAL_PICK and self.player2.state != PlayerState.INITIAL_PICK:
             self.turn_count += 1
+        if self.turn_count == 1:
+            self.player1.upgrade_remaining, self.player2.upgrade_remaining = 1, 1
+            self.step(self.current_player, UpgradeHero(self.current_player.heroes[0]))
+            self.current_player = self.current_player.opponent
+            self.step(self.current_player, UpgradeHero(self.current_player.heroes[0]))
+            self.current_player = self.current_player.opponent
         self.current_player.attack_available = True
         self.current_player.fire_cnt = 2 if self.turn_count > 1 else 1
         self.current_player.instant_used = False
@@ -149,9 +155,11 @@ class Game:
                 if not action.card.owner == player:
                     print("trying to play a card doesn't owned")
                     return
-                if hasattr(action.card, "attributes"):
-                    if CardAttributes.INSTANT in action.card.attributes:
-                        player.fire_cnt += 1
+                if CardAttributes.NO_FIRE_CONSUMPTION in action.card.attributes:
+                    player.fire_cnt += 1
+                elif CardAttributes.INSTANT in action.card.attributes and player.instant_used == False:
+                    player.fire_cnt += 1
+                    player.instant_used = True
                 if player.fire_cnt <= 0:
                     print("trying to play a card when there's no fire remaining")
                     return
@@ -193,14 +201,10 @@ class Game:
                     print("trying to attack with a dead hero by card")
                     return
                 player.advance_hero(action.hero)
-                if hasattr(action.card, "buff_atk"):
-                    action.hero.atk += action.card.buff_atk
                 if player.opponent.attack_zone is not None:
                     self.attack(action.hero, player.opponent.attack_zone)
                 else:
                     self.attack(action.hero, player.opponent)
-                if hasattr(action.card, "buff_atk"):
-                    action.hero.atk -= action.card.buff_atk
             
             case "call selector":
                 action.func(action.player, action.target_list, action.card)
@@ -250,11 +254,14 @@ class Game:
                     e.check_death()
                 
             case "draw selected card from deck":
-                if action.card not in action.player.deck:
+                if action.card not in action.player.deck.cards:
                     print("trying to draw a card not in deck")
                     return
                 action.player.deck.remove(action.card)
                 action.player.hand.append(action.card)
+            
+            case _:
+                print(f"stepping with the game with undefined action type {action.type}, check code!")
 
 
     def play_card(self, player:Player, card:Card, target=None):
@@ -263,6 +270,7 @@ class Game:
                 self.pending_card = card
                 for event in card.select_target:
                     event(card)
+                player.state = PlayerState.SELECTING_TARGET
                 return
                 
         match card.type:
@@ -276,6 +284,8 @@ class Game:
                 for hero in player.heroes:
                     if hero.type_name == card.hero:
                         attacking_hero = hero
+                if hasattr(card, "buff_atk"):
+                    attacking_hero.atk += card.buff_atk
                 if hasattr(card, "buff_def"):
                     attacking_hero.defense += card.buff_def
                 self.step(player, HeroAttackByCard(attacking_hero, card))
@@ -283,6 +293,8 @@ class Game:
                     for event in card.after_play:
                         if isinstance(event(card), Action):
                             self.step(player, event(card))
+                if hasattr(card, "buff_atk"):
+                    attacking_hero.atk -= card.buff_atk
 
             case "spell":
                 if hasattr(card, "on_play"):

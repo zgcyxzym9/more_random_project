@@ -22,7 +22,8 @@ class QuanShen:
     atk = 2
     hp = 5
     on_upgrade = (lambda s: s.owner.GiveCardToHand(["XinShenLianMo"]),
-                  lambda s: [(c.attributes.append(CardAttributes.INSTANT) if c.id == 17 else None) for c in s.owner.hand] if s.level == 2 else [])
+                  lambda s: [(setattr(c, "attributes", [CardAttributes.INSTANT]) if c.id == 17 else None) for c in s.owner.hand.cards] if s.level == 2 else None,
+                  lambda s: [(setattr(c, "attributes", [CardAttributes.NO_FIRE_CONSUMPTION]) if c.id == 17 else None) for c in s.owner.hand.cards] if s.level == 3 else None,)
     xin_shen_lian_mo_cnt = 0
 
 

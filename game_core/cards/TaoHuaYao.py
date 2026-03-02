@@ -22,10 +22,10 @@ class HuaXinFeng:
     hero = "TaoHuaYao"
     name = "花信风"
     level_req = 1
-    require_target = (lambda s: [hero for hero in s.owner.heroes if len([card for card in s.owner.deck if card.hero == hero]) > 0],)
+    require_target = (lambda s: [hero for hero in s.owner.heroes if len([card for card in s.owner.deck.cards if card.get_corresponding_hero() == hero]) > 0],)
     attributes = (CardAttributes.INSTANT,)
-    select_target = (lambda s: select_target(s.owner, [hero for hero in s.owner.heroes if len([card for card in s.owner.deck if card.hero == hero]) > 0], s),)
-    on_play = (lambda s: DrawSelectedCardFromDeck(s.owner, select_random_target(s.owner, [card for card in s.owner.deck if card.hero == s.owner.selected_targets[0].type_name])),
+    select_target = (lambda s: select_target(s.owner, [hero for hero in s.owner.heroes if len([card for card in s.owner.deck.cards if card.get_corresponding_hero() == hero]) > 0], s),)
+    on_play = (lambda s: DrawSelectedCardFromDeck(s.owner, select_random_target(s.owner, [card for card in s.owner.deck.cards if card.hero == s.owner.selected_targets[0].type_name])),
                lambda s: s.owner.deck.shuffle())
 
 class TaoZhiYaoYao:
