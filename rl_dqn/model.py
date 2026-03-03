@@ -7,9 +7,11 @@ class QNetwork(nn.Module):
         super().__init__()
 
         self.net = nn.Sequential(
-            nn.Linear(obs_dim, 512),
+            nn.Linear(obs_dim, 1024),
             nn.ReLU(),
-            nn.Linear(512, 512),
+            nn.Linear(1024, 768),
+            nn.ReLU(),
+            nn.Linear(768, 512),
             nn.ReLU(),
             nn.Linear(512, 512),
             nn.ReLU(),

@@ -12,7 +12,7 @@ from rl_dqn.agent import DoubleDQNAgent
 def train(env, agent, episodes=10000):
 
     log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    log_dir = os.path.join("logs", log_dir)
+    log_dir = os.path.join("logs/dqn", log_dir)
     writer = SummaryWriter(log_dir)
     
     replay_buffer = ReplayBuffer(100000)
@@ -53,7 +53,7 @@ def train(env, agent, episodes=10000):
             if total_steps % target_update_freq == 0:
                 agent.update_target()
 
-        loss = agent.update(replay_buffer, batch_size=64)
+        loss = agent.update(replay_buffer, batch_size=256)
         epsilon = max(epsilon * epsilon_decay, epsilon_min)
 
         print(f"Episode {episode} | Reward {episode_reward} | epsilon {epsilon:.3f}")
