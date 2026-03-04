@@ -1,10 +1,10 @@
 import sys
-sys.path.insert(0, "E:\more_random_project")
+sys.path.insert(0, "E:/more_random_project")
 import torch
 from actor_critic import ActorCritic
 from env.env import RandomOpponentGameEnv
 
-def eval(env, model_path="./logs/2026-02-16_23-20-37/ppo_actor_critic.pt"):
+def eval(env, model_path="./logs/2026-02-21_00-02-50/ppo_actor_critic.pt"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     obs_dim = 243
@@ -17,6 +17,9 @@ def eval(env, model_path="./logs/2026-02-16_23-20-37/ppo_actor_critic.pt"):
 
     total = 500
     won = 0
+
+    first_won = 0
+    second_won = 0
 
     for i in range(total):
         obs = torch.tensor(env.reset(), dtype=torch.float32, device=device)
@@ -31,6 +34,11 @@ def eval(env, model_path="./logs/2026-02-16_23-20-37/ppo_actor_critic.pt"):
             obs = torch.tensor(obs, dtype=torch.float32, device=device)
         if env.player1.state != 5 and env.player2.state == 5:
             won += 1
+            if env.player1.is_first_player:
+                first_won += 1
+            else:
+                second_won += 1
         print(f"{won} / {i + 1}")
+    print(f"{first_won} {second_won}")
 
 eval(RandomOpponentGameEnv())

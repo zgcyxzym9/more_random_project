@@ -45,8 +45,8 @@ player_heroes = ["ZhiRenWuShi", "TianXieGuiTuanHuo", "QuanShen", "TaoHuaYao"]
 opponent_heroes = ["ZhiRenWuShi", "TianXieGuiTuanHuo", "QuanShen", "TaoHuaYao"]
 """
 
-player1 = InferencePlayer(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZhiDi", "WuShiZhiLi", "WuShiZhiLi", "WuShiZhiRen", "WuShiZhiRen", "TianXieGuiChiRanShao", "TianXieGuiChiRanShao", "TianXieGuiHuangGuWu", "TianXieGuiHuangGuWu", "TianXieGuiQingYuanJi", "TianXieGuiQingYuanJi", "TianXieGuiLvPaiDa", "TianXieGuiLvPaiDa", "XinZhan", "XinZhan", "XinJiGuiChu", "XinJiGuiChu", "EJiZhan", "EJiZhan", "XinJianLuanWu", "XinJianLuanWu", "TaoZhiXinXi", "TaoZhiXinXi", "HuaXinFeng", "HuaXinFeng", "FengShi", "FengShi", "TaoYuChunFeng", "TaoYuChunFeng", "ShengKai"], player_heroes)
-player2 = InferenceOpponent(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZhiDi", "WuShiZhiLi", "WuShiZhiLi", "WuShiZhiRen", "WuShiZhiRen", "TianXieGuiChiRanShao", "TianXieGuiChiRanShao", "TianXieGuiHuangGuWu", "TianXieGuiHuangGuWu", "TianXieGuiQingYuanJi", "TianXieGuiQingYuanJi", "TianXieGuiLvPaiDa", "TianXieGuiLvPaiDa", "XinZhan", "XinZhan", "XinJiGuiChu", "XinJiGuiChu", "EJiZhan", "EJiZhan", "XinJianLuanWu", "XinJianLuanWu", "TaoZhiXinXi", "TaoZhiXinXi", "HuaXinFeng", "HuaXinFeng", "FengShi", "FengShi", "TaoYuChunFeng", "TaoYuChunFeng", "ShengKai"], opponent_heroes)
+player1 = InferencePlayer(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZhiDi", "WuShiZhiLi", "WuShiZhiLi", "WuShiZhiRen", "WuShiZhiRen", "TianXieGuiChiRanShao", "TianXieGuiChiRanShao", "TianXieGuiHuangGuWu", "TianXieGuiHuangGuWu", "TianXieGuiQingYuanJi", "TianXieGuiQingYuanJi", "TianXieGuiLvPaiDa", "TianXieGuiLvPaiDa", "XinZhan", "XinZhan", "XinJiGuiChu", "XinJiGuiChu", "EJiZhan", "EJiZhan", "XinJianLuanWu", "XinJianLuanWu", "TaoZhiXinXi", "TaoZhiXinXi", "HuaXinFeng", "HuaXinFeng", "FengShi", "FengShi", "TaoYuChunFeng", "TaoYuChunFeng"], player_heroes)
+player2 = InferenceOpponent(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZhiDi", "WuShiZhiLi", "WuShiZhiLi", "WuShiZhiRen", "WuShiZhiRen", "TianXieGuiChiRanShao", "TianXieGuiChiRanShao", "TianXieGuiHuangGuWu", "TianXieGuiHuangGuWu", "TianXieGuiQingYuanJi", "TianXieGuiQingYuanJi", "TianXieGuiLvPaiDa", "TianXieGuiLvPaiDa", "XinZhan", "XinZhan", "XinJiGuiChu", "XinJiGuiChu", "EJiZhan", "EJiZhan", "XinJianLuanWu", "XinJianLuanWu", "TaoZhiXinXi", "TaoZhiXinXi", "HuaXinFeng", "HuaXinFeng", "FengShi", "FengShi", "TaoYuChunFeng", "TaoYuChunFeng"], opponent_heroes)
 game = Game([player1, player2])
 ioagent1 = IOAgent(game, player1)
 # We use a env to get obs and action masks, should use Env instead of RandomOpponentGameEnv in the future
@@ -114,23 +114,71 @@ while not game.check_end_condition():
             while True:
                 _ = input(f"Please enter the card played by the opponent: ")
                 card_name = match_by_caps(card_names, _)
+                # If the card is in opponent's hand, it will remain as is; If the card is in opponent's
+                # deck, we will swap it with the first card in opponent's hand; Otherwise we will check
+                # if there's a card in opponent's hand or deck that's not in the starting deck and
+                # replace that card, then move it to the hand if the card is in the deck; Otherwise
+                # we'll swap out a random card in opponent's hand.
                 if card_name is not None:
-                    card_obj = Card.GetCard(card_name)
+                    card_obj = None
+                    for card in player2.hand.cards:
+                        if card.eng_name == card_name:
+                            card_obj = card
+                            break
+                    if card_obj is None:
+                        for i in range(len(player2.deck.cards)):
+                            if player2.deck.cards[i].eng_name == card_name:
+                                player2.hand.cards[0], player2.deck.cards[i] = player2.deck.cards[i], player2.hand.cards[0]
+                                card_obj = player2.hand.cards[0]
+                                break
+                    if card_obj is None:
+                        for i in range(len(player2.hand.cards)):
+                            if player2.hand.cards[i].eng_name not in player2.starting_deck:
+                                card_obj = Card.GetCard(card_name)
+                                card_obj.assign_owner(player2)
+                                player2.hand.cards[i] = card_obj
+                                break
+                    if card_obj is None:
+                        for i in range(len(player2.deck.cards)):
+                            if player2.deck.cards[i].eng_name not in player2.starting_deck:
+                                card_obj = Card.GetCard(card_name)
+                                card_obj.assign_owner(player2)
+                                player2.deck.cards[i] = card_obj
+                                player2.hand.cards[0], player2.deck.cards[i] = player2.deck.cards[i], player2.hand.cards[0]
+                                break
+                    if card_obj is None:
+                        card_obj = Card.GetCard(card_name)
+                        card_obj.assign_owner(player2)
+                        player2.hand.cards[0] = card_obj
                     break
-            if card_obj.id == 17:
-                for hero in player2.heroes:
-                    if hero.id == 3:
-                        qs = hero
-                        break
-                print(qs.level)
-                card_obj.attributes = [CardAttributes.INSTANT] if qs.level == 2 else [CardAttributes.NO_FIRE_CONSUMPTION] if qs.level == 3 else []
+            
             while True:
                 for attribute, value in vars(card_obj).items():
                     print(attribute, "=", value)
                 _ = int(input(f"Is the above card exactly the card actually played by the opponent? \n[1] Yes \n[2] No\n")) - 1
                 if _:
                     attr = input(f"Please enter the mismatching field")
-                    value = input(f"Please enter the correct value for {attr}")
+                    match attr:
+                        case "attributes":
+                            print("Here are all the possible attributes:")
+                            idx = 0
+                            for a in CardAttributes:
+                                print(f"[{idx + 1}] {a.name}")
+                                idx += 1
+                            value = input(f"Please enter the correct value for {attr} (separate multiple attributes with commas)")
+                            value = [CardAttributes(int(a.strip())) for a in value.split(",")]
+                        case _:
+                            try:
+                                if type(getattr(card_obj, attr)) == int:
+                                    value = int(input(f"Please enter the correct value for {attr}"))
+                                else:
+                                    value = input(f"Please enter the correct value for {attr}")
+                            except AttributeError:
+                                value = input(f"Please enter the correct value for {attr}")
+                                try:
+                                    value = int(value)
+                                except ValueError:
+                                    pass
                     setattr(card_obj, attr, value)
                 else:
                     break

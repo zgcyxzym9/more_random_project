@@ -33,6 +33,9 @@ class Card(Entity):
     def __repr__(self):
         return f"{self.name}"
 
+    def __copy__(self):
+        return Card(copy.copy(self))
+
     def GetCard(id:str):
         card_class = globals()[id]
         card_obj = card_class()
