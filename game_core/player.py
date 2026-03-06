@@ -5,6 +5,7 @@ from .hero import Hero
 from .entity import Entity
 from .enums import *
 import os
+import random as r
 
 
 # Player: generic, can directly use for training
@@ -42,6 +43,7 @@ class Player():
         for card in self.deck:
             card.assign_owner(self)
         self.deck.shuffle()
+        r.shuffle(self.heroes)
         for hero in self.heroes:
             hero.assign_owner(self)
         self.hand = CardList([])
@@ -177,6 +179,22 @@ class InferencePlayer(Player):
         with open(os.path.join(root_dict, "game_core/hero_names.txt"), 'r', encoding='utf-8') as file:
             self.hero_names = [line.strip() for line in file if line.strip()]
 
+    # This version of start_game will not shuffle the hero list
+    def start_game(self):
+        self.deck = CardList(Card.GetCards(self.starting_deck))
+        for card in self.deck:
+            card.assign_owner(self)
+        self.deck.shuffle()
+        for hero in self.heroes:
+            hero.assign_owner(self)
+        self.hand = CardList([])
+        self.used_card = CardList([])
+        if not self.is_first_player:
+            self.defense = 5
+        for i in range(5):
+            self.draw()
+        self.state = PlayerState.INITIAL_PICK
+
     """
     The implementation of this draw function will generate a card from 
     nowhere and pop a random card from the deck, and therefore should only 
@@ -204,3 +222,19 @@ class InferenceOpponent(Player):
             self.card_names = [line.strip() for line in file if line.strip()]
         with open(os.path.join(root_dict, "game_core/hero_names.txt"), 'r', encoding='utf-8') as file:
             self.hero_names = [line.strip() for line in file if line.strip()]
+
+    # This version of start_game will not shuffle the hero list
+    def start_game(self):
+        self.deck = CardList(Card.GetCards(self.starting_deck))
+        for card in self.deck:
+            card.assign_owner(self)
+        self.deck.shuffle()
+        for hero in self.heroes:
+            hero.assign_owner(self)
+        self.hand = CardList([])
+        self.used_card = CardList([])
+        if not self.is_first_player:
+            self.defense = 5
+        for i in range(5):
+            self.draw()
+        self.state = PlayerState.INITIAL_PICK
