@@ -28,10 +28,10 @@ class DoubleDQNAgent:
         self.optimizer = optim.Adam(self.q_net.parameters(), lr=lr)
 
     # ε-greedy
-    def select_action(self, obs, action_mask, epsilon):
+    def select_action(self, obs, action_mask, epsilon=0):
         """
         obs: (obs_dim,)
-        action_mask: (action_dim,)  1=合法 0=非法
+        action_mask: (action_dim,)  
         """
 
         if random.random() < epsilon:

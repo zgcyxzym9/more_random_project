@@ -5,14 +5,21 @@ from game_core.game import Game
 from game_core.player import Player
 from game_core.card import Card
 from rl.actor_critic import ActorCritic
+from rl_dqn.agent import DoubleDQNAgent
 from .actions import *
 from game_core.action import *
 import torch
+import os
+import random as r
 
 
 class Env:
     def __init__(self):
-        pass
+        root_dict = "E:/more_random_project"
+        with open(os.path.join(root_dict, "game_core/cards/card_names.txt"), 'r', encoding='utf-8') as file:
+            card_names = [line.strip() for line in file if line.strip()]
+        with open(os.path.join(root_dict, "game_core/hero_names.txt"), 'r', encoding='utf-8') as file:
+            hero_names = [line.strip() for line in file if line.strip()]
 
 
     def step(self, action):
@@ -194,6 +201,7 @@ class Env:
 
 class RandomOpponentGameEnv(Env):
     def __init__(self):
+        super().__init__()
         self.model = ActorCritic(243, 39).to(device="cuda")
         self.model.load_state_dict(torch.load("./logs/2026-02-20_00-13-35/ppo_actor_critic_2.pt"))
 
@@ -251,3 +259,65 @@ class RandomOpponentGameEnv(Env):
 
     def load_model(self, model_path):
         self.model.load_state_dict(torch.load(model_path))
+
+
+class DQNOpponentGameEnv(Env):
+    def __init__(self):
+        super().__init__()
+        self.model = DoubleDQNAgent(243, 39).to(device="cuda")
+        self.model.load_state_dict(torch.load("./logs/dqn/2026-03-03_09-47-49/dqn_model.pt"))
+    
+
+    def step(self, action):
+        original_state = self.game.get_observations(self.player1)
+        self.game.step(self.player1, self.decode_action(self.player1, action))
+        if self.opponent == "random":
+            while self.game.current_player is not self.player1 and not self.game.check_end_condition():
+                import random as r
+                legal_actions = self.get_legal_actions(self.player2)
+                self.game.step(self.player2, self.decode_action(self.player2, r.choice(legal_actions)))
+        else:
+            while self.game.current_player is not self.player1 and not self.game.check_end_condition():
+                with torch.inference_mode():
+                    action_mask = self.get_action_masks(self.player2)
+                    obs = torch.tensor(self.get_obs(self.player2), dtype=torch.float32, device="cuda")
+                    action = self.model.select_action(obs, action_mask)
+                    self.game.step(self.player2, self.decode_action(self.player2, action))
+        
+        done = self.game.check_end_condition()
+        new_state = self.game.get_observations(self.player1)
+        reward = self.get_reward(original_state, new_state)
+        obs = self.get_obs(self.player1)
+        return obs, reward, done, {}
+
+
+    def reset(self):
+        self.player1 = Player(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZhiDi", "WuShiZhiLi", "WuShiZhiLi", "WuShiZhiRen", "WuShiZhiRen", "TianXieGuiChiRanShao", "TianXieGuiChiRanShao", "TianXieGuiHuangGuWu", "TianXieGuiHuangGuWu", "TianXieGuiQingYuanJi", "TianXieGuiQingYuanJi", "TianXieGuiLvPaiDa", "TianXieGuiLvPaiDa", "XinZhan", "XinZhan", "XinJiGuiChu", "XinJiGuiChu", "EJiZhan", "EJiZhan", "XinJianLuanWu", "XinJianLuanWu", "TaoZhiXinXi", "TaoZhiXinXi", "HuaXinFeng", "HuaXinFeng", "FengShi", "FengShi", "TaoYuChunFeng", "TaoYuChunFeng", "ShengKai"], ["ZhiRenWuShi", "TianXieGuiTuanHuo", "QuanShen", "TaoHuaYao"])
+        self.player2 = Player(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZhiDi", "WuShiZhiLi", "WuShiZhiLi", "WuShiZhiRen", "WuShiZhiRen", "TianXieGuiChiRanShao", "TianXieGuiChiRanShao", "TianXieGuiHuangGuWu", "TianXieGuiHuangGuWu", "TianXieGuiQingYuanJi", "TianXieGuiQingYuanJi", "TianXieGuiLvPaiDa", "TianXieGuiLvPaiDa", "XinZhan", "XinZhan", "XinJiGuiChu", "XinJiGuiChu", "EJiZhan", "EJiZhan", "XinJianLuanWu", "XinJianLuanWu", "TaoZhiXinXi", "TaoZhiXinXi", "HuaXinFeng", "HuaXinFeng", "FengShi", "FengShi", "TaoYuChunFeng", "TaoYuChunFeng", "ShengKai"], ["ZhiRenWuShi", "TianXieGuiTuanHuo", "QuanShen", "TaoHuaYao"])
+        self.game = Game([self.player1, self.player2])
+        self.game.start_game()
+        self.get_opponent_agent()
+        if self.opponent == "random":
+            while self.game.current_player is not self.player1 and not self.game.check_end_condition():
+                import random as r
+                legal_actions = self.get_legal_actions(self.player2)
+                self.game.step(self.player2, self.decode_action(self.player2, r.choice(legal_actions)))
+        else:
+            while self.game.current_player is not self.player1 and not self.game.check_end_condition():
+                with torch.inference_mode():
+                    action_mask = self.get_action_masks(self.player2)
+                    obs = torch.tensor(self.get_obs(self.player2), dtype=torch.float32, device="cuda")
+                    action = self.model.select_action(obs, action_mask)
+                    self.game.step(self.player2, self.decode_action(self.player2, action))
+        return self.get_obs(self.player1)
+    
+
+    def get_opponent_agent(self):
+        import random as r
+        x = r.random()
+        self.opponent = "random" if x < 0.1 else "trained"
+        # self.opponent = "random"
+    
+
+    def load_model(self, model_path):
+        self.model.load_model(torch.load(model_path))
