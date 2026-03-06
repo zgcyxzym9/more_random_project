@@ -9,7 +9,7 @@ from rl_dqn.replay_buffer import ReplayBuffer
 from env.env import RandomOpponentGameEnv
 from rl_dqn.agent import DoubleDQNAgent
 
-def train(env, agent, episodes=10000):
+def train(env, agent, episodes=50000):
 
     log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     log_dir = os.path.join("logs/dqn", log_dir)
@@ -23,6 +23,8 @@ def train(env, agent, episodes=10000):
 
     target_update_freq = 1000
     total_steps = 0
+
+    chkpt = 1
 
     for episode in range(episodes):
 
@@ -60,6 +62,11 @@ def train(env, agent, episodes=10000):
         writer.add_scalar("Reward", episode_reward, episode)
         if loss is not None:
             writer.add_scalar("Loss", loss, episode)
+        
+        if episode > chkpt * 4000:
+            chkpt += 1
+            agent.save_model(os.path.join(log_dir, f"dqn_model_{chkpt}.pt"))
+            env.load_model(os.path.join(log_dir, f"dqn_model_{chkpt}.pt"))
     
     agent.save_model(os.path.join(log_dir, "dqn_model.pt"))
 
