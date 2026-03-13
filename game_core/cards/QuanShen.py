@@ -33,6 +33,7 @@ class XinJiGuiChu:
     name = "心即归处"
     level_req = 2
     attributes = (CardAttributes.INSTANT,)
+    require_target = (lambda s: [s.get_corresponding_hero()] if s.get_corresponding_hero().hp <= 0 else [],)
     on_play = (lambda s: s.get_corresponding_hero().revive(),)
 
 class EJiZhan:
