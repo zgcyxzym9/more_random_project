@@ -103,7 +103,7 @@ class Game:
                     return
                 player.hand.remove(action.card)
                 player.deck.append(action.card)
-                player.hand.append(player.deck.pop(0))
+                player.draw()
                 player.initial_pick_reject_left -= 1
                 if player.initial_pick_reject_left == 0:
                     self.step(player, EndTurn())
