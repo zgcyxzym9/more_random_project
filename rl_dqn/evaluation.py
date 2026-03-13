@@ -2,9 +2,9 @@ import sys
 sys.path.insert(0, "E:/more_random_project")
 import torch
 from rl_dqn.agent import DoubleDQNAgent
-from env.env import RandomOpponentGameEnv
+from env.env import RandomOpponentGameEnv, DQNOpponentGameEnv
 
-def eval(env, model_path="./logs/dqn/2026-03-03_09-47-49/dqn_model.pt"):
+def eval(env, model_path="./logs/dqn/2026-03-13_15-09-05/dqn_model_2.pt"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     obs_dim = 243

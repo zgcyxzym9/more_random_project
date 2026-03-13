@@ -253,7 +253,7 @@ class RandomOpponentGameEnv(Env):
     def get_opponent_agent(self):
         import random as r
         x = r.random()
-        self.opponent = "random" if x < 0.1 else "trained"
+        self.opponent = "random" if x < 0.03 else "trained"
         # self.opponent = "random"
     
 
@@ -264,8 +264,8 @@ class RandomOpponentGameEnv(Env):
 class DQNOpponentGameEnv(Env):
     def __init__(self):
         super().__init__()
-        self.model = DoubleDQNAgent(243, 39).to(device="cuda")
-        self.model.load_state_dict(torch.load("./logs/dqn/2026-03-03_09-47-49/dqn_model.pt"))
+        self.model = DoubleDQNAgent(243, 39, "cuda")
+        self.model.load_model("./logs/dqn/2026-03-06_14-56-03/dqn_model.pt")
     
 
     def step(self, action):
@@ -315,9 +315,9 @@ class DQNOpponentGameEnv(Env):
     def get_opponent_agent(self):
         import random as r
         x = r.random()
-        self.opponent = "random" if x < 0.1 else "trained"
+        self.opponent = "random" if x < 0.02 else "trained"
         # self.opponent = "random"
     
 
     def load_model(self, model_path):
-        self.model.load_model(torch.load(model_path))
+        self.model.load_model(model_path)

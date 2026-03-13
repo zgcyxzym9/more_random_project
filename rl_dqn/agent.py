@@ -38,7 +38,10 @@ class DoubleDQNAgent:
             legal_actions = torch.where(action_mask == False)[0]
             return random.choice(legal_actions)
 
-        obs_tensor = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
+        if not isinstance(obs, torch.Tensor):
+            obs_tensor = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
+        else:
+            obs_tensor = obs
 
         with torch.no_grad():
             q_values = self.q_net(obs_tensor).squeeze(0)
