@@ -7,8 +7,8 @@ from env.env import RandomOpponentGameEnv, DQNOpponentGameEnv
 def eval(env, model_path="./logs/dqn/2026-03-13_15-09-05/dqn_model_2.pt"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    obs_dim = 243
-    act_dim = 39
+    obs_dim = 240
+    act_dim = 36
 
     model = DoubleDQNAgent(obs_dim, act_dim, device)
     model.q_net.load_state_dict(torch.load(model_path))

@@ -12,6 +12,8 @@ import torch
 import os
 import random as r
 
+_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class Env:
     def __init__(self):
@@ -30,88 +32,110 @@ class Env:
         raise NotImplementedError
 
 
-    def get_obs(self, player):
-        state = self.game.get_observations(player)  #state: dict
-        obs = [0] * 243
-        obs[0] = player.state #player_state need to use enum
-        obs[1] = 0 # game_state, currently just a placeholder since game_state has no usage now
+    def get_obs(self, player) -> torch.Tensor:
+        state = self.game.get_observations(player)
+        obs = torch.zeros(240, dtype=torch.float32, device=_DEVICE)
+ 
+        obs[0] = player.state   #player_state need to use enum
+        obs[1] = 0  # game_state, currently just a placeholder since game_state has no usage now
         obs[2] = state["turn_count"]
         obs[3] = state["player_hp"]
         obs[4] = state["opponent_hp"]
+ 
         for i in range(4):
-            obs[5 + i * 12] = state["player_heroes"][i].id
-            obs[6 + i * 12] = state["player_heroes"][i].morphed_id
-            obs[7 + i * 12] = state["player_heroes"][i].current_max_hp
-            obs[8 + i * 12] = state["player_heroes"][i].hp
-            obs[9 + i * 12] = state["player_heroes"][i].atk
-            obs[10 + i * 12] = state["player_heroes"][i].round_buff_atk
-            obs[11 + i * 12] = state["player_heroes"][i].defense
-            obs[12 + i * 12] = state["player_heroes"][i].level
-            obs[13 + i * 12] = state["player_heroes"][i].round_until_alive
-            obs[14 + i * 12] = state["player_heroes"][i].inspiration_atk
-            obs[15 + i * 12] = state["player_heroes"][i].inspiration_hp
-            obs[16 + i * 12] = state["player_heroes"][i].inspiration_def
+            h = state["player_heroes"][i]
+            base = 5 + i * 12
+            obs[base]     = h.id
+            obs[base + 1] = h.morphed_id
+            obs[base + 2] = h.current_max_hp
+            obs[base + 3] = h.hp
+            obs[base + 4] = h.atk
+            obs[base + 5] = h.round_buff_atk
+            obs[base + 6] = h.defense
+            obs[base + 7] = h.level
+            obs[base + 8] = h.round_until_alive
+            obs[base + 9] = h.inspiration_atk
+            obs[base + 10] = h.inspiration_hp
+            obs[base + 11] = h.inspiration_def
+ 
         for i in range(4):
-            obs[53 + i * 12] = state["opponent_heroes"][i].id
-            obs[54 + i * 12] = state["opponent_heroes"][i].morphed_id
-            obs[55 + i * 12] = state["opponent_heroes"][i].current_max_hp
-            obs[56 + i * 12] = state["opponent_heroes"][i].hp
-            obs[57 + i * 12] = state["opponent_heroes"][i].atk
-            obs[58 + i * 12] = state["opponent_heroes"][i].round_buff_atk
-            obs[59 + i * 12] = state["opponent_heroes"][i].defense
-            obs[60 + i * 12] = state["opponent_heroes"][i].level
-            obs[61 + i * 12] = state["opponent_heroes"][i].round_until_alive
-            obs[62 + i * 12] = state["opponent_heroes"][i].inspiration_atk
-            obs[63 + i * 12] = state["opponent_heroes"][i].inspiration_hp
-            obs[64 + i * 12] = state["opponent_heroes"][i].inspiration_def
+            h = state["opponent_heroes"][i]
+            base = 53 + i * 12
+            obs[base]     = h.id
+            obs[base + 1] = h.morphed_id
+            obs[base + 2] = h.current_max_hp
+            obs[base + 3] = h.hp
+            obs[base + 4] = h.atk
+            obs[base + 5] = h.round_buff_atk
+            obs[base + 6] = h.defense
+            obs[base + 7] = h.level
+            obs[base + 8] = h.round_until_alive
+            obs[base + 9] = h.inspiration_atk
+            obs[base + 10] = h.inspiration_hp
+            obs[base + 11] = h.inspiration_def
+ 
         obs[101] = state["player_deck_size"]
         obs[102] = state["opponent_deck_size"]
-        # We currently limit the size of hand to 15 cards, can adjust accordingly
-        for i in range(len(state["player_hand"])):
-            obs[103 + i] = state["player_hand"][i].id
-            if i >= 14:
-                break
-        obs[118] = state["opponent_hand_size"]
-        # Hand size should be 32
-        for i in range(len(state["player_starting_deck"])):
-            obs[119 + i] = Card.GetCard(state["player_starting_deck"][i]).id
-        obs[151] = state["fire_remaining"]
-        obs[152] = 1 if state["attack_available"] == True else 0
-        obs[153] = 1 if state["is_first_player"] == True else 0
-        obs[154] = state["pending_card"].id if state["pending_card"] is not None else 0
-        for i in range(len(state["player_used_card"])):
-            obs[155 + i] = state["player_used_card"][i].id
-        for i in range(len(state["opponent_used_card"])):
-            obs[187 + i] = state["opponent_used_card"][i].id
+ 
+        hand = state["player_hand"]
+        for i in range(min(len(hand), HAND_LIMIT)):
+            obs[103 + i] = hand[i].id
+ 
+        obs[115] = state["opponent_hand_size"]
+ 
+        deck = state["player_starting_deck"]
+        for i in range(min(len(deck), 32)):
+            obs[116 + i] = Card.GetCard(deck[i]).id
+ 
+        obs[148] = state["fire_remaining"]
+        obs[149] = 1 if state["attack_available"] else 0
+        obs[150] = 1 if state["is_first_player"] else 0
+        obs[151] = state["pending_card"].id if state["pending_card"] is not None else 0
+ 
+        for i, c in enumerate(state["player_used_card"]):
+            if i >= 32: break
+            obs[152 + i] = c.id
+ 
+        for i, c in enumerate(state["opponent_used_card"]):
+            if i >= 32: break
+            obs[184 + i] = c.id
+ 
+        # attacking heroes（一次遍历同时处理双方）
         for hero in state["player_heroes"]:
             if hero.state == "attacking":
-                obs[219] = hero.id
-                obs[220] = hero.morphed_id
-                obs[221] = hero.current_max_hp
-                obs[222] = hero.hp
-                obs[223] = hero.atk
-                obs[224] = hero.round_buff_atk
-                obs[225] = hero.defense
-                obs[226] = hero.level
-                obs[227] = hero.round_until_alive
-                obs[228] = hero.inspiration_atk
-                obs[229] = hero.inspiration_hp
-                obs[230] = hero.inspiration_def
+                base = 216
+                obs[base]     = hero.id
+                obs[base + 1] = hero.morphed_id
+                obs[base + 2] = hero.current_max_hp
+                obs[base + 3] = hero.hp
+                obs[base + 4] = hero.atk
+                obs[base + 5] = hero.round_buff_atk
+                obs[base + 6] = hero.defense
+                obs[base + 7] = hero.level
+                obs[base + 8] = hero.round_until_alive
+                obs[base + 9] = hero.inspiration_atk
+                obs[base + 10] = hero.inspiration_hp
+                obs[base + 11] = hero.inspiration_def
+                break
+ 
         for hero in state["opponent_heroes"]:
             if hero.state == "attacking":
-                obs[231] = hero.id
-                obs[232] = hero.morphed_id
-                obs[233] = hero.current_max_hp
-                obs[234] = hero.hp
-                obs[235] = hero.atk
-                obs[236] = hero.round_buff_atk
-                obs[237] = hero.defense
-                obs[238] = hero.level
-                obs[239] = hero.round_until_alive
-                obs[240] = hero.inspiration_atk
-                obs[241] = hero.inspiration_hp
-                obs[242] = hero.inspiration_def
-        return obs
+                base = 228
+                obs[base]     = hero.id
+                obs[base + 1] = hero.morphed_id
+                obs[base + 2] = hero.current_max_hp
+                obs[base + 3] = hero.hp
+                obs[base + 4] = hero.atk
+                obs[base + 5] = hero.round_buff_atk
+                obs[base + 6] = hero.defense
+                obs[base + 7] = hero.level
+                obs[base + 8] = hero.round_until_alive
+                obs[base + 9] = hero.inspiration_atk
+                obs[base + 10] = hero.inspiration_hp
+                obs[base + 11] = hero.inspiration_def
+                break
+ 
+        return obs  # shape: (240,), float32, on GPU
         
 
     def get_legal_actions(self, player):
@@ -126,10 +150,7 @@ class Env:
                 case "hero attack":
                     legal.append(HERO_ATTACK_START + player.heroes.index(action.hero))
                 case "play card":
-                    # this limitation is in place because we only have 15 action dim reserved
-                    # for play card currently
-                    if player.hand.index(action.card) < 15:
-                        legal.append(PLAY_CARD_START + player.hand.index(action.card))
+                    legal.append(PLAY_CARD_START + player.hand.index(action.card))
                 case "select target":
                     if action.target == player.opponent:
                         legal.append(SELECT_TARGET_START + 0)
@@ -144,27 +165,22 @@ class Env:
         return legal
 
 
-    def get_action_masks(self, player):
-        legal = self.get_legal_actions(player)
-        action_mask = [True] * 39
-        for a in legal:
-            action_mask[a] = False
-        return torch.tensor(action_mask).to(device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    def get_action_masks(self, player) -> torch.Tensor:
+        mask = torch.ones(36, dtype=torch.bool, device=_DEVICE)
+        for a in self.get_legal_actions(player):
+            mask[a] = False
+        return mask
         
 
-    
     def decode_action(self, player, action_id):
         if action_id == 0:
             return EndTurn()
         if UPGRADE_HERO_START <= action_id < HERO_ATTACK_START:
-            hero = player.heroes[action_id - UPGRADE_HERO_START]
-            return UpgradeHero(hero)
+            return UpgradeHero(player.heroes[action_id - UPGRADE_HERO_START])
         if HERO_ATTACK_START <= action_id < PLAY_CARD_START:
-            hero = player.heroes[action_id - HERO_ATTACK_START]
-            return HeroAttack(hero)
+            return HeroAttack(player.heroes[action_id - HERO_ATTACK_START])
         if PLAY_CARD_START <= action_id < SELECT_TARGET_START:
-            card = player.hand[action_id - PLAY_CARD_START]
-            return PlayCard(card, None)
+            return PlayCard(player.hand[action_id - PLAY_CARD_START], None)
         if SELECT_TARGET_START <= action_id < REJECT_INITIAL_PICK_START:
             index = action_id - SELECT_TARGET_START
             if index == 0:
@@ -177,8 +193,7 @@ class Env:
                 target = player
             return SelectTarget(target)
         if REJECT_INITIAL_PICK_START <= action_id < REJECT_INITIAL_PICK_START + len(player.hand):
-            card = player.hand[action_id - REJECT_INITIAL_PICK_START]
-            return RejectInitialPick(card)
+            return RejectInitialPick(player.hand[action_id - REJECT_INITIAL_PICK_START])
 
 
     def get_reward(self, original_state, new_state):

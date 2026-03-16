@@ -1,3 +1,5 @@
+from game_core import cards
+
 from .action import *
 from .utils import CardList
 from .card import Card
@@ -60,6 +62,10 @@ class Player():
             self.state = PlayerState.LOST
             return
         drawn_card = self.deck.pop(0)
+        # If you have more than 12 cards, you still draw the card but immediately discard it
+        if len(self.deck.cards) >= 12:
+            self.used_card.append(drawn_card)
+            return
         self.hand.append(drawn_card)
     
     def reject_initial_card(self, id):
@@ -206,7 +212,11 @@ class InferencePlayer(Player):
             _ = input(f"Please enter the name of the card you just drawn: ")
             card_name = match_by_caps(self.card_names, _)
             if card_name is not None:
-                self.GiveCardToHand([card_name])
+                if len(self.hand,cards) >= 12:
+                    print("Your hand is full, the drawn card will be discarded.")
+                    self.used_card.append(Card.GetCard(card_name).assign_owner(self))
+                else:
+                    self.GiveCardToHand([card_name])
                 break
         self.deck.pop()
 
