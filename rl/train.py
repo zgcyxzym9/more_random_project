@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, "E:\more_random_project")
+sys.path.insert(0, "E:/more_random_project")
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
@@ -13,13 +13,13 @@ from actor_critic import ActorCritic
 from ppo import PPO
 from env.env import RandomOpponentGameEnv
 
-def train(env, total_steps=4_000_000, rollout_size=4096):
+def train(env, total_steps=12_000_000, rollout_size=4096):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
 
-    obs_dim = 243
+    obs_dim = 240
     # end_turn + upgrade + attack + play_card_by_slot + select_target + reject_initial_pick
-    act_dim = 1 + 4 + 4 + 15 + 10 + 5 # 39
+    act_dim = 1 + 4 + 4 + 12 + 10 + 5 # 36
 
     model = ActorCritic(obs_dim, act_dim).to(device)
     ppo = PPO(model)
@@ -27,7 +27,7 @@ def train(env, total_steps=4_000_000, rollout_size=4096):
     log_dir = os.path.join("logs", log_dir)
     writer = SummaryWriter(log_dir)
     # load model here to resume training
-    model.load_state_dict(torch.load("./logs/2026-02-16_21-13-37/ppo_actor_critic.pt"))
+    model.load_state_dict(torch.load("./logs/2026-02-20_01-02-58/ppo_actor_critic_6.pt"))
 
     obs = torch.tensor(env.reset(), dtype=torch.float32, device=device)
 
@@ -82,8 +82,11 @@ def train(env, total_steps=4_000_000, rollout_size=4096):
         writer.add_scalar('Stats/mean_return', mean_reward, step / rollout_size)
 
         if step > chkpt * 500_000:
+            torch.save(model.state_dict(), os.path.join(log_dir, f"ppo_actor_critic_{chkpt}.pt"))
+            if chkpt % 4 == 0:
+                env.load_model(os.path.join(log_dir, f"ppo_actor_critic_{chkpt}.pt"))
             chkpt += 1
-            torch.save(model.state_dict(), os.path.join(log_dir, f"ppo_actor_critic_{chkpt-1}.pt"))
+
 
     torch.save(model.state_dict(), os.path.join(log_dir, f"ppo_actor_critic.pt"))
 

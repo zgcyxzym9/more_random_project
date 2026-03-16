@@ -217,7 +217,7 @@ class Env:
 class RandomOpponentGameEnv(Env):
     def __init__(self):
         super().__init__()
-        self.model = ActorCritic(243, 39).to(device="cuda")
+        self.model = ActorCritic(240, 36).to(device="cuda")
         self.model.load_state_dict(torch.load("./logs/2026-02-20_00-13-35/ppo_actor_critic_2.pt"))
 
 
@@ -279,7 +279,7 @@ class RandomOpponentGameEnv(Env):
 class DQNOpponentGameEnv(Env):
     def __init__(self):
         super().__init__()
-        self.model = DoubleDQNAgent(243, 39, "cuda")
+        self.model = DoubleDQNAgent(240, 36, "cuda")
         self.model.load_model("./logs/dqn/2026-03-06_14-56-03/dqn_model.pt")
     
 

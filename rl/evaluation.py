@@ -7,9 +7,9 @@ from env.env import RandomOpponentGameEnv
 def eval(env, model_path="./logs/2026-02-21_00-02-50/ppo_actor_critic.pt"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    obs_dim = 243
+    obs_dim = 240
     # end_turn + upgrade + attack + play_card_by_slot + select_target + reject_initial_pick
-    act_dim = 1 + 4 + 4 + 15 + 10 + 5 # 39
+    act_dim = 1 + 4 + 4 + 12 + 10 + 5 # 36
 
     model = ActorCritic(obs_dim, act_dim).to(device)
     model.load_state_dict(torch.load(model_path))
