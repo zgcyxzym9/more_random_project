@@ -307,7 +307,7 @@ class DQNOpponentGameEnv(Env):
     
 
     def step(self, action):
-        obs_before = self.game.get_obs_tensor(self.player1, _DEVICE)
+        obs_before = self.game.get_obs_tensor(self.player1, "cpu")
         self.game.step(self.player1, self.decode_action(self.player1, action))
         if self.opponent == "random":
             while self.game.current_player is not self.player1 and not self.game.check_end_condition():
@@ -323,9 +323,9 @@ class DQNOpponentGameEnv(Env):
                     self.game.step(self.player2, self.decode_action(self.player2, action))
         
         done = self.game.check_end_condition()
-        obs_after = self.game.get_obs_tensor(self.player1, _DEVICE)
+        obs_after = self.game.get_obs_tensor(self.player1, "cpu")
         reward = self.get_reward(obs_before, obs_after)
-        return obs_after, reward, done, {}
+        return obs_after.to(device=_DEVICE), reward, done, {}
 
 
     def reset(self):
