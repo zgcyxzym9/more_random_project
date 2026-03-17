@@ -166,6 +166,9 @@ class Game:
                 if action.card.level_req > action.card.get_corresponding_hero().level:
                     print("trying to play a card when corresponding hero level is not enough")
                     return
+                if action.card.get_corresponding_hero().state == "dead" and CardAttributes.CAN_PLAY_WHEN_DEAD not in action.card.attributes:
+                    print("trying to play a card whose corresponding hero is dead without the ability to play when dead")
+                    return
                 player.fire_cnt -= 1
                 self.play_card(player, action.card, action.target)
             
@@ -402,3 +405,141 @@ class Game:
             "player_used_card": player_used_card,
             "opponent_used_card": opponent_used_card
         }
+    
+
+    def get_obs_tensor(self, player: Player, device) -> "torch.Tensor":
+        """
+        直接从游戏对象属性构造 obs tensor，跳过 get_observations() 的
+        dict 构造、.copy() 和字符串 key 查找。
+    
+        原有的 get_observations() 不受影响，可继续用于调试/日志。
+    
+        layout 与 env.get_obs() 完全一致（共 240 维）：
+        0        player_state
+        1        0 (game_state placeholder)
+        2        turn_count
+        3        player_hp
+        4        opponent_hp
+        5~52     player heroes × 4 × 12
+        53~100   opponent heroes × 4 × 12
+        101      player_deck_size
+        102      opponent_deck_size
+        103~114  player_hand (12 slots)
+        115      opponent_hand_size
+        116~147  player_starting_deck (32 slots)
+        148      fire_remaining
+        149      attack_available
+        150      is_first_player
+        151      pending_card id
+        152~183  player_used_card (32 slots)
+        184~215  opponent_used_card (32 slots)
+        216~227  attacking player hero (12 fields)
+        228~239  attacking opponent hero (12 fields)
+        """
+        import torch
+        opponent = player.opponent
+        obs = torch.zeros(240, dtype=torch.float32, device=device)
+    
+        obs[0] = player.state
+        # obs[1] = 0  已是零，跳过
+        obs[2] = self.turn_count
+        obs[3] = player.hp
+        obs[4] = opponent.hp
+    
+        # 己方英雄
+        for i, h in enumerate(player.heroes):
+            base = 5 + i * 12
+            obs[base]      = h.id
+            obs[base + 1]  = h.morphed_id
+            obs[base + 2]  = h.current_max_hp
+            obs[base + 3]  = h.hp
+            obs[base + 4]  = h.atk
+            obs[base + 5]  = h.round_buff_atk
+            obs[base + 6]  = h.defense
+            obs[base + 7]  = h.level
+            obs[base + 8]  = h.round_until_alive
+            obs[base + 9]  = h.inspiration_atk
+            obs[base + 10] = h.inspiration_hp
+            obs[base + 11] = h.inspiration_def
+    
+        # 对手英雄
+        for i, h in enumerate(opponent.heroes):
+            base = 53 + i * 12
+            obs[base]      = h.id
+            obs[base + 1]  = h.morphed_id
+            obs[base + 2]  = h.current_max_hp
+            obs[base + 3]  = h.hp
+            obs[base + 4]  = h.atk
+            obs[base + 5]  = h.round_buff_atk
+            obs[base + 6]  = h.defense
+            obs[base + 7]  = h.level
+            obs[base + 8]  = h.round_until_alive
+            obs[base + 9]  = h.inspiration_atk
+            obs[base + 10] = h.inspiration_hp
+            obs[base + 11] = h.inspiration_def
+    
+        obs[101] = len(player.deck)
+        obs[102] = len(opponent.deck)
+    
+        # 手牌（最多 12 张）
+        for i, c in enumerate(player.hand.cards):
+            if i >= 12: break
+            obs[103 + i] = c.id
+    
+        obs[115] = len(opponent.hand)
+    
+        # 起始牌组（最多 32 张）
+        for i, name in enumerate(player.starting_deck):
+            if i >= 32: break
+            obs[116 + i] = Card.GetCard(name).id
+    
+        obs[148] = player.fire_cnt
+        obs[149] = 1 if player.attack_available else 0
+        obs[150] = 1 if player.is_first_player else 0
+        obs[151] = player.pending_card.id if player.pending_card is not None else 0
+    
+        # 己方已用牌（最多 32 张）
+        for i, c in enumerate(player.used_card):
+            if i >= 32: break
+            obs[152 + i] = c.id
+    
+        # 对手已用牌（最多 32 张）
+        for i, c in enumerate(opponent.used_card):
+            if i >= 32: break
+            obs[184 + i] = c.id
+    
+        # 正在攻击的己方英雄
+        for h in player.heroes:
+            if h.state == "attacking":
+                obs[216] = h.id
+                obs[217] = h.morphed_id
+                obs[218] = h.current_max_hp
+                obs[219] = h.hp
+                obs[220] = h.atk
+                obs[221] = h.round_buff_atk
+                obs[222] = h.defense
+                obs[223] = h.level
+                obs[224] = h.round_until_alive
+                obs[225] = h.inspiration_atk
+                obs[226] = h.inspiration_hp
+                obs[227] = h.inspiration_def
+                break
+    
+        # 正在攻击的对手英雄
+        for h in opponent.heroes:
+            if h.state == "attacking":
+                obs[228] = h.id
+                obs[229] = h.morphed_id
+                obs[230] = h.current_max_hp
+                obs[231] = h.hp
+                obs[232] = h.atk
+                obs[233] = h.round_buff_atk
+                obs[234] = h.defense
+                obs[235] = h.level
+                obs[236] = h.round_until_alive
+                obs[237] = h.inspiration_atk
+                obs[238] = h.inspiration_hp
+                obs[239] = h.inspiration_def
+                break
+    
+        return obs

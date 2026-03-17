@@ -14,7 +14,7 @@ from rl.utils import match_by_caps
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 root_dict = "E:/more_random_project"
-model = ActorCritic(243, 39).to(device=device)
+model = ActorCritic(240, 36).to(device=device)
 model.load_state_dict(torch.load("./logs/2026-02-20_00-13-35/ppo_actor_critic_2.pt"))
 
 with open(os.path.join(root_dict, "game_core/cards/card_names.txt"), 'r', encoding='utf-8') as file:
@@ -102,7 +102,11 @@ while not game.check_end_condition():
         for i in range(len(legal_actions)):
             print(f"[{i+1}] {legal_actions[i]}")
         print(f"[{len(legal_actions) + 1}] play a card")
-        _ = int(input(f"\n Please enter the opponent's move: ")) - 1
+        try:
+            _ = int(input(f"\n Please enter the opponent's move: ")) - 1
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+            continue
         if _ < len(legal_actions):
             game.step(player2, legal_actions[_])
         else:

@@ -196,21 +196,44 @@ class Env:
             return RejectInitialPick(player.hand[action_id - REJECT_INITIAL_PICK_START])
 
 
-    def get_reward(self, original_state, new_state):
-        reward = 0
-        if new_state["player_state"] == 5: reward -= 50
-        if new_state["opponent_hp"] <= 0 or new_state["opponent_deck_size"] <= 0: reward += 50
-        reward += (new_state["player_hp"] - original_state["player_hp"]) * 3
-        reward += (original_state["opponent_hp"] - new_state["opponent_hp"]) * 8
-        reward += (original_state["fire_remaining"] - new_state["fire_remaining"]) * 2
-        if self.player1.state == 2:
-            for i in range(4):
-                reward += 4 * (original_state["opponent_heroes"][i].hp - new_state["opponent_heroes"][i].hp + original_state["opponent_heroes"][i].defense - new_state["opponent_heroes"][i].defense)
-        if len(new_state["player_hand"]) > 15:
-            reward -= 10 * (len(new_state["player_hand"]) - 15)
-        if original_state["player_state"] != 1 and original_state["turn_count"] != new_state["turn_count"]:
-            if original_state["fire_remaining"] == 2:
-                reward -= 8
+    def get_reward(self, obs_before: torch.Tensor, obs_after: torch.Tensor) -> float:
+        o = ObsIdx
+        reward = 0.0
+ 
+        # 胜负
+        if obs_after[o.PLAYER_STATE] == 5:
+            reward -= 50
+        if obs_after[o.OPPONENT_HP] <= 0 or obs_after[o.OPPONENT_DECK] <= 0:
+            reward += 50
+ 
+        # 血量变化
+        reward += float(obs_after[o.PLAYER_HP]  - obs_before[o.PLAYER_HP])  * 3
+        reward += float(obs_before[o.OPPONENT_HP] - obs_after[o.OPPONENT_HP]) * 8
+ 
+        # 鬼火消耗
+        reward += float(obs_before[o.FIRE_REMAINING] - obs_after[o.FIRE_REMAINING]) * 2
+ 
+        # 攻击阶段对手英雄 hp+def 变化
+        if obs_before[o.PLAYER_STATE] == 2:
+            for hp_idx, def_idx in zip(o.OPP_HERO_HP, o.OPP_HERO_DEF):
+                reward += 4.0 * float(
+                    (obs_before[hp_idx]  - obs_after[hp_idx]) +
+                    (obs_before[def_idx] - obs_after[def_idx])
+                )
+ 
+        # 手牌超限惩罚
+        hand_after = obs_after[o.PLAYER_HAND_START : o.PLAYER_HAND_START + HAND_LIMIT]
+        hand_size  = int(hand_after.count_nonzero())
+        if hand_size > HAND_LIMIT:
+            reward -= 10 * (hand_size - HAND_LIMIT)
+ 
+        # 回合切换但没用鬼火的惩罚
+        turn_changed   = obs_after[o.TURN_COUNT] != obs_before[o.TURN_COUNT]
+        not_init_state = obs_before[o.PLAYER_STATE] != 1
+        fire_was_full  = obs_before[o.FIRE_REMAINING] == 2
+        if not_init_state and turn_changed and fire_was_full:
+            reward -= 8
+ 
         return reward
 
 
@@ -280,11 +303,11 @@ class DQNOpponentGameEnv(Env):
     def __init__(self):
         super().__init__()
         self.model = DoubleDQNAgent(240, 36, "cuda")
-        self.model.load_model("./logs/dqn/2026-03-06_14-56-03/dqn_model.pt")
+        # self.model.load_model("./logs/dqn/2026-03-06_14-56-03/dqn_model.pt")
     
 
     def step(self, action):
-        original_state = self.game.get_observations(self.player1)
+        obs_before = self.game.get_obs_tensor(self.player1, _DEVICE)
         self.game.step(self.player1, self.decode_action(self.player1, action))
         if self.opponent == "random":
             while self.game.current_player is not self.player1 and not self.game.check_end_condition():
@@ -300,10 +323,9 @@ class DQNOpponentGameEnv(Env):
                     self.game.step(self.player2, self.decode_action(self.player2, action))
         
         done = self.game.check_end_condition()
-        new_state = self.game.get_observations(self.player1)
-        reward = self.get_reward(original_state, new_state)
-        obs = self.get_obs(self.player1)
-        return obs, reward, done, {}
+        obs_after = self.game.get_obs_tensor(self.player1, _DEVICE)
+        reward = self.get_reward(obs_before, obs_after)
+        return obs_after, reward, done, {}
 
 
     def reset(self):
@@ -321,7 +343,7 @@ class DQNOpponentGameEnv(Env):
             while self.game.current_player is not self.player1 and not self.game.check_end_condition():
                 with torch.inference_mode():
                     action_mask = self.get_action_masks(self.player2)
-                    obs = torch.tensor(self.get_obs(self.player2), dtype=torch.float32, device="cuda")
+                    obs = self.game.get_obs_tensor(self.player2, _DEVICE)
                     action = self.model.select_action(obs, action_mask)
                     self.game.step(self.player2, self.decode_action(self.player2, action))
         return self.get_obs(self.player1)
@@ -330,8 +352,8 @@ class DQNOpponentGameEnv(Env):
     def get_opponent_agent(self):
         import random as r
         x = r.random()
-        self.opponent = "random" if x < 0.02 else "trained"
-        # self.opponent = "random"
+        # self.opponent = "random" if x < 0.02 else "trained"
+        self.opponent = "random"
     
 
     def load_model(self, model_path):
