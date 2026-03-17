@@ -63,7 +63,7 @@ class Player():
             return
         drawn_card = self.deck.pop(0)
         # If you have more than 12 cards, you still draw the card but immediately discard it
-        if len(self.deck.cards) >= 12:
+        if len(self.hand.cards) >= 12:
             self.used_card.append(drawn_card)
             return
         self.hand.append(drawn_card)
@@ -212,7 +212,7 @@ class InferencePlayer(Player):
             _ = input(f"Please enter the name of the card you just drawn: ")
             card_name = match_by_caps(self.card_names, _)
             if card_name is not None:
-                if len(self.hand,cards) >= 12:
+                if len(self.hand.cards) >= 12:
                     print("Your hand is full, the drawn card will be discarded.")
                     self.used_card.append(Card.GetCard(card_name).assign_owner(self))
                 else:
