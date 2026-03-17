@@ -115,6 +115,9 @@ class Player():
         for card in cards:
             card_obj = Card.GetCard(card)
             card_obj.assign_owner(self)
+            if len(self.hand.cards) >= 12:
+                self.used_card.append(card_obj)
+                return
             self.hand.append(card_obj)
     
     def GiveCardToDeck(self, cards:list[str]):
