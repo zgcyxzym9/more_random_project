@@ -9,13 +9,13 @@ from rl_dqn.agent import DoubleDQNAgent
 from game_core.agent import IOAgent
 from game_core.card import Card
 from game_core.enums import CardAttributes
-from env.env import RandomOpponentGameEnv
+from env.env import Env
 from rl.utils import match_by_caps
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 root_dict = "E:/more_random_project"
 model = DoubleDQNAgent(240, 36, device)
-model.q_net.load_state_dict(torch.load("./logs/dqn/2026-03-13_14-06-15/dqn_model_2.pt"))
+model.q_net.load_state_dict(torch.load("./logs/dqn/2026-03-16_15-23-03/dqn_model.pt"))
 model.q_net.eval()
 
 with open(os.path.join(root_dict, "game_core/cards/card_names.txt"), 'r', encoding='utf-8') as file:
@@ -49,8 +49,7 @@ player1 = InferencePlayer(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZ
 player2 = InferenceOpponent(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZhiDi", "WuShiZhiLi", "WuShiZhiLi", "WuShiZhiRen", "WuShiZhiRen", "TianXieGuiChiRanShao", "TianXieGuiChiRanShao", "TianXieGuiHuangGuWu", "TianXieGuiHuangGuWu", "TianXieGuiQingYuanJi", "TianXieGuiQingYuanJi", "TianXieGuiLvPaiDa", "TianXieGuiLvPaiDa", "XinZhan", "XinZhan", "XinJiGuiChu", "XinJiGuiChu", "EJiZhan", "EJiZhan", "XinJianLuanWu", "XinJianLuanWu", "TaoZhiXinXi", "TaoZhiXinXi", "HuaXinFeng", "HuaXinFeng", "FengShi", "FengShi", "TaoYuChunFeng", "TaoYuChunFeng"], opponent_heroes)
 game = Game([player1, player2])
 ioagent1 = IOAgent(game, player1)
-# We use a env to get obs and action masks, should use Env instead of RandomOpponentGameEnv in the future
-env = RandomOpponentGameEnv()
+env = Env()
 env.game = game
 env.player1 = player1
 env.player2 = player2
