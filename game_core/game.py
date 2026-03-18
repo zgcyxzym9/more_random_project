@@ -225,6 +225,9 @@ class Game:
                 for e in action.target:
                     if e.state == "dead":
                         continue
+                    if isinstance(e, Hero):
+                        if e.level == 0:
+                            continue
                     if action.attr == "hp":
                         setattr(e, "hp", getattr(e, "hp") + action.value)
                         setattr(e, "current_max_hp", getattr(e, "current_max_hp") + action.value)
@@ -235,6 +238,9 @@ class Game:
                 for e in action.target:
                     if e.state == "dead":
                         continue
+                    if isinstance(e, Hero):
+                        if e.level == 0:
+                            continue
                     e.hp += action.value
                     if e.hp > e.current_max_hp:
                         e.hp = e.current_max_hp
@@ -244,6 +250,8 @@ class Game:
                     if e.state == "dead":
                         continue
                     if isinstance(e, Hero):
+                        if e.level == 0:
+                            continue
                         for h in e.owner.heroes:
                             if h == e:
                                 continue
@@ -262,6 +270,12 @@ class Game:
                     return
                 action.player.deck.remove(action.card)
                 action.player.hand.append(action.card)
+            
+            case "revive":
+                if action.target.state != "dead":
+                    print("trying to revive a non-dead target")
+                    return
+                action.target.revive()
             
             case _:
                 print(f"stepping with the game with undefined action type {action.type}, check code!")

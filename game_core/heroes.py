@@ -33,5 +33,8 @@ class TaoHuaYao:
     atk = 1
     hp = 6
     listeners = (Listener("heal", 
-                          lambda e, s: e.action.target in s.owner.heroes and (e.action.source.owner == s if type(e).__name__ == "Card" else e.action.source == s), 
+                          lambda e, s: e.action.target in s.owner.heroes and (e.action.source.get_corresponding_hero() == s if type(e).__name__ == "Card" else e.action.source == s), 
+                          (lambda e, s: GiveBuff("atk", 1, s, [e.action.target,]),)),
+                 Listener("revive",
+                          lambda e, s: e.action.target in s.owner.heroes and (e.action.source.get_corresponding_hero() == s if type(e).__name__ == "Card" else e.action.source == s), 
                           (lambda e, s: GiveBuff("atk", 1, s, [e.action.target,]),)),)

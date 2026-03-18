@@ -108,3 +108,9 @@ class DrawSelectedCardFromDeck(Action):
         self.type = "draw selected card from deck"
         self.player = player
         self.card = card
+
+class Revive(Action):
+    def __init__(self, source, target):
+        self.type = "revive"
+        self.source = source
+        self.target = target
