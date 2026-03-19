@@ -233,6 +233,8 @@ class Game:
                         setattr(e, "current_max_hp", getattr(e, "current_max_hp") + action.value)
                     elif action.attr == "atk":
                         setattr(e, "atk", getattr(e, "atk") + action.value)
+                    elif action.attr == "round_buff_atk":
+                        setattr(e, "round_buff_atk", getattr(e, "round_buff_atk") + action.value)
             
             case "heal":
                 for e in action.target:
