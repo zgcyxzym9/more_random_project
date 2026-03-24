@@ -303,7 +303,7 @@ class DQNOpponentGameEnv(Env):
     def __init__(self):
         super().__init__()
         self.model = DoubleDQNAgent(240, 36, "cuda")
-        # self.model.load_model("./logs/dqn/2026-03-06_14-56-03/dqn_model.pt")
+        self.model.load_model("./logs/dqn/2026-03-17_14-34-54/dqn_model_1.pt")
     
 
     def step(self, action):
@@ -318,7 +318,7 @@ class DQNOpponentGameEnv(Env):
             while self.game.current_player is not self.player1 and not self.game.check_end_condition():
                 with torch.inference_mode():
                     action_mask = self.get_action_masks(self.player2)
-                    obs = torch.tensor(self.get_obs(self.player2), dtype=torch.float32, device="cuda")
+                    obs = self.game.get_obs_tensor(self.player2, _DEVICE)
                     action = self.model.select_action(obs, action_mask)
                     self.game.step(self.player2, self.decode_action(self.player2, action))
         
@@ -352,8 +352,8 @@ class DQNOpponentGameEnv(Env):
     def get_opponent_agent(self):
         import random as r
         x = r.random()
-        # self.opponent = "random" if x < 0.02 else "trained"
-        self.opponent = "random"
+        self.opponent = "random" if x < 0.02 else "trained"
+        # self.opponent = "random"
     
 
     def load_model(self, model_path):

@@ -58,7 +58,7 @@ class TaoYuChunFeng:
     level_req = 2
     require_target = (lambda s: IsDead(s.owner.heroes),)
     select_target = (lambda s: select_target(s.owner, IsDead(s.owner.heroes), s),)
-    on_play = (lambda s: Revive(s, s.owner.selected_targets[0]),
+    on_play = (lambda s: Revive(s, s.owner.selected_targets),
                lambda s: s.owner.selected_targets[0].attributes.append(HeroAttributes.AGILE))
 
 class ShengKai:

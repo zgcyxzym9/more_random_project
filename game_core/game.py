@@ -274,10 +274,11 @@ class Game:
                 action.player.hand.append(action.card)
             
             case "revive":
-                if action.target.state != "dead":
-                    print("trying to revive a non-dead target")
-                    return
-                action.target.revive()
+                for e in action.target:
+                    if e.state != "dead":
+                        print("trying to revive a non-dead target")
+                        return
+                    e.revive()
             
             case _:
                 print(f"stepping with the game with undefined action type {action.type}, check code!")
