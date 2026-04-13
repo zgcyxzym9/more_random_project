@@ -82,7 +82,7 @@ def train(env, agent, episodes=10000):
         if loss is not None:
             writer.add_scalar("Loss", loss, episode)
 
-        if episode_reward > 100:
+        if env.player1.hp > 0:
             win += 1
         else:
             lose += 1
