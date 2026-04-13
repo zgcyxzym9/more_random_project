@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 import random
 
-from .model import QNetwork
+from .model import QNetwork, QNetworkLN
 
 
 class DoubleDQNAgent:
@@ -15,13 +15,15 @@ class DoubleDQNAgent:
         device: str,
         gamma: float = 0.99,
         lr: float = 1e-4,
+        use_layer_norm: bool = False,
     ):
         self.device = device
         self.gamma = gamma
         self.action_dim = action_dim
 
-        self.q_net     = QNetwork(obs_dim, action_dim).to(device)
-        self.target_net = QNetwork(obs_dim, action_dim).to(device)
+        network_cls = QNetworkLN if use_layer_norm else QNetwork
+        self.q_net      = network_cls(obs_dim, action_dim).to(device)
+        self.target_net = network_cls(obs_dim, action_dim).to(device)
         self.target_net.load_state_dict(self.q_net.state_dict())
         self.target_net.eval()
 
