@@ -1,0 +1,249 @@
+[
+    {
+        "id": 1,
+        "type": "attack",
+        "hero": "ZhiRenWuShi",
+        "name": "武士之拳",
+        "eng_name": "WuShiZhiQuan",
+        "description": "",
+        "is_beginning_card": true,
+        "level_req": 1,
+        "buff_atk": 1
+    },
+    {
+        "id": 2,
+        "type": "spell",
+        "hero": "ZhiRenWuShi",
+        "name": "武士之笛",
+        "eng_name": "WuShiZhiDi",
+        "description": "瞬发 使所有己方式神本回合额外获得1点攻击力。",
+        "is_beginning_card": true,
+        "level_req": 1
+    },
+    {
+        "id": 3,
+        "type": "spell",
+        "hero": "ZhiRenWuShi",
+        "name": "武士之笠",
+        "eng_name": "WuShiZhiLi",
+        "description": "使纸人武士获得2点攻击力和2点生命值。",
+        "is_beginning_card": true,
+        "level_req": 2
+    },
+    {
+        "id": 4,
+        "type": "attack",
+        "hero": "ZhiRenWuShi",
+        "name": "武士之刃",
+        "eng_name": "WuShiZhiRen",
+        "description": "",
+        "is_beginning_card": true,
+        "level_req": 3,
+        "buff_atk": 3,
+        "buff_def": 2
+    },
+    {
+        "id": 5,
+        "type": "spell",
+        "hero": "TianXieGuiTuanHuo",
+        "name": "天邪鬼赤·燃烧",
+        "eng_name": "TianXieGuiChiRanShao",
+        "description": "对所有敌方式神造成1点伤害。",
+        "is_beginning_card": true,
+        "level_req": 1
+    },
+    {
+        "id": 6,
+        "type": "spell",
+        "hero": "TianXieGuiTuanHuo",
+        "name": "天邪鬼黄·鼓舞",
+        "eng_name": "TianXieGuiHuangGuWu",
+        "description": "瞬发 使天邪鬼团伙本回合造成的法术伤害+1。",
+        "is_beginning_card": true,
+        "level_req": 1
+    },
+    {
+        "id": 7,
+        "type": "spell",
+        "hero": "TianXieGuiTuanHuo",
+        "name": "天邪鬼青·鸢击",
+        "eng_name": "TianXieGuiQingYuanJi",
+        "description": "对一个敌方式神造成4点伤害。",
+        "is_beginning_card": true,
+        "level_req": 2
+    },
+    {
+        "id": 8,
+        "type": "spell",
+        "hero": "TianXieGuiTuanHuo",
+        "name": "天邪鬼绿·拍打",
+        "eng_name": "TianXieGuiLvPaiDa",
+        "description": "对敌方牌手造成4点伤害。",
+        "is_beginning_card": true,
+        "level_req": 3
+    },
+    {
+        "id": 9,
+        "type": "spell",
+        "hero": "QuanShen",
+        "name": "羁绊的价值",
+        "eng_name": "JiBanDeJiaZhi",
+        "description": "恢复犬神所有生命值。",
+        "is_beginning_card": true,
+        "level_req": 1
+    },
+    {
+        "id": 10,
+        "type": "attack",
+        "hero": "QuanShen",
+        "name": "心斩",
+        "eng_name": "XinZhan",
+        "description": "",
+        "is_beginning_card": true,
+        "level_req": 1,
+        "buff_atk": 0,
+        "buff_def": 2
+    },
+    {
+        "id": 11,
+        "type": "spell",
+        "hero": "QuanShen",
+        "name": "心即归处",
+        "eng_name": "XinJiGuiChu",
+        "description": "瞬发 复活犬神（仅在犬神气绝时可用）",
+        "is_beginning_card": true,
+        "level_req": 2
+    },
+    {
+        "id": 12,
+        "type": "attack",
+        "hero": "QuanShen",
+        "name": "恶·即·斩",
+        "eng_name": "EJiZhan",
+        "description": "",
+        "is_beginning_card": true,
+        "level_req": 2,
+        "buff_atk": 4,
+        "buff_def": 0
+    },
+    {
+        "id": 13,
+        "type": "morph",
+        "hero": "QuanShen",
+        "name": "心技一体",
+        "eng_name": "XinJiYiTi",
+        "description": "增强：本局游戏你每使用过一张“心身炼磨”，犬神的战斗牌便额外获得+1攻击力和+1防御。",
+        "is_beginning_card": true,
+        "level_req": 2,
+        "atk": 3,
+        "hp": 5
+    },
+    {
+        "id": 14,
+        "type": "attack",
+        "hero": "QuanShen",
+        "name": "守护",
+        "eng_name": "ShouHu",
+        "description": "响应：当你其他式神被敌方攻击时，自动使用并将攻击目标改为犬神。",
+        "is_beginning_card": true,
+        "level_req": 2,
+        "buff_atk": 0,
+        "buff_def": 4
+    },
+    {
+        "id": 15,
+        "type": "morph",
+        "hero": "QuanShen",
+        "name": "心剑乱舞",
+        "eng_name": "XinJianLuanWu",
+        "description": "犬神的牌获得瞬发。",
+        "is_beginning_card": true,
+        "level_req": 3,
+        "atk": 4,
+        "hp": 9
+    },
+    {
+        "id": 16,
+        "type": "spell",
+        "hero": "QuanShen",
+        "name": "觉醒·犬神",
+        "eng_name": "JueXingQuanShen",
+        "description": "觉醒：己方回合结束时，复活犬神并永久获得+1攻击力和+1生命值。",
+        "is_beginning_card": true,
+        "level_req": 3
+    },
+    {
+        "id": 17,
+        "type": "spell",
+        "hero": "QuanShen",
+        "name": "心身炼磨",
+        "eng_name": "XinShenLianMo",
+        "description": "永久获得1攻击力和1生命值。“心身炼磨”在犬神等级达到2时获得瞬发，在犬神等级达到3时不消耗鬼火。",
+        "is_beginning_card": false,
+        "level_req": 1
+    },
+    {
+        "id": 18,
+        "type": "spell",
+        "hero": "TaoHuaYao",
+        "name": "桃之馨息",
+        "eng_name": "TaoZhiXinXi",
+        "description": "为一个角色恢复5生命值。",
+        "is_beginning_card": true,
+        "level_req": 1
+    },
+    {
+        "id": 19,
+        "type": "spell",
+        "hero": "TaoHuaYao",
+        "name": "花信风",
+        "eng_name": "HuaXinFeng",
+        "description": "瞬发 选择一个己方式神，将牌库中随机一张该式神的牌置入手牌，然后洗牌库。",
+        "is_beginning_card": true,
+        "level_req": 1
+    },
+    {
+        "id": 20,
+        "type": "spell",
+        "hero": "TaoHuaYao",
+        "name": "桃之夭夭",
+        "eng_name": "TaoZhiYaoYao",
+        "description": "不消耗鬼火 鼓舞：获得+2",
+        "is_beginning_card": true,
+        "level_req": 2
+    },
+    {
+        "id": 21,
+        "type": "morph",
+        "hero": "TaoHuaYao",
+        "name": "丰实",
+        "eng_name": "FengShi",
+        "description": "进场和己方回合开始时，随机为一个己方受伤式神恢复3生命值。",
+        "is_beginning_card": true,
+        "level_req": 2,
+        "atk": 3,
+        "hp": 7
+    },
+    {
+        "id": 22,
+        "type": "spell",
+        "hero": "TaoHuaYao",
+        "name": "桃语春风",
+        "eng_name": "TaoYuChunFeng",
+        "description": "复活一个己方式神并使其获得迅捷。",
+        "is_beginning_card": true,
+        "level_req": 2
+    },
+    {
+        "id": 23,
+        "type": "morph",
+        "hero": "TaoHuaYao",
+        "name": "盛开",
+        "eng_name": "ShengKai",
+        "description": "进场和己方回合开始时，随机为一个己方受伤式神恢复2生命值。将此过程再重复2次。",
+        "is_beginning_card": true,
+        "level_req": 3,
+        "atk": 4,
+        "hp": 9
+    }
+]

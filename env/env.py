@@ -1,3 +1,4 @@
+import json
 import sys
 sys.path.insert(0, "E:/more_random_project")
 
@@ -18,8 +19,8 @@ _DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class Env:
     def __init__(self):
         root_dict = "E:/more_random_project"
-        with open(os.path.join(root_dict, "game_core/cards/card_names.txt"), 'r', encoding='utf-8') as file:
-            card_names = [line.strip() for line in file if line.strip()]
+        with open(os.path.join(root_dict, "game_core/cards/cards.json"), 'r', encoding='utf-8') as file:
+            card_data = json.load(file)
         with open(os.path.join(root_dict, "game_core/hero_names.txt"), 'r', encoding='utf-8') as file:
             hero_names = [line.strip() for line in file if line.strip()]
 
@@ -358,3 +359,46 @@ class DQNOpponentGameEnv(Env):
 
     def load_model(self, model_path):
         self.model.load_model(model_path)
+
+
+class DQNRandomDeckGameEnv(DQNOpponentGameEnv):
+    def __init__(self):
+        super().__init__()
+    
+    def reset(self):
+        player1_heroes = r.sample(self.hero_names, 4)
+        player1_deck = []
+        for hero in player1_heroes:
+            hero_cards = [card for card in self.card_data if card["hero"] == hero and card["is_beginning_card"] == True]
+            hero_cards.extend(hero_cards)
+            try:
+                player1_deck.extend(r.sample(hero_cards, 8))
+            except ValueError:
+                raise ValueError(f"Not enough beginning cards for hero {hero}")
+        player2_heroes = r.sample(self.hero_names, 4)
+        player2_deck = []
+        for hero in player2_heroes:
+            hero_cards = [card for card in self.card_data if card["hero"] == hero and card["is_beginning_card"] == True]
+            hero_cards.extend(hero_cards)
+            try:
+                player2_deck.extend(r.sample(hero_cards, 8))
+            except ValueError:
+                raise ValueError(f"Not enough beginning cards for hero {hero}")
+        self.player1 = Player(player1_deck, player1_heroes)
+        self.player2 = Player(player2_deck, player2_heroes)
+        self.game = Game([self.player1, self.player2])
+        self.game.start_game()
+        self.get_opponent_agent()
+        if self.opponent == "random":
+            while self.game.current_player is not self.player1 and not self.game.check_end_condition():
+                import random as r
+                legal_actions = self.get_legal_actions(self.player2)
+                self.game.step(self.player2, self.decode_action(self.player2, r.choice(legal_actions)))
+        else:
+            while self.game.current_player is not self.player1 and not self.game.check_end_condition():
+                with torch.inference_mode():
+                    action_mask = self.get_action_masks(self.player2)
+                    obs = self.game.get_obs_tensor(self.player2, _DEVICE)
+                    action = self.model.select_action(obs, action_mask)
+                    self.game.step(self.player2, self.decode_action(self.player2, action))
+        return self.get_obs(self.player1)
