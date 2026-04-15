@@ -28,6 +28,7 @@ class Hero(Entity):
         self.hp = hero_obj.hp
         self.atk = hero_obj.atk
         self.round_buff_atk = 0
+        self.round_buff_spell_damage = 0
         self.defense = 0
         self.level = 0
         self.is_alive = True

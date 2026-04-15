@@ -98,6 +98,7 @@ class Player():
     def clear_round_effects(self):
         for hero in self.heroes:
             hero.round_buff_atk = 0
+            hero.round_buff_spell_damage = 0
     
     def move_card_to_used(self, card:Card):
         self.hand.remove(card)

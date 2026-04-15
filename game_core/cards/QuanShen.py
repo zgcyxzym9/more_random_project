@@ -5,6 +5,8 @@ from game_core.enums import *
 from game_core.selector import *
 from game_core.manager import Listener
 
+# Counter used for number of XinShenLianMo used, used for attack cards
+
 class JiBanDeJiaZhi:
     id = 9
     type = "spell"
@@ -72,7 +74,7 @@ class ShouHu:
                 lambda s: (s.__setattr__('buff_def', s.buff_def - s.get_corresponding_hero().xin_shen_lian_mo_cnt) if s.owner.hand.contain("XinJiYiTi") else None),)
     listeners = (Listener("entities attack", lambda e, s: e.action.entity1 in s.owner.opponent.heroes and s.owner.attack_zone is not None, 
                           (lambda e, s: PlayCard(s), lambda e, s: setattr(e.action, "revert", True))),)
-    listeners = (Listener("deal damage", lambda e, s: e.action.target in s.owner.heroes and e.target.id != 3 and s in s.owner.hand, 
+    listeners = (Listener("deal damage", lambda e, s: e.action.target in s.owner.heroes and e.action.target.id != 3 and s in s.owner.hand, 
                           (lambda e, s: setattr(e.action, "target", s.get_corresponding_hero()),
                            lambda e, s: PlayCard(s))),)
 
@@ -109,6 +111,7 @@ class XinShenLianMo:
     name = "心身炼磨"
     level_req = 1
     on_play = (lambda s: s.get_corresponding_hero().get_permanent_buff("hp", 1),
-                lambda s: s.get_corresponding_hero().get_permanent_buff("atk", 1))
+                lambda s: s.get_corresponding_hero().get_permanent_buff("atk", 1),
+                lambda s: setattr(s.get_corresponding_hero(), "counter", getattr(s.get_corresponding_hero(), "counter", 0) + 1),)
 
     

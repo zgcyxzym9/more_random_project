@@ -20,6 +20,7 @@ class TianXieGuiHuangGuWu:
     name = "天邪鬼黄·鼓舞"
     level_req = 1
     attributes = (CardAttributes.INSTANT,)
+    on_play = (lambda s:GiveBuff("round_buff_spell_damage", 1, s, s.get_corresponding_hero()))
 
 
 class TianXieGuiQingYuanJi:

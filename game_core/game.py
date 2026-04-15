@@ -182,7 +182,7 @@ class Game:
                 if player.attack_available == False:
                     print("trying to attack when attack is not available")
                     return
-                if player.fire_cnt <= 0:
+                if not HeroAttributes.AGILE in action.hero.attributes and player.fire_cnt <= 0:
                     print("trying to attack when there's no fire left")
                     return
                 if not action.hero.owner == player:
@@ -193,6 +193,9 @@ class Game:
                     self.attack(action.hero, player.opponent.attack_zone)
                 else:
                     self.attack(action.hero, player.opponent)
+                if HeroAttributes.AGILE in action.hero.attributes:
+                    player.fire_cnt += 1
+                    action.hero.attributes.remove(HeroAttributes.AGILE)
                 player.fire_cnt -= 1
                 player.attack_available = False
             
@@ -235,6 +238,10 @@ class Game:
                         setattr(e, "atk", getattr(e, "atk") + action.value)
                     elif action.attr == "round_buff_atk":
                         setattr(e, "round_buff_atk", getattr(e, "round_buff_atk") + action.value)
+                    elif action.attr == "current_max_hp":
+                        setattr(e, "current_max_hp", getattr(e, "current_max_hp") + action.value)
+                    elif action.attr == "round_buff_spell_damage":
+                        setattr(e, "round_buff_spell_damage", getattr(e, "round_buff_spell_damage") + action.value)
             
             case "heal":
                 for e in action.target:
@@ -320,6 +327,9 @@ class Game:
                 if hasattr(card, "on_play"):
                     for event in card.on_play:
                         if isinstance(event(card), Action):
+                            if isinstance(event(card), DealDamage):
+                                if hasattr(card.get_corresponding_hero(), "round_buff_spell_damage"):
+                                    event(card).value += card.get_corresponding_hero().round_buff_spell_damage
                             self.step(player, event(card))
             
             case "morph":
