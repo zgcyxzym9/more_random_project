@@ -12,16 +12,18 @@ class Listener:
 
     def trigger(self, event, owner):
         from .action import Action
+        from .event import Event
         from .player import Player
         for effect in self.effects:
             if isinstance(owner, Player):
-                if isinstance(effect(event, owner), Action):
-                    owner.game.step(owner, action=effect(event, owner))
-                else:
-                    effect(event, owner)
+                result = effect(event, owner)
+                if isinstance(result, Action):
+                    owner.game.step(owner, action=result)
+                elif isinstance(result, Event):
+                    owner.game.handle_event(result)
             else:
-                if isinstance(effect(event, owner), Action):
-                    owner.owner.game.step(owner.owner, action=effect(event, owner))
-                else:
-                    effect(event, owner)
-            # effect.apply(event, owner)
+                result = effect(event, owner)
+                if isinstance(result, Action):
+                    owner.owner.game.step(owner.owner, action=result)
+                elif isinstance(result, Event):
+                    owner.owner.game.handle_event(result)

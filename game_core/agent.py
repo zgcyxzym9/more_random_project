@@ -1,3 +1,5 @@
+from .enums import *
+
 class Agent:
     def act():
         print("not implemented!")
@@ -17,12 +19,17 @@ class IOAgent(Agent):
         return legal_actions[action_id]
     
     def PhaseOutState(self, state):
-        match state["game_state"]:
-            case "initial pick":
+        match state["player_state"]:
+            case PlayerState.INITIAL_PICK:
                 print(f"Opponent heroes: {state["opponent_heroes"]}")
                 print(f"Your heroes: {state["player_heroes"]}")
                 print(f"Your hand: {state["player_hand"]}")
-            case "playing":
+            case PlayerState.SELECTING_TARGET:
+                print(f"Pending card: {self.player.pending_card}")
+                print(f"Select a target from:")
+                for i, target in enumerate(self.player.candidate_targets):
+                    print(f"  [{i+1}] {target}")
+            case PlayerState.PLAYING:
                 print(f"Opponent hp: {state["opponent_hp"]}+{state["opponent_defense"]}           Opponent hand size: {state["opponent_hand_size"]}           Opponent deck size: {state["opponent_deck_size"]}")
                 print("")
                 print(f"Opponent heroes: ")

@@ -33,6 +33,9 @@ class CardList(list[Card]):
     def index(self, card):
         return self.cards.index(card)
 
+    def __contains__(self, card):
+        return card in self.cards
+
     def contain(self, card:str):
         for c in self.cards:
             if c.eng_name == card:

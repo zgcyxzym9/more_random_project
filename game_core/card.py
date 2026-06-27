@@ -21,7 +21,7 @@ class Card(Entity):
         if self.type == "morph":
             self.hp = card_obj.hp
             self.atk = card_obj.atk
-        self.attributes = card_obj.attributes if hasattr(card_obj, "attributes") else []
+        self.attributes = list(card_obj.attributes) if hasattr(card_obj, "attributes") else []
         self.require_target = card_obj.require_target if hasattr(card_obj, "require_target") else None
         self.select_target = card_obj.select_target if hasattr(card_obj, "select_target") else None
         self.listeners = card_obj.listeners if hasattr(card_obj, "listeners") else []

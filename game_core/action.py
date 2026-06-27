@@ -41,54 +41,6 @@ class HeroAttack(Action):
     def __str__(self):
         return f"Attack with {self.hero.name}"
 
-class HeroAttackByCard(Action):
-    def __init__(self, hero, card):
-        self.type = "hero attack by card"
-        self.hero = hero
-        self.card = card
-    
-    def __str__(self):
-        return f"Attack with {self.hero.name} by {self.card.name}"
-
-class GiveBuff(Action):
-    def __init__(self, attr, value, source, target):
-        self.type = "give buff"
-        self.attr = attr
-        self.value = value
-        self.source = source
-        self.target = target
-    
-    def __str__(self):
-        return f"Give {self.attr} buff of {self.value} to {self.target} from {self.source}"
-
-class Heal(Action):
-    def __init__(self, value, source, target):
-        self.type = "heal"
-        self.value = value
-        self.source = source
-        self.target = target
-    
-    def __str__(self):
-        return f"Healing {self.target} for {self.value} from {self.source}"
-
-class DealDamage(Action):
-    def __init__(self, value, source, target):
-        self.type = "deal damage"
-        self.value = value
-        self.source = source
-        self.target = target
-    
-    def __str__(self):
-        return f"Dealing {self.value} damage to {self.target} from {self.source}"
-
-class CallSelector(Action):
-    def __init__(self, func, player, target_list, card):
-        self.type = "call selector"
-        self.func = func
-        self.player = player
-        self.target_list = target_list
-        self.card = card
-
 class SelectTarget(Action):
     def __init__(self, target):
         self.type = "select target"
@@ -96,21 +48,3 @@ class SelectTarget(Action):
     
     def __str__(self):
         return f"Select target {self.target}"
-
-class EntitiesAttack(Action):
-    def __init__(self, entity1, entity2):
-        self.type = "entities attack"
-        self.entity1 = entity1
-        self.entity2 = entity2
-
-class DrawSelectedCardFromDeck(Action):
-    def __init__(self, player, card):
-        self.type = "draw selected card from deck"
-        self.player = player
-        self.card = card
-
-class Revive(Action):
-    def __init__(self, source, target):
-        self.type = "revive"
-        self.source = source
-        self.target = target

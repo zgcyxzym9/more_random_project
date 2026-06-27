@@ -3,6 +3,7 @@ from game_core.card import Card
 from .enums import *
 from .manager import Listener
 from .action import *
+from .event import *
 
 class ZhiRenWuShi:
     id = 1
@@ -12,7 +13,7 @@ class ZhiRenWuShi:
 
 
 class TianXieGuiTuanHuo:
-    id = 1
+    id = 2
     name = "天邪鬼团伙"
     atk = 2
     hp = 5
@@ -26,7 +27,7 @@ class QuanShen:
     on_upgrade = (lambda s: s.owner.GiveCardToHand(["XinShenLianMo"]),
                   lambda s: [(setattr(c, "attributes", [CardAttributes.INSTANT]) if c.id == 17 else None) for c in s.owner.hand.cards] if s.level == 2 else None,
                   lambda s: [(setattr(c, "attributes", [CardAttributes.NO_FIRE_CONSUMPTION]) if c.id == 17 else None) for c in s.owner.hand.cards] if s.level == 3 else None,)
-    counter = 0     # XinShenLianMo counter, used for attack cards
+    counter = {"xin_shen_lian_mo": 0}
 
 
 class TaoHuaYao:
@@ -34,9 +35,11 @@ class TaoHuaYao:
     name = "桃花妖"
     atk = 1
     hp = 6
-    listeners = (Listener("heal", 
-                          lambda e, s: any(t in s.owner.heroes for t in e.action.target) and (e.action.source.get_corresponding_hero() == s if type(e.action.source).__name__ == "Card" else e.action.source == s), 
-                          (lambda e, s: GiveBuff("atk", 1, s, [t for t in e.action.target if t in s.owner.heroes]),)),
+    listeners = (Listener("heal",
+                          lambda e, s: any(t in s.owner.heroes for t in e.event.target) and (e.event.source.get_corresponding_hero() == s if type(e.event.source).__name__ == "Card" else e.event.source == s),
+                          (lambda e, s: GiveBuff("atk", 1, s, [t for t in e.event.target if t in s.owner.heroes]),)),
                  Listener("revive",
-                          lambda e, s: any(t in s.owner.heroes for t in e.action.target) and (e.action.source.get_corresponding_hero() == s if type(e.action.source).__name__ == "Card" else e.action.source == s), 
-                          (lambda e, s: GiveBuff("atk", 1, s, [t for t in e.action.target if t in s.owner.heroes]),)),)
+                          lambda e, s: any(t in s.owner.heroes for t in e.event.target) and (e.event.source.get_corresponding_hero() == s if type(e.event.source).__name__ == "Card" else e.event.source == s),
+                          (lambda e, s: GiveBuff("atk", 1, s, [t for t in e.event.target if t in s.owner.heroes]),)),)
+    on_death = (lambda s: [c.attributes.remove(CardAttributes.INSTANT) for c in s.owner.hand.cards + s.owner.deck.cards if c.id == 24 and CardAttributes.INSTANT in c.attributes],)
+    on_revive = (lambda s: [c.attributes.append(CardAttributes.INSTANT) for c in s.owner.hand.cards + s.owner.deck.cards if c.id == 24 and CardAttributes.INSTANT not in c.attributes],)

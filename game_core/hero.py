@@ -30,7 +30,9 @@ class Hero(Entity):
         self.round_buff_atk = 0
         self.round_buff_spell_damage = 0
         self.defense = 0
+        self.penetration = 0
         self.level = 0
+        self.state = "pending"
         self.is_alive = True
         self.round_until_alive = 0
         self.listeners = hero_obj.listeners if hasattr(hero_obj, "listeners") else []
@@ -38,8 +40,10 @@ class Hero(Entity):
         self.inspiration_hp = 0
         self.inspiration_def = 0
         self.attributes = []
-        self.counter = hero_obj.counter if hasattr(hero_obj, "counter") else {}
+        self.counter = hero_obj.counter.copy() if hasattr(hero_obj, "counter") else {}
         self.on_upgrade = hero_obj.on_upgrade if hasattr(hero_obj, "on_upgrade") else []
+        self.on_death = hero_obj.on_death if hasattr(hero_obj, "on_death") else []
+        self.on_revive = hero_obj.on_revive if hasattr(hero_obj, "on_revive") else []
 
     def __str__(self):
         return f"{self.name}"
@@ -75,6 +79,9 @@ class Hero(Entity):
             self.round_buff_atk = 0
             if self.owner.attack_zone == self:
                 self.owner.attack_zone = None
+            for event in self.on_death:
+                if isinstance(event(self), Event):
+                    self.owner.game.handle_event(event(self))
     
     def assign_owner(self, player):
         self.owner = player
@@ -89,6 +96,9 @@ class Hero(Entity):
         self.morphed_id = 0
         self.round_until_alive = 0
         self.state = "pending"
+        for event in self.on_revive:
+            if isinstance(event(self), Event):
+                self.owner.game.handle_event(event(self))
     
     def receive_damage(self, damage:int):
         effective_damage = damage - self.defense

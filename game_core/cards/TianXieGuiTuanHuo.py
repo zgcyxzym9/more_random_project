@@ -1,6 +1,6 @@
 import sys
 sys.path.insert(0, "E:\more_random_project")
-from game_core.action import *
+from game_core.event import *
 from game_core.enums import *
 from game_core.selector import *
 
@@ -20,7 +20,7 @@ class TianXieGuiHuangGuWu:
     name = "天邪鬼黄·鼓舞"
     level_req = 1
     attributes = (CardAttributes.INSTANT,)
-    on_play = (lambda s:GiveBuff("round_buff_spell_damage", 1, s, s.get_corresponding_hero()))
+    on_play = (lambda s:GiveBuff("round_buff_spell_damage", 1, s, [s.get_corresponding_hero(),]),)
 
 
 class TianXieGuiQingYuanJi:
@@ -29,6 +29,7 @@ class TianXieGuiQingYuanJi:
     hero = "TianXieGuiTuanHuo"
     name = "天邪鬼青·鸢击"
     level_req = 2
+    require_target = (lambda s: s.owner.opponent.heroes,)
     select_target = (lambda s: select_target(s.owner, s.owner.opponent.heroes, s),)
     on_play = (lambda s: DealDamage(4, s.get_corresponding_hero(), s.owner.selected_targets),)
 

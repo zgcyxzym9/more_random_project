@@ -1,6 +1,7 @@
 import sys
 sys.path.insert(0, "E:\more_random_project")
 from game_core.action import *
+from game_core.event import *
 from game_core.enums import *
 from game_core.selector import *
 from game_core.manager import Listener
@@ -49,7 +50,7 @@ class FengShi:
     on_play = (lambda s: setattr(s.get_corresponding_hero(), "listeners", getattr(s.get_corresponding_hero(), "listeners") + 
         (Listener("begin turn", lambda e, s: e.next_player == s.owner, (
             lambda e, s: Heal(3, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,),),)),
-        lambda e, s: Heal(3, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,)
+        lambda s: Heal(3, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,)
 
 class TaoYuChunFeng:
     id = 22
@@ -70,9 +71,23 @@ class ShengKai:
     level_req = 3
     atk = 4
     hp = 9
-    on_play = (lambda s: s.get_corresponding_hero().counter.update({"ShengKai": 2,}),
-               lambda s: setattr(s.get_corresponding_hero(), "listeners", getattr(s.get_corresponding_hero(), "listeners") + (
-                   Listener("begin turn", lambda e, s: e.next_player == s.owner and s.counter["ShengKai"] > 0 and len(IsDamaged(s.owner.heroes)) > 0, 
-                            (lambda e, s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes),),)),
-                             lambda e, s: s.counter.update({"ShengKai": s.counter["ShengKai"] - 1,}))),
-               )))
+    on_play = (lambda s: setattr(s.get_corresponding_hero(), "listeners", getattr(s.get_corresponding_hero(), "listeners") +
+        (Listener("begin turn", lambda e, s: e.next_player == s.owner and len(IsDamaged(s.owner.heroes)) > 0, (
+            lambda e, s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)),
+            lambda e, s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
+            lambda e, s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
+        )),)),
+        lambda s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
+        lambda s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
+        lambda s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
+    )
+
+class TaoHuaZhuoZhuo:
+    id = 24
+    type = "spell"
+    hero = "TaoHuaYao"
+    name = "桃华灼灼"
+    level_req = 3
+    attributes = (CardAttributes.INSTANT, CardAttributes.CAN_PLAY_WHEN_DEAD)
+    on_play = (lambda s: Revive(s, [h for h in s.owner.heroes if not h.is_alive]),
+               lambda s: [h.attributes.append(HeroAttributes.AGILE) for h in s.owner.heroes if HeroAttributes.AGILE not in h.attributes])

@@ -73,7 +73,7 @@ class Player():
         self.deck.append(rejected_card)
     
     def assign_agent(self):
-        from agent import Agent, IOAgent
+        from .agent import Agent, IOAgent
         self.agent = IOAgent(self.game, self)
     
     def advance_hero(self, hero:Hero):
@@ -81,10 +81,6 @@ class Player():
             self.attack_zone.state = "pending"
         self.attack_zone = hero
         hero.state = "attacking"
-        hero.atk += hero.inspiration_atk
-        hero.inspiration_atk = 0
-        hero.defense += hero.inspiration_def
-        hero.inspiration_def = 0
     
     def retract_hero(self):
         if self.attack_zone is not None:

@@ -1,6 +1,6 @@
 import sys
 sys.path.insert(0, "E:\more_random_project")
-from game_core.action import *
+from game_core.event import *
 from game_core.enums import *
 
 class WuShiZhiQuan:

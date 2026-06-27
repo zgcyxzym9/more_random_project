@@ -4,7 +4,7 @@ import random as r
 from .hero import Hero
 from .card import Card
 from .enums import *
-from .event import Event
+from .event import *
 
 class Game:
     def __init__(self, players:list[Player]):
@@ -59,6 +59,8 @@ class Game:
                 hero.round_until_alive -= 1
                 if hero.round_until_alive <= 0:
                     hero.revive()
+            hero.defense = 0
+            hero.penetration = 0
 
         if self.current_player.state != PlayerState.INITIAL_PICK:
             self.current_player.draw()
@@ -87,10 +89,35 @@ class Game:
         yield from self.player2.heroes
 
 
+    def can_play_card(self, player:Player, card:Card):
+        if not card.owner == player:
+            print("trying to play a card doesn't owned")
+            return False
+        need_fire = True
+        if CardAttributes.NO_FIRE_CONSUMPTION in card.attributes:
+            need_fire = False
+        elif CardAttributes.INSTANT in card.attributes and player.instant_used == False:
+            need_fire = False
+        if need_fire and player.fire_cnt <= 0:
+            print("trying to play a card when there's no fire remaining")
+            return False
+        if card.level_req > card.get_corresponding_hero().level:
+            print("trying to play a card when corresponding hero level is not enough")
+            return False
+        if card.get_corresponding_hero().state == "dead" and CardAttributes.CAN_PLAY_WHEN_DEAD not in card.attributes:
+            print("trying to play a card whose corresponding hero is dead without the ability to play when dead")
+            return False
+        return True
+
+
     def step(self, player:Player, action:Action):
+        """
+        The step function should only be used for handling actions directly from players, e.g. playing card.
+        All the effects triggered by a card should be handled by handle_event function below.
+        """
         if action is None:
             return
-        self.broadcast(action.type, action=action)
+        self.broadcast(action.type, event=action)
         if hasattr(action, "revert") and action.revert == True:
             return
         match action.type:
@@ -118,6 +145,11 @@ class Game:
                 if not self.current_player == player:
                     print("trying to end a turn when it's not his turn, will ignore")
                     return
+                for hero in self.current_player.heroes:
+                    if hasattr(hero, "on_self_round_end"):
+                        for event in hero.on_self_round_end:
+                            if isinstance(event(hero), Event):
+                                self.handle_event(event(hero))
                 self.current_player = self.current_player.opponent
                 self.begin_turn()
             
@@ -144,32 +176,24 @@ class Game:
                 action.hero.Upgrade()
                 if hasattr(action.hero, "on_upgrade"):
                     for event in action.hero.on_upgrade:
-                        if isinstance(event(action.hero), Action):
-                            self.step(player, event(action.hero))
+                        if isinstance(event(action.hero), Event):
+                            self.handle_event(event(action.hero))
                 self.current_player.upgrade_remaining -= 1
             
             case "play card":
                 if not self.current_player == player:
                     print("trying to play a card when it's not his turn, will ignore")
                     return
-                if not action.card.owner == player:
-                    print("trying to play a card doesn't owned")
+                if not self.can_play_card(player, action.card):
                     return
+                need_fire = True
                 if CardAttributes.NO_FIRE_CONSUMPTION in action.card.attributes:
-                    player.fire_cnt += 1
+                    need_fire = False
                 elif CardAttributes.INSTANT in action.card.attributes and player.instant_used == False:
-                    player.fire_cnt += 1
+                    need_fire = False
                     player.instant_used = True
-                if player.fire_cnt <= 0:
-                    print("trying to play a card when there's no fire remaining")
-                    return
-                if action.card.level_req > action.card.get_corresponding_hero().level:
-                    print("trying to play a card when corresponding hero level is not enough")
-                    return
-                if action.card.get_corresponding_hero().state == "dead" and CardAttributes.CAN_PLAY_WHEN_DEAD not in action.card.attributes:
-                    print("trying to play a card whose corresponding hero is dead without the ability to play when dead")
-                    return
-                player.fire_cnt -= 1
+                if need_fire:
+                    player.fire_cnt -= 1
                 self.play_card(player, action.card, action.target)
             
             case "hero attack":
@@ -188,32 +212,17 @@ class Game:
                 if not action.hero.owner == player:
                     print("trying to let a non-friendly hero attack")
                     return
-                player.advance_hero(action.hero)
-                if player.opponent.attack_zone is not None:
-                    self.attack(action.hero, player.opponent.attack_zone)
-                else:
-                    self.attack(action.hero, player.opponent)
+                action.hero.atk += action.hero.inspiration_atk
+                action.hero.defense += action.hero.inspiration_def
+                self.handle_event(HeroAttackEvent(player, action.hero))
                 if HeroAttributes.AGILE in action.hero.attributes:
                     player.fire_cnt += 1
                     action.hero.attributes.remove(HeroAttributes.AGILE)
+                action.hero.atk -= action.hero.inspiration_atk
+                action.hero.inspiration_atk = 0
+                action.hero.inspiration_def = 0
                 player.fire_cnt -= 1
                 player.attack_available = False
-            
-            case "hero attack by card":
-                if not self.current_player == player:
-                    print("trying to attack by card when it's not his turn")
-                    return
-                if not action.hero.is_alive:
-                    print("trying to attack with a dead hero by card")
-                    return
-                player.advance_hero(action.hero)
-                if player.opponent.attack_zone is not None:
-                    self.attack(action.hero, player.opponent.attack_zone)
-                else:
-                    self.attack(action.hero, player.opponent)
-            
-            case "call selector":
-                action.func(action.player, action.target_list, action.card)
             
             case "select target":
                 player.selected_targets = [action.target]
@@ -223,91 +232,122 @@ class Game:
                 self.play_card(player, self.pending_card,)
                 self.pending_card = None
                 player.selected_targets = None
-
-            case "give buff":
-                for e in action.target:
-                    if e.state == "dead":
-                        continue
-                    if isinstance(e, Hero):
-                        if e.level == 0:
-                            continue
-                    if action.attr == "hp":
-                        setattr(e, "hp", getattr(e, "hp") + action.value)
-                        setattr(e, "current_max_hp", getattr(e, "current_max_hp") + action.value)
-                    elif action.attr == "atk":
-                        setattr(e, "atk", getattr(e, "atk") + action.value)
-                    elif action.attr == "round_buff_atk":
-                        setattr(e, "round_buff_atk", getattr(e, "round_buff_atk") + action.value)
-                    elif action.attr == "current_max_hp":
-                        setattr(e, "current_max_hp", getattr(e, "current_max_hp") + action.value)
-                    elif action.attr == "round_buff_spell_damage":
-                        setattr(e, "round_buff_spell_damage", getattr(e, "round_buff_spell_damage") + action.value)
-            
-            case "heal":
-                for e in action.target:
-                    if e.state == "dead":
-                        continue
-                    if isinstance(e, Hero):
-                        if e.level == 0:
-                            continue
-                    e.hp += action.value
-                    if e.hp > e.current_max_hp:
-                        e.hp = e.current_max_hp
-            
-            case "deal damage":
-                for e in action.target:
-                    if e.state == "dead":
-                        continue
-                    if isinstance(e, Hero):
-                        if e.level == 0:
-                            continue
-                        for h in e.owner.heroes:
-                            if h == e:
-                                continue
-                            if hasattr(h, "on_firendly_hero_take_damage"):
-                                for event in h.on_friendly_hero_take_damage:
-                                    if event(h) == "negate damage":
-                                        return
-                                    if isinstance(event(h), Action):
-                                        self.step(player, event(h))
-                    e.receive_damage(action.value)
-                    e.check_death()
-                
-            case "draw selected card from deck":
-                if action.card not in action.player.deck.cards:
-                    print("trying to draw a card not in deck")
-                    return
-                action.player.deck.remove(action.card)
-                action.player.hand.append(action.card)
-            
-            case "revive":
-                for e in action.target:
-                    if e.state != "dead":
-                        print("trying to revive a non-dead target")
-                        return
-                    e.revive()
             
             case _:
                 print(f"stepping with the game with undefined action type {action.type}, check code!")
+        
+        while len(self.action_queue) > 0:
+            self.handle_event(self.action_queue.pop(0))
+    
+
+    def handle_event(self, event: Event):
+        """
+        This function is used for handling small events. Inputs directly from the player should be handled in the step function above.
+        """
+        if event is None:
+            return
+        self.broadcast(event.type, event=event)
+        if hasattr(event, "revert") and event.revert == True:
+            return
+        match event.type:
+            case "give buff":
+                for e in event.target:
+                    if e.state == "dead":
+                        continue
+                    if isinstance(e, Hero):
+                        if e.level == 0:
+                            continue
+                    if event.attr == "hp":
+                        setattr(e, "hp", getattr(e, "hp") + event.value)
+                        setattr(e, "current_max_hp", getattr(e, "current_max_hp") + event.value)
+                    elif event.attr == "atk":
+                        setattr(e, "atk", getattr(e, "atk") + event.value)
+                    elif event.attr == "round_buff_atk":
+                        setattr(e, "round_buff_atk", getattr(e, "round_buff_atk") + event.value)
+                    elif event.attr == "current_max_hp":
+                        setattr(e, "current_max_hp", getattr(e, "current_max_hp") + event.value)
+                    elif event.attr == "round_buff_spell_damage":
+                        setattr(e, "round_buff_spell_damage", getattr(e, "round_buff_spell_damage") + event.value)
+            
+            case "heal":
+                for e in event.target:
+                    if e.state == "dead":
+                        continue
+                    if isinstance(e, Hero):
+                        if e.level == 0:
+                            continue
+                    e.hp += event.value
+                    if e.hp > e.current_max_hp:
+                        e.hp = e.current_max_hp
+
+            case "deal damage":
+                for e in event.target:
+                    if e.state == "dead":
+                        continue
+                    if isinstance(e, Hero):
+                        if e.level == 0:
+                            continue
+                    e.receive_damage(event.value)
+                    e.check_death()
+            
+            case "revive":
+                for e in event.target:
+                    if e.state != "dead":
+                        print("trying to revive a non-dead target")
+                        continue
+                    e.revive()
+
+            case "hero attack event":
+                player = event.player
+                if not event.hero.is_alive:
+                    print("trying to attack with a dead hero")
+                    return
+                player.advance_hero(event.hero)
+                if player.opponent.attack_zone is not None:
+                    self.attack(event.hero, player.opponent.attack_zone)
+                else:
+                    self.attack(event.hero, player.opponent)
+
+            case "draw selected card from deck":
+                if event.card not in event.player.deck.cards:
+                    print("trying to draw a card not in deck")
+                    return
+                event.player.deck.remove(event.card)
+                event.player.hand.append(event.card)
+            
+            case _:
+                print(f"handling event with undefined event type {event.type}, check code!")
 
 
     def play_card(self, player:Player, card:Card, target=None):
         if card.select_target is not None:
             if player.selected_targets is None:
-                self.pending_card = card
-                for event in card.select_target:
-                    event(card)
-                player.state = PlayerState.SELECTING_TARGET
-                return
-                
+                target_valid = False
+                if target is not None:
+                    if card.require_target is not None:
+                        target_valid = (
+                            len(target) == len(card.require_target)
+                            and all(t in req(card) for t, req in zip(target, card.require_target))
+                        )
+                    else:
+                        target_valid = True
+                if target_valid:
+                    player.selected_targets = target
+                else:
+                    self.pending_card = card
+                    for event in card.select_target:
+                        event(card)
+                    player.state = PlayerState.SELECTING_TARGET
+                    return
+
         match card.type:
             case "attack":
                 if hasattr(card, "on_play"):
                     for event in card.on_play:
                         # it's worth noting that if event(card) is a function, it will
                         # be executed while checking if it's an Action type.
-                        if isinstance(event(card), Action):
-                            self.step(player, event(card))
+                        if isinstance(event(card), Event):
+                            self.handle_event(event(card))
                 for hero in player.heroes:
                     if hero.type_name == card.hero:
                         attacking_hero = hero
@@ -315,31 +355,37 @@ class Game:
                     attacking_hero.atk += card.buff_atk
                 if hasattr(card, "buff_def"):
                     attacking_hero.defense += card.buff_def
-                self.step(player, HeroAttackByCard(attacking_hero, card))
+                self.handle_event(HeroAttackEvent(player, attacking_hero, card))
                 if hasattr(card, "after_play"):
                     for event in card.after_play:
-                        if isinstance(event(card), Action):
-                            self.step(player, event(card))
+                        if isinstance(event(card), Event):
+                            self.handle_event(event(card))
                 if hasattr(card, "buff_atk"):
                     attacking_hero.atk -= card.buff_atk
 
             case "spell":
                 if hasattr(card, "on_play"):
                     for event in card.on_play:
-                        if isinstance(event(card), Action):
-                            if isinstance(event(card), DealDamage):
+                        result = event(card)
+                        if isinstance(result, Event):
+                            if isinstance(result, DealDamage):
                                 if hasattr(card.get_corresponding_hero(), "round_buff_spell_damage"):
-                                    event(card).value += card.get_corresponding_hero().round_buff_spell_damage
-                            self.step(player, event(card))
+                                    result.value += card.get_corresponding_hero().round_buff_spell_damage
+                            self.handle_event(result)
             
             case "morph":
                 if hasattr(card, "on_play"):
                     for event in card.on_play:
-                        if isinstance(event(card), Action):
-                            self.step(player, event(card))
+                        if isinstance(event(card), Event):
+                            self.handle_event(event(card))
                 card.get_corresponding_hero().current_max_hp = card.hp
                 card.get_corresponding_hero().atk = card.atk
                 card.get_corresponding_hero().hp = card.hp
+                if hasattr(card, "after_play"):
+                    for event in card.after_play:
+                        result = event(card)
+                        if isinstance(result, Event):
+                            self.handle_event(result)
 
         player.move_card_to_used(card)
         player.selected_targets = None
@@ -356,8 +402,8 @@ class Game:
             atk2 += entity2.atk
         if hasattr(entity2, "round_buff_atk"):
             atk2 += entity2.round_buff_atk
-        self.step(self.current_player, DealDamage(atk1, entity1, [entity2,]))
-        self.step(self.current_player, DealDamage(atk2, entity2, [entity1,]))
+        self.handle_event(DealDamage(atk1, entity1, [entity2,]))
+        self.handle_event(DealDamage(atk2, entity2, [entity1,]))
 
 
     def start_game(self):
@@ -376,6 +422,8 @@ class Game:
 
         self.player1.start_game()
         self.player2.start_game()
+        self.player1.assign_agent()
+        self.player2.assign_agent()
 
         self.state = "playing"
 
