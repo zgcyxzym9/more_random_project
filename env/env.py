@@ -242,7 +242,7 @@ class RandomOpponentGameEnv(Env):
     def __init__(self):
         super().__init__()
         self.model = ActorCritic(240, 36).to(device="cuda")
-        self.model.load_state_dict(torch.load("./logs/2026-02-20_00-13-35/ppo_actor_critic_2.pt"))
+        self.model.load_state_dict(torch.load("./logs/dqn/2026-03-17_14-34-54/dqn_model.pt"))
 
 
     def step(self, action):
@@ -347,7 +347,7 @@ class DQNOpponentGameEnv(Env):
                     obs = self.game.get_obs_tensor(self.player2, _DEVICE)
                     action = self.model.select_action(obs, action_mask)
                     self.game.step(self.player2, self.decode_action(self.player2, action))
-        return self.get_obs(self.player1)
+        return self.get_obs_tensor(self.player1)
     
 
     def get_opponent_agent(self):

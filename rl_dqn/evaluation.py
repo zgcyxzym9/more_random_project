@@ -4,7 +4,7 @@ import torch
 from rl_dqn.agent import DoubleDQNAgent
 from env.env import RandomOpponentGameEnv, DQNOpponentGameEnv
 
-def eval(env, model_path="./logs/dqn/2026-03-13_15-09-05/dqn_model_2.pt"):
+def eval(env, model_path="./logs/dqn/2026-03-17_14-34-54/dqn_model.pt"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     obs_dim = 240
@@ -41,5 +41,5 @@ def eval(env, model_path="./logs/dqn/2026-03-13_15-09-05/dqn_model_2.pt"):
     print(f"{first_won} {second_won}")
 
 if __name__ == "__main__":
-    env = RandomOpponentGameEnv()
+    env = DQNOpponentGameEnv()
     eval(env)
