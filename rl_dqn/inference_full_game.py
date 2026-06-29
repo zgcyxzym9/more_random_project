@@ -15,7 +15,7 @@ from rl.utils import match_by_caps
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 root_dict = "E:/more_random_project"
 model = DoubleDQNAgent(240, 36, device)
-model.q_net.load_state_dict(torch.load("./logs/dqn/2026-03-16_15-23-03/dqn_model.pt"))
+model.q_net.load_state_dict(torch.load("./logs/dqn/2026-03-17_14-34-54/dqn_model_1.pt"))
 model.q_net.eval()
 
 with open(os.path.join(root_dict, "game_core/cards/card_names.txt"), 'r', encoding='utf-8') as file:

@@ -208,7 +208,7 @@
         "hero": "TaoHuaYao",
         "name": "桃之夭夭",
         "eng_name": "TaoZhiYaoYao",
-        "description": "不消耗鬼火 鼓舞：获得+2",
+        "description": "不消耗鬼火 鼓舞：获得+2攻击力和+2护盾。",
         "is_beginning_card": true,
         "level_req": 2
     },
@@ -245,5 +245,15 @@
         "level_req": 3,
         "atk": 4,
         "hp": 9
+    },
+    {
+        "id": 24,
+        "type": "spell",
+        "hero": "TaoHuaYao",
+        "name": "桃华灼灼",
+        "eng_name": "TaoHuaZhuoZhuo",
+        "description": "若桃花妖未气绝，此牌得瞬发。复活己方所有式神，然后使所有己方式神获得迅捷。（桃花妖气绝时可用）",
+        "is_beginning_card": true,
+        "level_req": 3
     }
 ]

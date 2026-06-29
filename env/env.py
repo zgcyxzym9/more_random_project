@@ -208,16 +208,16 @@ class Env:
             reward += 50
  
         # 血量变化
-        reward += float(obs_after[o.PLAYER_HP]  - obs_before[o.PLAYER_HP])  * 3
-        reward += float(obs_before[o.OPPONENT_HP] - obs_after[o.OPPONENT_HP]) * 8
+        reward += float(obs_after[o.PLAYER_HP]  - obs_before[o.PLAYER_HP])  * 0.8
+        reward += float(obs_before[o.OPPONENT_HP] - obs_after[o.OPPONENT_HP]) * 1.5
  
         # 鬼火消耗
-        reward += float(obs_before[o.FIRE_REMAINING] - obs_after[o.FIRE_REMAINING]) * 2
+        reward += float(obs_before[o.FIRE_REMAINING] - obs_after[o.FIRE_REMAINING]) * 0.6
  
         # 攻击阶段对手英雄 hp+def 变化
         if obs_before[o.PLAYER_STATE] == 2:
             for hp_idx, def_idx in zip(o.OPP_HERO_HP, o.OPP_HERO_DEF):
-                reward += 4.0 * float(
+                reward += 1.0 * float(
                     (obs_before[hp_idx]  - obs_after[hp_idx]) +
                     (obs_before[def_idx] - obs_after[def_idx])
                 )
@@ -226,14 +226,14 @@ class Env:
         hand_after = obs_after[o.PLAYER_HAND_START : o.PLAYER_HAND_START + HAND_LIMIT]
         hand_size  = int(hand_after.count_nonzero())
         if hand_size > HAND_LIMIT:
-            reward -= 10 * (hand_size - HAND_LIMIT)
+            reward -= 2.5 * (hand_size - HAND_LIMIT)
  
         # 回合切换但没用鬼火的惩罚
         turn_changed   = obs_after[o.TURN_COUNT] != obs_before[o.TURN_COUNT]
         not_init_state = obs_before[o.PLAYER_STATE] != 1
         fire_was_full  = obs_before[o.FIRE_REMAINING] == 2
         if not_init_state and turn_changed and fire_was_full:
-            reward -= 8
+            reward -= 2
  
         return reward
 
@@ -347,7 +347,7 @@ class DQNOpponentGameEnv(Env):
                     obs = self.game.get_obs_tensor(self.player2, _DEVICE)
                     action = self.model.select_action(obs, action_mask)
                     self.game.step(self.player2, self.decode_action(self.player2, action))
-        return self.get_obs_tensor(self.player1)
+        return self.game.get_obs_tensor(self.player1, _DEVICE)
     
 
     def get_opponent_agent(self):
