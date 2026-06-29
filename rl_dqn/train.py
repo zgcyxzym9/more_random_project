@@ -10,7 +10,7 @@ from env.env import RandomOpponentGameEnv, DQNOpponentGameEnv
 from rl_dqn.agent import DoubleDQNAgent
 
 
-OBS_DIM    = 240
+OBS_DIM    = 251
 ACTION_DIM = 36
 DEVICE     = "cuda"
 

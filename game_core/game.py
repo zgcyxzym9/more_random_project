@@ -485,12 +485,12 @@ class Game:
     def get_obs_tensor(self, player: Player, device) -> "torch.Tensor":
         """
         用 numpy 数组在 CPU 上完成所有赋值，最后一次 .to(device)。
-        避免原来逐元素写 GPU tensor 导致的 240 次 Python→CUDA 同步。
+        避免原来逐元素写 GPU tensor 导致的 251 次 Python→CUDA 同步。
         """
         import torch
         import numpy as np
         opponent = player.opponent
-        buf = np.zeros(240, dtype=np.float32)   # 全在 CPU，无 CUDA 开销
+        buf = np.zeros(251, dtype=np.float32)   # 全在 CPU，无 CUDA 开销
 
         buf[0] = player.state
         buf[2] = self.turn_count
@@ -532,57 +532,57 @@ class Game:
         buf[101] = len(player.deck)
         buf[102] = len(opponent.deck)
 
-        # ── 手牌（最多 12 张）────────────────────────────────
-        for i, c in enumerate(player.hand.cards):
-            if i >= 12: break
-            buf[103 + i] = c.id
+        # ── 手牌（23 维卡牌计数）────────────────────────────
+        for c in player.hand.cards:
+            if 1 <= c.id <= 23:
+                buf[103 + c.id - 1] += 1
 
-        buf[115] = len(opponent.hand)
+        buf[126] = len(opponent.hand)
 
         # ── 起始牌组（最多 32 张）────────────────────────────
         for i, name in enumerate(player.starting_deck):
             if i >= 32: break
-            buf[116 + i] = Card.GetCard(name).id
+            buf[127 + i] = Card.GetCard(name).id
 
-        buf[148] = player.fire_cnt
-        buf[149] = 1.0 if player.attack_available else 0.0
-        buf[150] = 1.0 if player.is_first_player   else 0.0
-        buf[151] = player.pending_card.id if player.pending_card is not None else 0.0
+        buf[159] = player.fire_cnt
+        buf[160] = 1.0 if player.attack_available else 0.0
+        buf[161] = 1.0 if player.is_first_player   else 0.0
+        buf[162] = player.pending_card.id if player.pending_card is not None else 0.0
 
         # ── 己方已用牌（最多 32 张）──────────────────────────
         for i, c in enumerate(player.used_card):
             if i >= 32: break
-            buf[152 + i] = c.id
+            buf[163 + i] = c.id
 
         # ── 对手已用牌（最多 32 张）──────────────────────────
         for i, c in enumerate(opponent.used_card):
             if i >= 32: break
-            buf[184 + i] = c.id
+            buf[195 + i] = c.id
 
         # ── 正在攻击的己方英雄 ────────────────────────────────
         for h in player.heroes:
             if h.state == "attacking":
-                buf[216] = h.id;           buf[217] = h.morphed_id
-                buf[218] = h.current_max_hp; buf[219] = h.hp
-                buf[220] = h.atk;          buf[221] = h.round_buff_atk
-                buf[222] = h.defense;      buf[223] = h.level
-                buf[224] = h.round_until_alive
-                buf[225] = h.inspiration_atk
-                buf[226] = h.inspiration_hp
-                buf[227] = h.inspiration_def
+                buf[227] = h.id;           buf[228] = h.morphed_id
+                buf[229] = h.current_max_hp; buf[230] = h.hp
+                buf[231] = h.atk;          buf[232] = h.round_buff_atk
+                buf[233] = h.defense;      buf[234] = h.level
+                buf[235] = h.round_until_alive
+                buf[236] = h.inspiration_atk
+                buf[237] = h.inspiration_hp
+                buf[238] = h.inspiration_def
                 break
 
         # ── 正在攻击的对手英雄 ────────────────────────────────
         for h in opponent.heroes:
             if h.state == "attacking":
-                buf[228] = h.id;           buf[229] = h.morphed_id
-                buf[230] = h.current_max_hp; buf[231] = h.hp
-                buf[232] = h.atk;          buf[233] = h.round_buff_atk
-                buf[234] = h.defense;      buf[235] = h.level
-                buf[236] = h.round_until_alive
-                buf[237] = h.inspiration_atk
-                buf[238] = h.inspiration_hp
-                buf[239] = h.inspiration_def
+                buf[239] = h.id;           buf[240] = h.morphed_id
+                buf[241] = h.current_max_hp; buf[242] = h.hp
+                buf[243] = h.atk;          buf[244] = h.round_buff_atk
+                buf[245] = h.defense;      buf[246] = h.level
+                buf[247] = h.round_until_alive
+                buf[248] = h.inspiration_atk
+                buf[249] = h.inspiration_hp
+                buf[250] = h.inspiration_def
                 break
 
         # ── 一次性传到 device ────────────────────────────────

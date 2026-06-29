@@ -17,7 +17,7 @@ def train(env, total_steps=12_000_000, rollout_size=4096):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
 
-    obs_dim = 240
+    obs_dim = 251
     # end_turn + upgrade + attack + play_card_by_slot + select_target + reject_initial_pick
     act_dim = 1 + 4 + 4 + 12 + 10 + 5 # 36
 

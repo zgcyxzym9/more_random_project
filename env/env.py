@@ -35,7 +35,7 @@ class Env:
 
     def get_obs(self, player) -> torch.Tensor:
         state = self.game.get_observations(player)
-        obs = torch.zeros(240, dtype=torch.float32, device=_DEVICE)
+        obs = torch.zeros(OBS_DIM, dtype=torch.float32, device=_DEVICE)
  
         obs[0] = player.state   #player_state need to use enum
         obs[1] = 0  # game_state, currently just a placeholder since game_state has no usage now
@@ -79,32 +79,33 @@ class Env:
         obs[102] = state["opponent_deck_size"]
  
         hand = state["player_hand"]
-        for i in range(min(len(hand), HAND_LIMIT)):
-            obs[103 + i] = hand[i].id
+        for card in hand:
+            if 1 <= card.id <= NUM_CARD_TYPES:
+                obs[ObsIdx.PLAYER_HAND_START + card.id - 1] += 1
  
-        obs[115] = state["opponent_hand_size"]
+        obs[126] = state["opponent_hand_size"]
  
         deck = state["player_starting_deck"]
         for i in range(min(len(deck), 32)):
-            obs[116 + i] = Card.GetCard(deck[i]).id
+            obs[127 + i] = Card.GetCard(deck[i]).id
  
-        obs[148] = state["fire_remaining"]
-        obs[149] = 1 if state["attack_available"] else 0
-        obs[150] = 1 if state["is_first_player"] else 0
-        obs[151] = state["pending_card"].id if state["pending_card"] is not None else 0
+        obs[159] = state["fire_remaining"]
+        obs[160] = 1 if state["attack_available"] else 0
+        obs[161] = 1 if state["is_first_player"] else 0
+        obs[162] = state["pending_card"].id if state["pending_card"] is not None else 0
  
         for i, c in enumerate(state["player_used_card"]):
             if i >= 32: break
-            obs[152 + i] = c.id
+            obs[163 + i] = c.id
  
         for i, c in enumerate(state["opponent_used_card"]):
             if i >= 32: break
-            obs[184 + i] = c.id
+            obs[195 + i] = c.id
  
         # attacking heroes（一次遍历同时处理双方）
         for hero in state["player_heroes"]:
             if hero.state == "attacking":
-                base = 216
+                base = 227
                 obs[base]     = hero.id
                 obs[base + 1] = hero.morphed_id
                 obs[base + 2] = hero.current_max_hp
@@ -121,7 +122,7 @@ class Env:
  
         for hero in state["opponent_heroes"]:
             if hero.state == "attacking":
-                base = 228
+                base = 239
                 obs[base]     = hero.id
                 obs[base + 1] = hero.morphed_id
                 obs[base + 2] = hero.current_max_hp
@@ -136,7 +137,7 @@ class Env:
                 obs[base + 11] = hero.inspiration_def
                 break
  
-        return obs  # shape: (240,), float32, on GPU
+        return obs  # shape: (251,), float32, on GPU
         
 
     def get_legal_actions(self, player):
@@ -223,8 +224,8 @@ class Env:
                 )
  
         # 手牌超限惩罚
-        hand_after = obs_after[o.PLAYER_HAND_START : o.PLAYER_HAND_START + HAND_LIMIT]
-        hand_size  = int(hand_after.count_nonzero())
+        hand_after = obs_after[o.PLAYER_HAND_START : o.PLAYER_HAND_START + NUM_CARD_TYPES]
+        hand_size  = int(hand_after.sum())
         if hand_size > HAND_LIMIT:
             reward -= 2.5 * (hand_size - HAND_LIMIT)
  
@@ -241,7 +242,7 @@ class Env:
 class RandomOpponentGameEnv(Env):
     def __init__(self):
         super().__init__()
-        self.model = ActorCritic(240, 36).to(device="cuda")
+        self.model = ActorCritic(OBS_DIM, 36).to(device="cuda")
         self.model.load_state_dict(torch.load("./logs/dqn/2026-03-17_14-34-54/dqn_model.pt"))
 
 
@@ -303,8 +304,8 @@ class RandomOpponentGameEnv(Env):
 class DQNOpponentGameEnv(Env):
     def __init__(self):
         super().__init__()
-        self.model = DoubleDQNAgent(240, 36, "cuda")
-        self.model.load_model("./logs/dqn/2026-03-17_14-34-54/dqn_model_1.pt")
+        self.model = DoubleDQNAgent(OBS_DIM, 36, "cuda")
+        self.model.load_model("./logs/dqn/2026-06-29_13-27-07/dqn_model.pt")
     
 
     def step(self, action):
