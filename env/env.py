@@ -20,9 +20,9 @@ class Env:
     def __init__(self):
         root_dict = "E:/more_random_project"
         with open(os.path.join(root_dict, "game_core/cards/cards.json"), 'r', encoding='utf-8') as file:
-            card_data = json.load(file)
+            self.card_data = json.load(file)
         with open(os.path.join(root_dict, "game_core/hero_names.txt"), 'r', encoding='utf-8') as file:
-            hero_names = [line.strip() for line in file if line.strip()]
+            self.hero_names = [line.strip() for line in file if line.strip()]
 
 
     def step(self, action):
@@ -251,7 +251,6 @@ class RandomOpponentGameEnv(Env):
         self.game.step(self.player1, self.decode_action(self.player1, action))
         if self.opponent == "random":
             while self.game.current_player is not self.player1 and not self.game.check_end_condition():
-                import random as r
                 legal_actions = self.get_legal_actions(self.player2)
                 self.game.step(self.player2, self.decode_action(self.player2, r.choice(legal_actions)))
         else:
@@ -277,7 +276,6 @@ class RandomOpponentGameEnv(Env):
         self.get_opponent_agent()
         if self.opponent == "random":
             while self.game.current_player is not self.player1 and not self.game.check_end_condition():
-                import random as r
                 legal_actions = self.get_legal_actions(self.player2)
                 self.game.step(self.player2, self.decode_action(self.player2, r.choice(legal_actions)))
         else:
@@ -313,7 +311,6 @@ class DQNOpponentGameEnv(Env):
         self.game.step(self.player1, self.decode_action(self.player1, action))
         if self.opponent == "random":
             while self.game.current_player is not self.player1 and not self.game.check_end_condition():
-                import random as r
                 legal_actions = self.get_legal_actions(self.player2)
                 self.game.step(self.player2, self.decode_action(self.player2, r.choice(legal_actions)))
         else:
@@ -338,7 +335,6 @@ class DQNOpponentGameEnv(Env):
         self.get_opponent_agent()
         if self.opponent == "random":
             while self.game.current_player is not self.player1 and not self.game.check_end_condition():
-                import random as r
                 legal_actions = self.get_legal_actions(self.player2)
                 self.game.step(self.player2, self.decode_action(self.player2, r.choice(legal_actions)))
         else:
@@ -370,7 +366,7 @@ class DQNRandomDeckGameEnv(DQNOpponentGameEnv):
         player1_heroes = r.sample(self.hero_names, 4)
         player1_deck = []
         for hero in player1_heroes:
-            hero_cards = [card for card in self.card_data if card["hero"] == hero and card["is_beginning_card"] == True]
+            hero_cards = [card["eng_name"] for card in self.card_data if card["hero"] == hero and card["is_beginning_card"] == True]
             hero_cards.extend(hero_cards)
             try:
                 player1_deck.extend(r.sample(hero_cards, 8))
@@ -379,7 +375,7 @@ class DQNRandomDeckGameEnv(DQNOpponentGameEnv):
         player2_heroes = r.sample(self.hero_names, 4)
         player2_deck = []
         for hero in player2_heroes:
-            hero_cards = [card for card in self.card_data if card["hero"] == hero and card["is_beginning_card"] == True]
+            hero_cards = [card["eng_name"] for card in self.card_data if card["hero"] == hero and card["is_beginning_card"] == True]
             hero_cards.extend(hero_cards)
             try:
                 player2_deck.extend(r.sample(hero_cards, 8))
@@ -392,7 +388,6 @@ class DQNRandomDeckGameEnv(DQNOpponentGameEnv):
         self.get_opponent_agent()
         if self.opponent == "random":
             while self.game.current_player is not self.player1 and not self.game.check_end_condition():
-                import random as r
                 legal_actions = self.get_legal_actions(self.player2)
                 self.game.step(self.player2, self.decode_action(self.player2, r.choice(legal_actions)))
         else:
