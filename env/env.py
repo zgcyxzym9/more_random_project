@@ -86,26 +86,28 @@ class Env:
         obs[126] = state["opponent_hand_size"]
  
         deck = state["player_starting_deck"]
-        for i in range(min(len(deck), 32)):
-            obs[127 + i] = Card.GetCard(deck[i]).id
+        for name in deck:
+            cid = Card.GetCard(name).id
+            if 1 <= cid <= NUM_CARD_TYPES:
+                obs[127 + cid - 1] += 1
  
-        obs[159] = state["fire_remaining"]
-        obs[160] = 1 if state["attack_available"] else 0
-        obs[161] = 1 if state["is_first_player"] else 0
-        obs[162] = state["pending_card"].id if state["pending_card"] is not None else 0
+        obs[150] = state["fire_remaining"]
+        obs[151] = 1 if state["attack_available"] else 0
+        obs[152] = 1 if state["is_first_player"] else 0
+        obs[153] = state["pending_card"].id if state["pending_card"] is not None else 0
  
-        for i, c in enumerate(state["player_used_card"]):
-            if i >= 32: break
-            obs[163 + i] = c.id
+        for c in state["player_used_card"]:
+            if 1 <= c.id <= NUM_CARD_TYPES:
+                obs[154 + c.id - 1] += 1
  
-        for i, c in enumerate(state["opponent_used_card"]):
-            if i >= 32: break
-            obs[195 + i] = c.id
+        for c in state["opponent_used_card"]:
+            if 1 <= c.id <= NUM_CARD_TYPES:
+                obs[177 + c.id - 1] += 1
  
         # attacking heroes（一次遍历同时处理双方）
         for hero in state["player_heroes"]:
             if hero.state == "attacking":
-                base = 227
+                base = 200
                 obs[base]     = hero.id
                 obs[base + 1] = hero.morphed_id
                 obs[base + 2] = hero.current_max_hp
@@ -122,7 +124,7 @@ class Env:
  
         for hero in state["opponent_heroes"]:
             if hero.state == "attacking":
-                base = 239
+                base = 212
                 obs[base]     = hero.id
                 obs[base + 1] = hero.morphed_id
                 obs[base + 2] = hero.current_max_hp
@@ -137,7 +139,7 @@ class Env:
                 obs[base + 11] = hero.inspiration_def
                 break
  
-        return obs  # shape: (251,), float32, on GPU
+        return obs  # shape: (224,), float32, on GPU
         
 
     def get_legal_actions(self, player):
@@ -303,7 +305,7 @@ class DQNOpponentGameEnv(Env):
     def __init__(self):
         super().__init__()
         self.model = DoubleDQNAgent(OBS_DIM, 36, "cuda")
-        self.model.load_model("./logs/dqn/2026-06-29_13-27-07/dqn_model.pt")
+        self.model.load_model("./logs/dqn/2026-06-30_21-42-09/dqn_model.pt")
     
 
     def step(self, action):

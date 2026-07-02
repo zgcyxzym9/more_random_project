@@ -14,7 +14,7 @@ from rl.utils import match_by_caps
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 root_dict = "E:/more_random_project"
-model = DoubleDQNAgent(251, 36, device)
+model = DoubleDQNAgent(224, 36, device)
 model.q_net.load_state_dict(torch.load("./logs/dqn/2026-03-17_14-34-54/dqn_model_1.pt"))
 model.q_net.eval()
 

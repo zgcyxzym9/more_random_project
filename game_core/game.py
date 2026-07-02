@@ -490,7 +490,7 @@ class Game:
         import torch
         import numpy as np
         opponent = player.opponent
-        buf = np.zeros(251, dtype=np.float32)   # 全在 CPU，无 CUDA 开销
+        buf = np.zeros(224, dtype=np.float32)   # 全在 CPU，无 CUDA 开销
 
         buf[0] = player.state
         buf[2] = self.turn_count
@@ -539,50 +539,51 @@ class Game:
 
         buf[126] = len(opponent.hand)
 
-        # ── 起始牌组（最多 32 张）────────────────────────────
-        for i, name in enumerate(player.starting_deck):
-            if i >= 32: break
-            buf[127 + i] = Card.GetCard(name).id
+        # ── 起始牌组（23 维卡牌计数）────────────────────────
+        for name in player.starting_deck:
+            cid = Card.GetCard(name).id
+            if 1 <= cid <= 23:
+                buf[127 + cid - 1] += 1
 
-        buf[159] = player.fire_cnt
-        buf[160] = 1.0 if player.attack_available else 0.0
-        buf[161] = 1.0 if player.is_first_player   else 0.0
-        buf[162] = player.pending_card.id if player.pending_card is not None else 0.0
+        buf[150] = player.fire_cnt
+        buf[151] = 1.0 if player.attack_available else 0.0
+        buf[152] = 1.0 if player.is_first_player   else 0.0
+        buf[153] = player.pending_card.id if player.pending_card is not None else 0.0
 
-        # ── 己方已用牌（最多 32 张）──────────────────────────
-        for i, c in enumerate(player.used_card):
-            if i >= 32: break
-            buf[163 + i] = c.id
+        # ── 己方已用牌（23 维卡牌计数）──────────────────────
+        for c in player.used_card:
+            if 1 <= c.id <= 23:
+                buf[154 + c.id - 1] += 1
 
-        # ── 对手已用牌（最多 32 张）──────────────────────────
-        for i, c in enumerate(opponent.used_card):
-            if i >= 32: break
-            buf[195 + i] = c.id
+        # ── 对手已用牌（23 维卡牌计数）──────────────────────
+        for c in opponent.used_card:
+            if 1 <= c.id <= 23:
+                buf[177 + c.id - 1] += 1
 
         # ── 正在攻击的己方英雄 ────────────────────────────────
         for h in player.heroes:
             if h.state == "attacking":
-                buf[227] = h.id;           buf[228] = h.morphed_id
-                buf[229] = h.current_max_hp; buf[230] = h.hp
-                buf[231] = h.atk;          buf[232] = h.round_buff_atk
-                buf[233] = h.defense;      buf[234] = h.level
-                buf[235] = h.round_until_alive
-                buf[236] = h.inspiration_atk
-                buf[237] = h.inspiration_hp
-                buf[238] = h.inspiration_def
+                buf[200] = h.id;           buf[201] = h.morphed_id
+                buf[202] = h.current_max_hp; buf[203] = h.hp
+                buf[204] = h.atk;          buf[205] = h.round_buff_atk
+                buf[206] = h.defense;      buf[207] = h.level
+                buf[208] = h.round_until_alive
+                buf[209] = h.inspiration_atk
+                buf[210] = h.inspiration_hp
+                buf[211] = h.inspiration_def
                 break
 
         # ── 正在攻击的对手英雄 ────────────────────────────────
         for h in opponent.heroes:
             if h.state == "attacking":
-                buf[239] = h.id;           buf[240] = h.morphed_id
-                buf[241] = h.current_max_hp; buf[242] = h.hp
-                buf[243] = h.atk;          buf[244] = h.round_buff_atk
-                buf[245] = h.defense;      buf[246] = h.level
-                buf[247] = h.round_until_alive
-                buf[248] = h.inspiration_atk
-                buf[249] = h.inspiration_hp
-                buf[250] = h.inspiration_def
+                buf[212] = h.id;           buf[213] = h.morphed_id
+                buf[214] = h.current_max_hp; buf[215] = h.hp
+                buf[216] = h.atk;          buf[217] = h.round_buff_atk
+                buf[218] = h.defense;      buf[219] = h.level
+                buf[220] = h.round_until_alive
+                buf[221] = h.inspiration_atk
+                buf[222] = h.inspiration_hp
+                buf[223] = h.inspiration_def
                 break
 
         # ── 一次性传到 device ────────────────────────────────
