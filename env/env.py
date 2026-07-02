@@ -87,7 +87,7 @@ class Env:
  
         deck = state["player_starting_deck"]
         for name in deck:
-            cid = Card.GetCard(name).id
+            cid = Card.get_id_by_name(name)
             if 1 <= cid <= NUM_CARD_TYPES:
                 obs[127 + cid - 1] += 1
  
@@ -399,4 +399,4 @@ class DQNRandomDeckGameEnv(DQNOpponentGameEnv):
                     obs = self.game.get_obs_tensor(self.player2, _DEVICE)
                     action = self.model.select_action(obs, action_mask)
                     self.game.step(self.player2, self.decode_action(self.player2, action))
-        return self.get_obs(self.player1)
+        return self.game.get_obs_tensor(self.player1, _DEVICE)

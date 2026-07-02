@@ -1,6 +1,11 @@
 from .cards import *
 from .entity import Entity
 import copy
+import json
+import os
+
+_name_to_id_cache: dict[str, int] | None = None
+
 
 class Card(Entity):
     def __init__(self, card_obj):
@@ -47,11 +52,22 @@ class Card(Entity):
             cards.append(Card.GetCard(id))
         return cards.copy()
     
+    @staticmethod
+    def get_id_by_name(name: str) -> int:
+        """返回卡牌名称对应的 id。首次调用时从 cards.json 加载并缓存。"""
+        global _name_to_id_cache
+        if _name_to_id_cache is None:
+            json_path = os.path.join(os.path.dirname(__file__), "cards", "cards.json")
+            with open(json_path, "r", encoding="utf-8") as f:
+                card_data = json.load(f)
+            _name_to_id_cache = {c["eng_name"]: c["id"] for c in card_data}
+        return _name_to_id_cache.get(name, 0)
+
     def assign_owner(self, player):
         self.owner = player
 
     def get_corresponding_hero(self):
         from .hero import Hero
         for hero in self.owner.heroes:
-            if Hero.GetHero(self.hero).name == hero.name:
+            if self.hero == hero.type_name:
                 return hero

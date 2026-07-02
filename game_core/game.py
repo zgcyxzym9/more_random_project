@@ -541,7 +541,7 @@ class Game:
 
         # ── 起始牌组（23 维卡牌计数）────────────────────────
         for name in player.starting_deck:
-            cid = Card.GetCard(name).id
+            cid = Card.get_id_by_name(name)
             if 1 <= cid <= 23:
                 buf[127 + cid - 1] += 1
 
