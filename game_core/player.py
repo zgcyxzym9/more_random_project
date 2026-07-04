@@ -167,6 +167,9 @@ class Player():
                 actions = [SelectTarget(target) for target in self.candidate_targets]
                 return actions
 
+            case PlayerState.LOST:
+                return []
+
             case _:
                 print(f"getting legal actions with an undefined state {self.state}, check code!")
                 return []

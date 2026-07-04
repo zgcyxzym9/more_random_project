@@ -6,7 +6,7 @@ from datetime import datetime
 import os
 
 from rl_dqn.replay_buffer import ReplayBuffer
-from env.env import RandomOpponentGameEnv, DQNOpponentGameEnv
+from env.env import RandomOpponentGameEnv, DQNOpponentGameEnv, DQNRandomDeckGameEnv
 from rl_dqn.agent import DoubleDQNAgent
 
 
@@ -108,7 +108,7 @@ def train(env, agent, episodes=10000):
 
 
 train(
-    DQNOpponentGameEnv(),
+    DQNRandomDeckGameEnv(),
     DoubleDQNAgent(obs_dim=OBS_DIM, action_dim=ACTION_DIM, device=DEVICE),
-    episodes=30000,
+    episodes=10000,
 )

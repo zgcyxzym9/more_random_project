@@ -90,24 +90,23 @@ class Game:
 
 
     def can_play_card(self, player:Player, card:Card):
+        msg = None
         if not card.owner == player:
-            print("trying to play a card doesn't owned")
-            return False
+            msg = "trying to play a card doesn't owned"
         need_fire = True
         if CardAttributes.NO_FIRE_CONSUMPTION in card.attributes:
             need_fire = False
         elif CardAttributes.INSTANT in card.attributes and player.instant_used == False:
             need_fire = False
         if need_fire and player.fire_cnt <= 0:
-            print("trying to play a card when there's no fire remaining")
-            return False
+            msg = f"trying to play {card} when there's no fire remaining"
         if card.level_req > card.get_corresponding_hero().level:
-            print("trying to play a card when corresponding hero level is not enough")
-            return False
+            msg = "trying to play a card when corresponding hero level is not enough"
         if card.get_corresponding_hero().state == "dead" and CardAttributes.CAN_PLAY_WHEN_DEAD not in card.attributes:
-            print("trying to play a card whose corresponding hero is dead without the ability to play when dead")
-            return False
-        return True
+            msg = "trying to play a card whose corresponding hero is dead without the ability to play when dead"
+        if msg is not None:
+            return False, msg
+        return True, msg
 
 
     def step(self, player:Player, action:Action):
@@ -184,7 +183,9 @@ class Game:
                 if not self.current_player == player:
                     print("trying to play a card when it's not his turn, will ignore")
                     return
-                if not self.can_play_card(player, action.card):
+                can_play, msg = self.can_play_card(player, action.card)
+                if not can_play:
+                    print(msg)
                     return
                 need_fire = True
                 if CardAttributes.NO_FIRE_CONSUMPTION in action.card.attributes:
