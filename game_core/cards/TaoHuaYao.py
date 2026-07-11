@@ -47,9 +47,9 @@ class FengShi:
     level_req = 2
     atk = 3
     hp = 7
-    on_play = (lambda s: setattr(s.get_corresponding_hero(), "listeners", getattr(s.get_corresponding_hero(), "listeners") + 
-        (Listener("begin turn", lambda e, s: e.next_player == s.owner, (
-            lambda e, s: Heal(3, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,),),)),
+    on_play = (lambda s: s.get_corresponding_hero().listeners.append(
+        Listener("begin turn", lambda e, s: e.next_player == s.owner, (
+            lambda e, s: Heal(3, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,),)),
         lambda s: Heal(3, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,)
 
 class TaoYuChunFeng:
@@ -71,12 +71,12 @@ class ShengKai:
     level_req = 3
     atk = 4
     hp = 9
-    on_play = (lambda s: setattr(s.get_corresponding_hero(), "listeners", getattr(s.get_corresponding_hero(), "listeners") +
-        (Listener("begin turn", lambda e, s: e.next_player == s.owner and len(IsDamaged(s.owner.heroes)) > 0, (
+    on_play = (lambda s: s.get_corresponding_hero().listeners.append(
+        Listener("begin turn", lambda e, s: e.next_player == s.owner and len(IsDamaged(s.owner.heroes)) > 0, (
             lambda e, s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)),
             lambda e, s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
             lambda e, s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
-        )),)),
+        ))),
         lambda s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
         lambda s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
         lambda s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes)),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,

@@ -7,6 +7,7 @@ class CardAttributes(IntEnum):
 
 class HeroAttributes(IntEnum):
     AGILE = 1
+    PENETRATE = 2
 
 class PlayerState(IntEnum):
     INITIAL_PICK = 1

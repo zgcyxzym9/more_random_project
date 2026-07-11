@@ -77,7 +77,8 @@ class ShouHu:
                           (lambda e, s: _shouhu_response(e, s),)),)
 
 def _shouhu_response(e, s):
-    if not s.owner.game.can_play_card(s.owner, s):
+    can_play, _ = s.owner.game.can_play_card(s.owner, s)
+    if not can_play:
         return
     setattr(e.event, "revert", True)
     e.event.player.opponent.advance_hero(e.event.hero)
@@ -88,6 +89,21 @@ def _shouhu_response(e, s):
             s.owner.fire_cnt -= 1
     s.owner.game.play_card(s.owner, s)
 
+def _xinjianluanwu_on_play(s):
+    hero = s.get_corresponding_hero()
+    if hero.morphed_id == s.id:
+        return
+    cards = s.owner.hand.cards + s.owner.deck.cards
+    for card in cards:
+        if card.hero == "QuanShen":
+            card.attributes.append(CardAttributes.INSTANT)
+    def _on_death(h):
+        for card in cards:
+            if card.hero == "QuanShen" and CardAttributes.INSTANT in card.attributes:
+                card.attributes.remove(CardAttributes.INSTANT)
+        h.on_death = [e for e in h.on_death if e is not _on_death]
+    hero.on_death.append(_on_death)
+
 class XinJianLuanWu:
     id = 15
     type = "morph"
@@ -96,8 +112,7 @@ class XinJianLuanWu:
     level_req = 3
     atk = 4
     hp = 9
-    after_play = (lambda s: [card.attributes.append(CardAttributes.INSTANT) for card in s.owner.hand if card.hero == "QuanShen" and CardAttributes.INSTANT not in card.attributes],
-                  lambda s: [card.attributes.append(CardAttributes.INSTANT) for card in s.owner.deck if card.hero == "QuanShen" and CardAttributes.INSTANT not in card.attributes])
+    on_play = (_xinjianluanwu_on_play,)
 
 class JueXingQuanShen:
     id = 16
@@ -106,13 +121,22 @@ class JueXingQuanShen:
     name = "觉醒·犬神"
     level_req = 3
     on_play = (lambda s: setattr(s.get_corresponding_hero(), "on_upgrade", None),
-               lambda s: setattr(s.get_corresponding_hero(), "on_self_round_end", 
-                                 (lambda s: s.get_permanent_buff("hp", 1),
-                                  lambda s: s.get_permanent_buff("atk", 1),
-                                  lambda s: s.revive() if s.state == "dead" else None),
-                                  ),
-                lambda s: s.get_corresponding_hero().get_permanent_buff("hp", 1),
-                lambda s: s.get_corresponding_hero().get_permanent_buff("atk", 1))
+               lambda s: s.get_corresponding_hero().listeners.append(
+                   Listener("begin turn",
+                            lambda e, s: e.next_player != s.owner,
+                            (lambda e, s: s.get_permanent_buff("hp", 1),
+                             lambda e, s: s.get_permanent_buff("atk", 1),
+                             lambda e, s: s.revive() if s.state == "dead" else None))
+               ),
+               lambda s: s.get_corresponding_hero().original_listeners.append(
+                   Listener("begin turn",
+                            lambda e, s: e.next_player != s.owner,
+                            (lambda e, s: s.get_permanent_buff("hp", 1),
+                             lambda e, s: s.get_permanent_buff("atk", 1),
+                             lambda e, s: s.revive() if s.state == "dead" else None))
+               ),
+               lambda s: s.get_corresponding_hero().get_permanent_buff("hp", 1),
+               lambda s: s.get_corresponding_hero().get_permanent_buff("atk", 1))
 
 class XinShenLianMo:
     id = 17

@@ -261,14 +261,8 @@ class Game:
                     if event.attr == "hp":
                         setattr(e, "hp", getattr(e, "hp") + event.value)
                         setattr(e, "current_max_hp", getattr(e, "current_max_hp") + event.value)
-                    elif event.attr == "atk":
-                        setattr(e, "atk", getattr(e, "atk") + event.value)
-                    elif event.attr == "round_buff_atk":
-                        setattr(e, "round_buff_atk", getattr(e, "round_buff_atk") + event.value)
-                    elif event.attr == "current_max_hp":
-                        setattr(e, "current_max_hp", getattr(e, "current_max_hp") + event.value)
-                    elif event.attr == "round_buff_spell_damage":
-                        setattr(e, "round_buff_spell_damage", getattr(e, "round_buff_spell_damage") + event.value)
+                    else:
+                        setattr(e, event.attr, getattr(e, event.attr) + event.value)
             
             case "heal":
                 for e in event.target:
@@ -382,6 +376,7 @@ class Game:
                 card.get_corresponding_hero().current_max_hp = card.hp
                 card.get_corresponding_hero().atk = card.atk
                 card.get_corresponding_hero().hp = card.hp
+                card.get_corresponding_hero().morphed_id = card.id
                 if hasattr(card, "after_play"):
                     for event in card.after_play:
                         result = event(card)
@@ -403,6 +398,11 @@ class Game:
             atk2 += entity2.atk
         if hasattr(entity2, "round_buff_atk"):
             atk2 += entity2.round_buff_atk
+        if HeroAttributes.PENETRATE in entity1.attributes:
+            if isinstance(entity2, Hero):
+                if atk1 > entity2.hp + entity2.defense - entity2.penetration:
+                    excessive_damage = atk1 - entity2.hp - entity2.defense + entity2.penetration
+                    self.handle_event(DealDamage(excessive_damage, entity1, [entity1.owner.opponent()]))
         self.handle_event(DealDamage(atk1, entity1, [entity2,]))
         self.handle_event(DealDamage(atk2, entity2, [entity1,]))
 

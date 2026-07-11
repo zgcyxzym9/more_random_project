@@ -21,6 +21,7 @@ class Hero(Entity):
         self.entity_type = "hero"
         self.type_name = type(hero_obj).__name__
         self.name = hero_obj.name
+        self.type = hero_obj.type
         self.owner = None
         self.original_hp = hero_obj.hp
         self.original_atk = hero_obj.atk
@@ -35,7 +36,8 @@ class Hero(Entity):
         self.state = "pending"
         self.is_alive = True
         self.round_until_alive = 0
-        self.listeners = hero_obj.listeners if hasattr(hero_obj, "listeners") else []
+        self.listeners = list(hero_obj.listeners) if hasattr(hero_obj, "listeners") else []
+        self.original_listeners = list(hero_obj.listeners) if hasattr(hero_obj, "listeners") else []
         self.inspiration_atk = 0
         self.inspiration_hp = 0
         self.inspiration_def = 0
@@ -77,6 +79,8 @@ class Hero(Entity):
             self.state = "dead"
             self.round_until_alive = 3
             self.round_buff_atk = 0
+            self.listeners = self.original_listeners.copy()
+            self.morphed_id = 0
             if self.owner.attack_zone == self:
                 self.owner.attack_zone = None
             for event in self.on_death:
@@ -92,8 +96,6 @@ class Hero(Entity):
         self.current_max_hp = self.original_hp
         self.atk = self.original_atk
         self.defense = 0
-        self.listeners = Hero.GetHero(self.type_name).listeners
-        self.morphed_id = 0
         self.round_until_alive = 0
         self.state = "pending"
         for event in self.on_revive:
