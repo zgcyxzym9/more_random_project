@@ -55,6 +55,16 @@ venv.bak/
 *.swo
 *~
 
-#logs
+# logs
 logs/
 *.pt
+runs/
+
+# custom
+experiments/
+debug_frames/
+tmp_cards_json/
+
+# LLM files
+AGENTS.md
+CLAUDE.md
