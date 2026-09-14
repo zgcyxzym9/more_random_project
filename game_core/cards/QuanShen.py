@@ -1,10 +1,10 @@
 import sys
-sys.path.insert(0, "E:\more_random_project")
+sys.path.insert(0, "E:/more_random_project_vibe")
 from game_core.action import *
 from game_core.event import *
 from game_core.enums import *
 from game_core.selector import *
-from game_core.manager import Listener
+from game_core.manager import Listener, CardEnhance
 
 # Counter used for number of XinShenLianMo used, used for attack cards
 
@@ -24,10 +24,7 @@ class XinZhan:
     level_req = 1
     buff_atk = 0
     buff_def = 2
-    on_play = (lambda s: (s.__setattr__('buff_atk', s.buff_atk + s.get_corresponding_hero().counter["xin_shen_lian_mo"]) if s.owner.hand.contain("XinJiYiTi") else None),
-                lambda s: (s.__setattr__('buff_def', s.buff_def + s.get_corresponding_hero().counter["xin_shen_lian_mo"]) if s.owner.hand.contain("XinJiYiTi") else None),)
-    after_play = (lambda s: (s.__setattr__('buff_atk', s.buff_atk - s.get_corresponding_hero().counter["xin_shen_lian_mo"]) if s.owner.hand.contain("XinJiYiTi") else None),
-                lambda s: (s.__setattr__('buff_def', s.buff_def - s.get_corresponding_hero().counter["xin_shen_lian_mo"]) if s.owner.hand.contain("XinJiYiTi") else None),)
+    # 增强效果由 心技一体 (#13) 的形态监听器注入，此处不重复判断
 
 class XinJiGuiChu:
     id = 11
@@ -47,10 +44,41 @@ class EJiZhan:
     level_req = 2
     buff_atk = 4
     buff_def = 0
-    on_play = (lambda s: (s.__setattr__('buff_atk', s.buff_atk + s.get_corresponding_hero().counter["xin_shen_lian_mo"]) if s.owner.hand.contain("XinJiYiTi") else None),
-                lambda s: (s.__setattr__('buff_def', s.buff_def + s.get_corresponding_hero().counter["xin_shen_lian_mo"]) if s.owner.hand.contain("XinJiYiTi") else None),)
-    after_play = (lambda s: (s.__setattr__('buff_atk', s.buff_atk - s.get_corresponding_hero().counter["xin_shen_lian_mo"]) if s.owner.hand.contain("XinJiYiTi") else None),
-                lambda s: (s.__setattr__('buff_def', s.buff_def - s.get_corresponding_hero().counter["xin_shen_lian_mo"]) if s.owner.hand.contain("XinJiYiTi") else None),)
+    # 增强效果由 心技一体 (#13) 的形态监听器注入，此处不重复判断
+
+def _xinjiyiti_enhance(card):
+    """心技一体 (#13) 打出：冻结本局已使用的心身炼磨次数作为增强值。
+
+    增强条件在打出时结算：此后即使再使用心身炼磨，也不会追加加成。
+    效果为 犬神 的战斗牌获得 +bonus 攻击力/+bonus 护甲。
+    """
+    hero = card.get_corresponding_hero()
+    bonus = hero.counter["xin_shen_lian_mo"]
+    if bonus <= 0:
+        return  # 本局未使用过心身炼磨，增强不生效
+
+    def _inject(e, s):
+        """在战斗牌被打出前，把增强值注入其 buff_atk/buff_def。
+
+        不恢复 buff_atk/buff_def：引擎把战斗牌力量折入 combat_buff_atk、
+        战后清零，式神面板不会泄漏注入值；卡牌上保留注入值即
+        「犬神战斗牌永久 +bonus」的增强语义。
+        """
+        c = e.event.card
+        c.buff_atk = getattr(c, 'buff_atk', 0) + bonus
+        c.buff_def = getattr(c, 'buff_def', 0) + bonus
+
+    l = Listener("play card",
+                 lambda e, s: (isinstance(e.event, PlayCard) and
+                               getattr(e.event.card, 'owner', None) == s.owner and
+                               e.event.card.hero == "QuanShen" and
+                               e.event.card.type == "attack"),
+                 (_inject,))
+    # 防止重复叠加（心技一体只生效一份）
+    hero.listeners = [lst for lst in hero.listeners if getattr(lst, '_tag', '') != 'xinjiyiti']
+    l._tag = 'xinjiyiti'
+    hero.listeners.append(l)
+
 
 class XinJiYiTi:
     id = 13
@@ -60,6 +88,8 @@ class XinJiYiTi:
     level_req = 2
     atk = 3
     hp = 5
+    attributes = (CardAttributes.ENHANCE,)
+    on_play = (_xinjiyiti_enhance,)
 
 class ShouHu:
     id = 14
@@ -69,25 +99,31 @@ class ShouHu:
     level_req = 2
     buff_atk = 0
     buff_def = 4
-    on_play = (lambda s: (s.__setattr__('buff_atk', s.buff_atk + s.get_corresponding_hero().counter["xin_shen_lian_mo"]) if s.owner.hand.contain("XinJiYiTi") else None),
-                lambda s: (s.__setattr__('buff_def', s.buff_def + s.get_corresponding_hero().counter["xin_shen_lian_mo"]) if s.owner.hand.contain("XinJiYiTi") else None),)
-    after_play = (lambda s: (s.__setattr__('buff_atk', s.buff_atk - s.get_corresponding_hero().counter["xin_shen_lian_mo"]) if s.owner.hand.contain("XinJiYiTi") else None),
-                lambda s: (s.__setattr__('buff_def', s.buff_def - s.get_corresponding_hero().counter["xin_shen_lian_mo"]) if s.owner.hand.contain("XinJiYiTi") else None),)
-    listeners = (Listener("hero attack event", lambda e, s: e.event.player == s.owner.opponent and s.owner.attack_zone is not None,
-                          (lambda e, s: _shouhu_response(e, s),)),)
+    # 增强效果由 心技一体 (#13) 的形态监听器注入，此处不重复判断
+    attributes = (CardAttributes.RESPONSE,)
+    response_trigger = "hero attack"
+    # 响应：敌方式神攻击己方式神（目标不是犬神本人）时自动打出，犬神移入战斗区拦截。
+    # 只拦截攻击式神，不拦直击牌手（target 须为 Hero）。
+    response_condition = (lambda s, event, target: (
+        event.hero.owner is s.owner.opponent
+        and getattr(target, "entity_type", None) == "hero"
+        and target.owner is s.owner
+        and target is not s.get_corresponding_hero()
+    ),)
+    on_response = (lambda s, event, target: _shouhu_on_response(s, event, target),)
 
-def _shouhu_response(e, s):
-    can_play, _ = s.owner.game.can_play_card(s.owner, s)
-    if not can_play:
-        return
-    setattr(e.event, "revert", True)
-    e.event.player.opponent.advance_hero(e.event.hero)
-    if CardAttributes.NO_FIRE_CONSUMPTION not in s.attributes:
-        if CardAttributes.INSTANT in s.attributes and not s.owner.instant_used:
-            s.owner.instant_used = True
-        else:
-            s.owner.fire_cnt -= 1
-    s.owner.game.play_card(s.owner, s)
+def _shouhu_on_response(s, event, target):
+    """守护：犬神移入战斗区拦截本次攻击；追猎攻击者把攻击目标重定向到犬神。
+
+    目标重定向走 selected_targets 通道：_resolve_attack_target 在 HUNTING 时读取它，
+    play_card / step 末尾都会清空，无残留。不修改 event.target——handle_event 的
+    deal damage 等分支把 event.target 当列表用，且 step 二次广播会让读它的监听器双触发。
+    """
+    hero = s.get_corresponding_hero()
+    if hero.state != "attacking":
+        hero.move_to_battle()
+    if HeroAttributes.HUNTING in event.hero.attributes:
+        event.player.selected_targets = [hero]
 
 def _xinjianluanwu_on_play(s):
     hero = s.get_corresponding_hero()
@@ -147,5 +183,7 @@ class XinShenLianMo:
     on_play = (lambda s: s.get_corresponding_hero().get_permanent_buff("hp", 1),
                 lambda s: s.get_corresponding_hero().get_permanent_buff("atk", 1),
                 lambda s: s.get_corresponding_hero().counter.update({"xin_shen_lian_mo": s.get_corresponding_hero().counter["xin_shen_lian_mo"] + 1}),)
+    enhance = (CardEnhance(cond=lambda s: s.get_corresponding_hero().level == 2, attributes=(CardAttributes.INSTANT,),),
+               CardEnhance(cond=lambda s: s.get_corresponding_hero().level == 3, attributes=(CardAttributes.NO_FIRE_CONSUMPTION,),),)
 
     

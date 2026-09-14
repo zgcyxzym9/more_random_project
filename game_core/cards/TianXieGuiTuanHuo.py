@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, "E:\more_random_project")
+sys.path.insert(0, "E:/more_random_project_vibe")
 from game_core.event import *
 from game_core.enums import *
 from game_core.selector import *
