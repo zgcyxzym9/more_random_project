@@ -28,49 +28,56 @@ class IOAgent(Agent):
                 print(f"Pending card: {self.player.pending_card}")
                 print(f"Select a target from:")
                 for i, target in enumerate(self.player.candidate_targets):
-                    print(f"  [{i+1}] {target}")
+                    owner_tag = "[我方]" if target.owner == self.player else "[敌方]"
+                    print(f"  [{i+1}] {owner_tag} {target}")
+            case PlayerState.WAITING:
+                # 对手回合时己方处于 WAITING 状态，仍然打印对局状态
+                self._print_board_state(state)
             case PlayerState.PLAYING:
-                print(f"Opponent hp: {state["opponent_hp"]}+{state["opponent_defense"]}           Opponent hand size: {state["opponent_hand_size"]}           Opponent deck size: {state["opponent_deck_size"]}")
+                self._print_board_state(state)
+
+    def _print_board_state(self, state):
+        print(f"Opponent hp: {state["opponent_hp"]}+{state["opponent_defense"]}           Opponent hand size: {state["opponent_hand_size"]}           Opponent deck size: {state["opponent_deck_size"]}")
+        print("")
+        print(f"Opponent heroes: ")
+        for hero in state["opponent_heroes"]:
+            if hero.state == "attacking":
+                continue
+            print(f"{hero.name}    level: {hero.level}    atk: {hero.atk}+{hero.round_buff_atk}    hp: {hero.hp}+{hero.defense}    ", end="")
+            if not hero.is_alive:
+                print(f"round until alive: {hero.round_until_alive}")
+            else:
                 print("")
-                print(f"Opponent heroes: ")
-                for hero in state["opponent_heroes"]:
-                    if hero.state == "attacking":
-                        continue
-                    print(f"{hero.name}    level: {hero.level}    atk: {hero.atk}+{hero.round_buff_atk}    hp: {hero.hp}+{hero.defense}    ", end="")
-                    if not hero.is_alive:
-                        print(f"round until alive: {hero.round_until_alive}")
-                    else:
-                        print("")
+        print("")
+        for hero in state["opponent_heroes"]:
+            if hero.state == "attacking":
+                print(f"Attacking hero: {hero.name}    level: {hero.level}    atk: {hero.atk}+{hero.round_buff_atk}   hp: {hero.hp}+{hero.defense}    ", end="")
+                if not hero.is_alive:
+                    print(f"round until alive: {hero.round_until_alive}")
+                else:
+                    print("")
+        print("")
+        for hero in state["player_heroes"]:
+            if hero.state == "attacking":
+                print(f"Your attacking hero: {hero.name}    level: {hero.level}    atk: {hero.atk}+{hero.round_buff_atk}    hp: {hero.hp}+{hero.defense}    ", end="")
+                if not hero.is_alive:
+                    print(f"round until alive: {hero.round_until_alive}")
+                else:
+                    print("")
+        print("")
+        print(f"Your heroes:")
+        for hero in state["player_heroes"]:
+            if hero.state == "attacking":
+                continue
+            print(f"{hero.name}    level: {hero.level}    atk: {hero.atk}+{hero.round_buff_atk}    hp: {hero.hp}+{hero.defense}    ", end="")
+            if not hero.is_alive:
+                print(f"round until alive: {hero.round_until_alive}")
+            else:
                 print("")
-                for hero in state["opponent_heroes"]:
-                    if hero.state == "attacking":
-                        print(f"Attacking hero: {hero.name}    level: {hero.level}    atk: {hero.atk}+{hero.round_buff_atk}   hp: {hero.hp}+{hero.defense}    ", end="")
-                        if not hero.is_alive:
-                            print(f"round until alive: {hero.round_until_alive}")
-                        else:
-                            print("")
-                print("")
-                for hero in state["player_heroes"]:
-                    if hero.state == "attacking":
-                        print(f"Your attacking hero: {hero.name}    level: {hero.level}    atk: {hero.atk}+{hero.round_buff_atk}    hp: {hero.hp}+{hero.defense}    ", end="")
-                        if not hero.is_alive:
-                            print(f"round until alive: {hero.round_until_alive}")
-                        else:
-                            print("")
-                print("")
-                print(f"Your heroes:")
-                for hero in state["player_heroes"]:
-                    if hero.state == "attacking":
-                        continue
-                    print(f"{hero.name}    level: {hero.level}    atk: {hero.atk}+{hero.round_buff_atk}    hp: {hero.hp}+{hero.defense}    ", end="")
-                    if not hero.is_alive:
-                        print(f"round until alive: {hero.round_until_alive}")
-                    else:
-                        print("")
-                print("")
-                print("Your hand:")
-                for card in state["player_hand"]:
-                    print(card, end="    ")
-                print("\n")
-                print(f"Your hp: {state["player_hp"]}+{state["player_defense"]}    Attack available: {state["attack_available"]}    Your fire count: {state["fire_remaining"]}    Your deck size: {state["player_deck_size"]}")
-                print("")
+        print("")
+        print("Your hand:")
+        for card in state["player_hand"]:
+            print(card, end="    ")
+        print("\n")
+        print(f"Your hp: {state["player_hp"]}+{state["player_defense"]}    Attack available: {state["attack_available"]}    Your fire count: {state["fire_remaining"]}    Your deck size: {state["player_deck_size"]}")
+        print("")
