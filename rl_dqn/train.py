@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, "E:/more_random_project")
+sys.path.insert(0, "E:/more_random_project_vibe")
 
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
@@ -8,10 +8,9 @@ import os
 from rl_dqn.replay_buffer import ReplayBuffer
 from env.env import RandomOpponentGameEnv, DQNOpponentGameEnv, DQNRandomDeckGameEnv
 from rl_dqn.agent import DoubleDQNAgent
+from env.actions import OBS_DIM, ACTION_DIM
 
 
-OBS_DIM    = 224
-ACTION_DIM = 36
 DEVICE     = "cuda"
 
 
@@ -21,12 +20,14 @@ def train(env, agent, episodes=10000):
     log_dir = os.path.join("logs/dqn", log_dir)
     writer  = SummaryWriter(log_dir)
 
-    # agent.load_model("./logs/dqn/2026-03-13_14-06-15/dqn_model_2.pt")
+    # agent.load_model("./logs/dqn/2026-07-27_15-18-00/dqn_model.pt")
 
     # ReplayBuffer 现在需要知道 obs_dim / action_dim / device
     # 所有数据从一开始就住在 GPU 上
+    # 容量 1M → 250K：obs 扩到 1437 维后 1M 约需 11.5GB 显存（8GB 卡 OOM），
+    # 与 deck_strength 实验一致
     replay_buffer = ReplayBuffer(
-        capacity=100000,
+        capacity=250000,
         obs_dim=OBS_DIM,
         action_dim=ACTION_DIM,
         device=DEVICE,
@@ -78,7 +79,7 @@ def train(env, agent, episodes=10000):
 
             # 每 update_freq 步做一次梯度更新
             if total_steps % update_freq == 0:
-                loss = agent.update(replay_buffer, batch_size=2048)
+                loss = agent.update(replay_buffer, batch_size=4096)
                 if loss is not None:
                     episode_loss += loss
                     update_count += 1
@@ -97,7 +98,7 @@ def train(env, agent, episodes=10000):
             lose += 1
         print(f"win count {win} | lose count {lose}")
 
-        if episode > chkpt * 2500:
+        if episode > chkpt * 10000:
             chkpt += 1
             agent.save_model(os.path.join(log_dir, f"dqn_model_{chkpt}.pt"))
             env.load_model(os.path.join(log_dir, f"dqn_model_{chkpt}.pt"))
@@ -110,5 +111,5 @@ def train(env, agent, episodes=10000):
 train(
     DQNRandomDeckGameEnv(),
     DoubleDQNAgent(obs_dim=OBS_DIM, action_dim=ACTION_DIM, device=DEVICE),
-    episodes=10000,
+    episodes=80000,
 )

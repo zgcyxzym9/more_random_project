@@ -7,17 +7,15 @@ class QNetwork(nn.Module):
         super().__init__()
 
         self.net = nn.Sequential(
-            nn.Linear(obs_dim, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 768),
+            nn.Linear(obs_dim, 768),
             nn.ReLU(),
             nn.Linear(768, 512),
             nn.ReLU(),
-            nn.Linear(512, 512),
+            nn.Linear(512, 256),
             nn.ReLU(),
-            nn.Linear(512, 512),
+            nn.Linear(256, 128),
             nn.ReLU(),
-            nn.Linear(512, action_dim)
+            nn.Linear(128, action_dim)
         )
 
     def forward(self, obs):
@@ -38,22 +36,19 @@ class QNetworkLN(nn.Module):
         super().__init__()
  
         self.net = nn.Sequential(
-            nn.Linear(obs_dim, 1024),
-            nn.LayerNorm(1024),
-            nn.ReLU(),
-            nn.Linear(1024, 768),
+            nn.Linear(obs_dim, 768),
             nn.LayerNorm(768),
             nn.ReLU(),
             nn.Linear(768, 512),
             nn.LayerNorm(512),
             nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.LayerNorm(512),
+            nn.Linear(512, 256),
+            nn.LayerNorm(256),
             nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.LayerNorm(512),
+            nn.Linear(256, 128),
+            nn.LayerNorm(128),
             nn.ReLU(),
-            nn.Linear(512, action_dim)
+            nn.Linear(128, action_dim)
         )
  
     def forward(self, obs):

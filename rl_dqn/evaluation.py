@@ -1,14 +1,15 @@
 import sys
-sys.path.insert(0, "E:/more_random_project")
+sys.path.insert(0, "E:/more_random_project_vibe")
 import torch
 from rl_dqn.agent import DoubleDQNAgent
 from env.env import RandomOpponentGameEnv, DQNOpponentGameEnv
+from env.actions import OBS_DIM
 
-def eval(env, model_path="./logs/dqn/2026-03-17_14-34-54/dqn_model.pt"):
+def eval(env, model_path="./logs/dqn/2026-07-12_17-08-29/dqn_model.pt"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    obs_dim = 224
-    act_dim = 36
+    obs_dim = OBS_DIM
+    from env.actions import ACTION_DIM as act_dim
 
     model = DoubleDQNAgent(obs_dim, act_dim, device)
     model.q_net.load_state_dict(torch.load(model_path))

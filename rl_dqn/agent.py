@@ -41,6 +41,9 @@ class DoubleDQNAgent:
         if random.random() < epsilon:
             # 只在合法动作中随机采样，全程在 GPU 上完成
             legal_actions = torch.where(~action_mask)[0]
+            if len(legal_actions) == 0:
+                # 无合法动作（异常局面）时兜底到结束回合，避免 randint(0) 崩溃
+                return 0
             return legal_actions[torch.randint(len(legal_actions), (1,))].item()
 
         # obs 转换：只有 numpy 才需要搬一次，tensor 直接用

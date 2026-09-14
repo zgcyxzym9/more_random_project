@@ -1,7 +1,7 @@
 import torch
 import sys
 import os
-sys.path.insert(0, "E:/more_random_project")
+sys.path.insert(0, "E:/more_random_project_vibe")
 
 from game_core.game import Game
 from game_core.player import InferencePlayer, InferenceOpponent
@@ -13,7 +13,7 @@ from env.env import RandomOpponentGameEnv
 from rl.utils import match_by_caps
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-root_dict = "E:/more_random_project"
+root_dict = "E:/more_random_project_vibe"
 model = ActorCritic(251, 36).to(device=device)
 model.load_state_dict(torch.load("./logs/2026-02-20_00-13-35/ppo_actor_critic_2.pt"))
 
@@ -100,7 +100,12 @@ while not game.check_end_condition():
         legal_actions = [action for action in legal_actions if action.type != "play card"]
         print("Here are all the possible actions of the opponent:")
         for i in range(len(legal_actions)):
-            print(f"[{i+1}] {legal_actions[i]}")
+            action = legal_actions[i]
+            if action.type == "select target" and hasattr(action, 'target'):
+                tag = "[我方]" if action.target.owner == player1 else "[敌方]"
+                print(f"[{i+1}] {action} {tag}")
+            else:
+                print(f"[{i+1}] {action}")
         print(f"[{len(legal_actions) + 1}] play a card")
         try:
             _ = int(input(f"\n Please enter the opponent's move: ")) - 1

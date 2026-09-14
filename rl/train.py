@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, "E:/more_random_project")
+sys.path.insert(0, "E:/more_random_project_vibe")
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
