@@ -1,7 +1,7 @@
 import torch
 import sys
 import os
-sys.path.insert(0, "E:/more_random_project")
+sys.path.insert(0, "E:/more_random_project_vibe")
 
 from game_core.game import Game
 from game_core.player import InferencePlayer, InferenceOpponent
@@ -10,12 +10,24 @@ from game_core.agent import IOAgent
 from game_core.card import Card
 from game_core.enums import CardAttributes
 from env.env import Env
+from env.actions import OBS_DIM
 from rl.utils import match_by_caps
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-root_dict = "E:/more_random_project"
-model = DoubleDQNAgent(224, 36, device)
-model.q_net.load_state_dict(torch.load("./logs/dqn/2026-03-17_14-34-54/dqn_model_1.pt"))
+root_dict = "E:/more_random_project_vibe"
+from env.actions import ACTION_DIM
+model = DoubleDQNAgent(OBS_DIM, ACTION_DIM, device)
+# 加载最新训练好的模型（如无则跳过，纯手动输入）
+import glob as _glob
+import os as _os
+model_path = None
+checkpoints = sorted(_glob.glob(_os.path.join(root_dict, "logs/dqn/*/dqn_model.pt")))
+if checkpoints:
+    model_path = checkpoints[-1]
+    print(f"Loading model from: {model_path}")
+    model.q_net.load_state_dict(torch.load(model_path, map_location=device))
+else:
+    print("No trained model found, running in manual mode (model suggestions will be random)")
 model.q_net.eval()
 
 with open(os.path.join(root_dict, "game_core/cards/card_names.txt"), 'r', encoding='utf-8') as file:
@@ -45,8 +57,19 @@ player_heroes = ["ZhiRenWuShi", "TianXieGuiTuanHuo", "QuanShen", "TaoHuaYao"]
 opponent_heroes = ["ZhiRenWuShi", "TianXieGuiTuanHuo", "QuanShen", "TaoHuaYao"]
 """
 
-player1 = InferencePlayer(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZhiDi", "WuShiZhiLi", "WuShiZhiLi", "WuShiZhiRen", "WuShiZhiRen", "TianXieGuiChiRanShao", "TianXieGuiChiRanShao", "TianXieGuiHuangGuWu", "TianXieGuiHuangGuWu", "TianXieGuiQingYuanJi", "TianXieGuiQingYuanJi", "TianXieGuiLvPaiDa", "TianXieGuiLvPaiDa", "XinZhan", "XinZhan", "XinJiGuiChu", "XinJiGuiChu", "EJiZhan", "EJiZhan", "XinJianLuanWu", "XinJianLuanWu", "TaoZhiXinXi", "TaoZhiXinXi", "HuaXinFeng", "HuaXinFeng", "FengShi", "FengShi", "TaoYuChunFeng", "TaoYuChunFeng"], player_heroes)
-player2 = InferenceOpponent(["WuShiZhiQuan", "WuShiZhiQuan", "WuShiZhiDi", "WuShiZhiDi", "WuShiZhiLi", "WuShiZhiLi", "WuShiZhiRen", "WuShiZhiRen", "TianXieGuiChiRanShao", "TianXieGuiChiRanShao", "TianXieGuiHuangGuWu", "TianXieGuiHuangGuWu", "TianXieGuiQingYuanJi", "TianXieGuiQingYuanJi", "TianXieGuiLvPaiDa", "TianXieGuiLvPaiDa", "XinZhan", "XinZhan", "XinJiGuiChu", "XinJiGuiChu", "EJiZhan", "EJiZhan", "XinJianLuanWu", "XinJianLuanWu", "TaoZhiXinXi", "TaoZhiXinXi", "HuaXinFeng", "HuaXinFeng", "FengShi", "FengShi", "TaoYuChunFeng", "TaoYuChunFeng"], opponent_heroes)
+# 牌组在运行前硬编码在此处。请根据你的实际牌组修改。
+# 格式：每种卡牌名出现对应数量（通常每种 2 张，共 32 张）
+player_deck = ["WuShiZhiQuan","WuShiZhiQuan","WuShiZhiDi","WuShiZhiDi",
+               "WuShiZhiLi","WuShiZhiLi","WuShiZhiRen","WuShiZhiRen",
+               "TianXieGuiChiRanShao","TianXieGuiChiRanShao","TianXieGuiHuangGuWu",
+               "TianXieGuiHuangGuWu","TianXieGuiQingYuanJi","TianXieGuiQingYuanJi",
+               "TianXieGuiLvPaiDa","TianXieGuiLvPaiDa","XinZhan","XinZhan",
+               "XinJiGuiChu","XinJiGuiChu","EJiZhan","EJiZhan","XinJianLuanWu",
+               "XinJianLuanWu","TaoZhiXinXi","TaoZhiXinXi","HuaXinFeng","HuaXinFeng",
+               "FengShi","FengShi","TaoYuChunFeng","TaoYuChunFeng"]
+
+player1 = InferencePlayer(player_deck, player_heroes)
+player2 = InferenceOpponent(opponent_heroes)
 game = Game([player1, player2])
 ioagent1 = IOAgent(game, player1)
 env = Env()
@@ -100,7 +123,12 @@ while not game.check_end_condition():
         legal_actions = [action for action in legal_actions if action.type != "play card"]
         print("Here are all the possible actions of the opponent:")
         for i in range(len(legal_actions)):
-            print(f"[{i+1}] {legal_actions[i]}")
+            action = legal_actions[i]
+            if action.type == "select target" and hasattr(action, 'target'):
+                tag = "[我方]" if action.target.owner == player1 else "[敌方]"
+                print(f"[{i+1}] {action} {tag}")
+            else:
+                print(f"[{i+1}] {action}")
         print(f"[{len(legal_actions) + 1}] play a card")
         try:
             _ = int(input(f"\n Please enter the opponent's move: ")) - 1

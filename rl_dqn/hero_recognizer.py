@@ -69,7 +69,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Callable, List, Optional, Tuple
 
-sys.path.insert(0, "E:/more_random_project")
+sys.path.insert(0, "E:/more_random_project_vibe")
 
 import cv2
 import numpy as np

@@ -5,8 +5,7 @@ Compact overlay GUI for the DQN inference loop.
 Replaces inference_full_game.py's CLI interactions with a small,
 always-on-top Tkinter window that sits over the actual game screen.
 
-Screen-capture hooks are stubbed out in `CaptureBackend` — swap in
-a real implementation (e.g., mss + PaddleOCR) when ready.
+Battle-log OCR auto-sync is implemented via CaptureBackend + LogSyncPanel.
 """
 
 import tkinter as tk
@@ -17,6 +16,11 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional, List, Callable, Any
 from enum import Enum, auto
+import sys
+
+# ── Battle-log sync imports ────────────────────────────────────────────────────
+sys.path.insert(0, "E:/more_random_project_vibe")
+from rl_dqn.battle_log_models import BattleLogEntry, SyncStep, SyncResult
 
 
 # ─────────────────────────────────────────────
@@ -26,6 +30,12 @@ from enum import Enum, auto
 class InputMode(Enum):
     MANUAL   = auto()   # human types everything
     CAPTURE  = auto()   # screen-capture backend feeds data
+
+
+class OpponentSyncMode(Enum):
+    """How the opponent's turn is handled."""
+    MANUAL = auto()     # user manually inputs opponent actions
+    AUTO   = auto()     # battle-log OCR auto-sync
 
 
 @dataclass
@@ -45,6 +55,12 @@ class GameSnapshot:
     model_suggestion: str = ""
     log_lines: List[str] = field(default_factory=list)
 
+    # ── Sync fields ─────────────────────────────────────────────────────────────
+    sync_mode: OpponentSyncMode = OpponentSyncMode.MANUAL
+    sync_status: str = ""                         # "idle" | "capturing" | "syncing" | "error"
+    parsed_entries: List[BattleLogEntry] = field(default_factory=list)
+    sync_warnings: List[str] = field(default_factory=list)
+
 
 # ─────────────────────────────────────────────
 #  CAPTURE BACKEND  (stub — replace later)
@@ -52,51 +68,124 @@ class GameSnapshot:
 
 class CaptureBackend:
     """
-    Abstract interface for reading game state from the screen.
+    Battle-log OCR capture backend.
 
-    To implement real capture:
-      1. Install `mss` for screenshots, `paddleocr` or `easyocr` for text.
-      2. Override `capture_snapshot()` with actual logic.
-      3. Pass `mode=InputMode.CAPTURE` to InferenceGUI.
+    Wraps LogCaptureLoop for integration with the GUI bridge.
+    When started, it runs PaddleOCR on the battle-log panel region
+    and pushes new entries to the GUI via callback.
+
+    Usage
+    -----
+    backend = CaptureBackend(grabber, parser)
+    backend.set_callback(on_new_entries)
+    backend.start(interval=1.0)
+    ...
+    backend.stop()
     """
 
+    def __init__(self, grabber=None, parser=None, detector=None):
+        self._grabber = grabber
+        self._parser = parser
+        self._detector = detector
+        self._loop = None
+        self._running = False
+        self._callback: Optional[Callable] = None
+        # Thread-safe queue for game-loop polling
+        self._entry_queue: queue.Queue = queue.Queue()
+
     def is_available(self) -> bool:
-        """Return True when the capture library is loaded and ready."""
-        return False
+        """Return True when PaddleOCR is installed and ready."""
+        try:
+            from rl_dqn.battle_log_capture import LogCaptureLoop
+            loop = LogCaptureLoop.__new__(LogCaptureLoop)
+            return loop._init_ocr() is not None
+        except Exception:
+            return False
 
-    def capture_snapshot(self) -> Optional[GameSnapshot]:
+    def pre_init(self) -> bool:
         """
-        Take a screenshot, run OCR, parse fields, return a GameSnapshot.
-        Return None if capture fails.
+        Eagerly initialise OCR and the capture loop BEFORE the game starts.
+
+        Call this during setup (before game.start_game()) so OCR is ready
+        when the opponent's turn begins — no mid-game loading delay.
+
+        Returns True on success.
         """
-        # ── STUB ──────────────────────────────────────────────────────────
-        # import mss, numpy as np
-        # from paddleocr import PaddleOCR
-        # ocr = PaddleOCR(use_angle_cls=True, lang='ch')
-        # with mss.mss() as sct:
-        #     raw = np.array(sct.grab(sct.monitors[1]))
-        # result = ocr.ocr(raw, cls=True)
-        # ... parse result into GameSnapshot fields ...
-        # return snapshot
-        # ──────────────────────────────────────────────────────────────────
-        return None
+        from rl_dqn.battle_log_capture import LogCaptureLoop
+        try:
+            if self._loop is None:
+                self._loop = LogCaptureLoop(
+                    grabber=self._grabber,
+                    parser=self._parser,
+                    detector=self._detector,
+                )
+            return self._loop._ocr is not None
+        except Exception:
+            return False
 
-    def capture_loop(self, interval: float, callback: Callable[[GameSnapshot], None]):
-        """Poll at `interval` seconds; call `callback` with each snapshot."""
-        while self._running:
-            snap = self.capture_snapshot()
-            if snap:
-                callback(snap)
-            time.sleep(interval)
+    def set_callback(self, callback: Callable[[list[BattleLogEntry]], None]):
+        """Set the callback for new battle-log entries."""
+        self._callback = callback
 
-    def start(self, interval: float, callback: Callable[[GameSnapshot], None]):
+    def start(self, interval: float = 1.0):
+        """Start the background OCR capture loop."""
+        from rl_dqn.battle_log_capture import LogCaptureLoop
+        if self._loop is None:
+            self._loop = LogCaptureLoop(
+                grabber=self._grabber,
+                parser=self._parser,
+                detector=self._detector,
+            )
         self._running = True
-        t = threading.Thread(target=self.capture_loop,
-                             args=(interval, callback), daemon=True)
-        t.start()
+        self._loop.start(callback=self._on_entries, interval=interval)
 
     def stop(self):
+        """Stop the background capture loop."""
         self._running = False
+        if self._loop:
+            self._loop.stop()
+            self._loop = None
+
+    def reset(self):
+        """Reset continuity tracking."""
+        if self._loop:
+            self._loop.reset()
+
+    def get_detection_metrics(self) -> dict:
+        """Return log-panel detection metrics for debugging."""
+        if self._loop:
+            return self._loop.get_detection_metrics()
+        return {}
+
+    def get_stats(self) -> dict:
+        """Return pipeline stats for debugging."""
+        if self._loop:
+            return self._loop.get_stats()
+        return {}
+
+    def poll_entries(self, timeout: float = 0.5) -> list[BattleLogEntry]:
+        """
+        Block until new entries arrive, or timeout.
+        Used by the game loop during AUTO opponent turns.
+
+        Returns empty list on timeout.
+        """
+        try:
+            return self._entry_queue.get(timeout=timeout)
+        except queue.Empty:
+            return []
+
+    def _on_entries(self, entries: list[BattleLogEntry]):
+        # Empty list = periodic status heartbeat; only notify GUI, not game loop
+        if not entries:
+            if self._callback:
+                self._callback(entries)
+            return
+        # Push to game-loop queue
+        self._entry_queue.put(entries)
+        # Also notify GUI callback
+        if self._callback:
+            self._callback(entries)
 
 
 # ─────────────────────────────────────────────
@@ -154,6 +243,165 @@ def _btn(parent, text, cmd, color=None) -> tk.Button:
 
 
 # ─────────────────────────────────────────────
+#  LOG SYNC PANEL
+# ─────────────────────────────────────────────
+
+class LogSyncPanel:
+    """
+    Compact panel showing battle-log sync status and parsed entries.
+
+    Displays:
+      - Sync toggle button (AUTO / MANUAL)
+      - Status indicator (idle / capturing / syncing / error)
+      - Last N parsed entries with colour coding
+    """
+
+    MAX_VISIBLE_ENTRIES = 12
+
+    # Entry type → display colour mapping
+    TYPE_COLORS = {
+        "game_start":       C["gold"],
+        "turn_start":       C["gold"],
+        "play_card":        C["warn"],
+        "play_card_target": C["warn"],
+        "attack":           C["accent2"],
+        "upgrade":          C["accent"],
+        "draw":             C["success"],
+        "shuffle":          C["dim"],
+        "damage_simple":    C["accent2"],
+        "damage_counter":   C["accent2"],
+        "stat_change":      C["accent"],
+        "attack_bonus":     C["gold"],
+        "revive":           C["success"],
+        "death":            C["dim"],
+        "buff":             C["accent"],
+    }
+
+    def __init__(self, parent: tk.Frame,
+                 on_toggle: Optional[Callable[[OpponentSyncMode], None]] = None):
+        self.parent = parent
+        self._on_toggle = on_toggle
+        self._mode = OpponentSyncMode.MANUAL
+        self._status = "idle"
+        self._entries: list[BattleLogEntry] = []
+        self._build()
+
+    def _build(self):
+        f = _panel(self.parent)
+        f.pack(fill="x", padx=6, pady=(0, 4))
+
+        # ── Header row ──
+        hdr = tk.Frame(f, bg=f["bg"])
+        hdr.pack(fill="x", padx=6, pady=(4, 0))
+
+        self._title_lbl = _label(hdr, "◈ BATTLE LOG SYNC", color=C["gold"],
+                                 font=FONT_TITLE)
+        self._title_lbl.pack(side="left")
+
+        self._status_lbl = _label(hdr, "● idle", color=C["dim"], font=FONT_LABEL)
+        self._status_lbl.pack(side="right", padx=4)
+
+        self._toggle_btn = _btn(hdr, "AUTO", self._on_toggle_click,
+                                color=C["dim"])
+        self._toggle_btn.pack(side="right", padx=2)
+
+        # ── Sync mode label ──
+        self._mode_lbl = _label(f, "[MANUAL]  Opponent actions must be entered manually",
+                                color=C["dim"], font=FONT_LABEL)
+        self._mode_lbl.pack(anchor="w", padx=6, pady=(0, 2))
+
+        # ── Entries display (scrollable) ──
+        entries_frame = tk.Frame(f, bg=f["bg"])
+        entries_frame.pack(fill="x", padx=6, pady=(0, 4))
+
+        self._entries_text = tk.Text(
+            entries_frame, height=6, bg=C["panel"], fg=C["text"],
+            font=FONT_MONO, bd=0, highlightthickness=0,
+            state="disabled", wrap="word",
+        )
+        self._entries_text.pack(fill="x")
+
+        # Colour tags
+        for tag_name, color in self.TYPE_COLORS.items():
+            self._entries_text.tag_config(tag_name, foreground=color)
+        self._entries_text.tag_config("sync_info", foreground=C["dim"])
+        self._entries_text.tag_config("sync_warn", foreground=C["warn"])
+        self._entries_text.tag_config("sync_error", foreground=C["accent2"])
+
+    # ── Public API ─────────────────────────────────────────────────────────
+
+    def set_mode(self, mode: OpponentSyncMode):
+        self._mode = mode
+        if mode == OpponentSyncMode.AUTO:
+            self._toggle_btn.config(text="MANUAL", fg=C["success"])
+            self._mode_lbl.config(
+                text="[AUTO]  Battle-log OCR sync active",
+                fg=C["success"])
+        else:
+            self._toggle_btn.config(text="AUTO", fg=C["dim"])
+            self._mode_lbl.config(
+                text="[MANUAL]  Opponent actions must be entered manually",
+                fg=C["dim"])
+
+    def set_status(self, status: str, color: Optional[str] = None):
+        self._status = status
+        colors = {
+            "idle": C["dim"],
+            "capturing": C["accent"],
+            "syncing": C["gold"],
+            "error": C["accent2"],
+        }
+        c = color or colors.get(status, C["dim"])
+        self._status_lbl.config(text=f"● {status}", fg=c)
+
+    def add_entries(self, entries: list[BattleLogEntry]):
+        self._entries.extend(entries)
+        # Trim
+        if len(self._entries) > self.MAX_VISIBLE_ENTRIES * 2:
+            self._entries = self._entries[-self.MAX_VISIBLE_ENTRIES:]
+        self._refresh_display()
+
+    def add_warning(self, msg: str, severity: str = "warn"):
+        tag = f"sync_{severity}"
+        self._entries_text.config(state="normal")
+        self._entries_text.insert("end", f"  ⚠ {msg}\n", tag)
+        self._entries_text.see("end")
+        self._entries_text.config(state="disabled")
+
+    def clear(self):
+        self._entries.clear()
+        self._entries_text.config(state="normal")
+        self._entries_text.delete("1.0", "end")
+        self._entries_text.config(state="disabled")
+
+    # ── Internal ───────────────────────────────────────────────────────────
+
+    def _on_toggle_click(self):
+        if self._mode == OpponentSyncMode.MANUAL:
+            new_mode = OpponentSyncMode.AUTO
+        else:
+            new_mode = OpponentSyncMode.MANUAL
+        self.set_mode(new_mode)
+        if self._on_toggle:
+            self._on_toggle(new_mode)
+
+    def _refresh_display(self):
+        self._entries_text.config(state="normal")
+        self._entries_text.delete("1.0", "end")
+
+        visible = self._entries[-self.MAX_VISIBLE_ENTRIES:]
+        for entry in visible:
+            tag = self.TYPE_COLORS.get(entry.entry_type, "")
+            prefix = "▶" if entry.is_operational else "  "
+            turn_str = f"T{entry.log_turn}" if entry.log_turn else "--"
+            self._entries_text.insert("end",
+                                      f"{prefix} [{turn_str}] {entry.raw_text}\n", tag)
+
+        self._entries_text.see("end")
+        self._entries_text.config(state="disabled")
+
+
+# ─────────────────────────────────────────────
 #  MAIN GUI
 # ─────────────────────────────────────────────
 
@@ -165,6 +413,7 @@ class InferenceGUI:
     ───────────────────────────────────────
     gui.update_snapshot(snap: GameSnapshot)   – refresh all panels
     gui.set_model_action(text: str)           – display AI suggestion
+    gui.set_q_value(text: str)                – display Q(state, action) line
     gui.append_log(text: str)                 – add a line to the log
     gui.ask_opponent_action(legal, on_done)   – open opponent input sheet
     gui.ask_input(prompt, on_done)            – simple one-line prompt
@@ -172,7 +421,7 @@ class InferenceGUI:
     """
 
     WIDTH  = 420
-    HEIGHT = 680
+    HEIGHT = 960
 
     def __init__(self, mode: InputMode = InputMode.MANUAL,
                  capture_backend: Optional[CaptureBackend] = None):
@@ -181,11 +430,24 @@ class InferenceGUI:
         self._q: queue.Queue = queue.Queue()        # thread→UI events
         self._response: queue.Queue = queue.Queue() # UI→thread answers
 
+        # Track the active scrollable canvas so the root-level mousewheel
+        # handler can route scroll events to it regardless of which child
+        # widget the cursor is over.
+        self._active_scroll_canvas: Optional[tk.Canvas] = None
+
         self._build_window()
         self._build_ui()
 
+        # Set up capture callback
+        self.capture.set_callback(self._on_log_entries)
+
         if mode == InputMode.CAPTURE and self.capture.is_available():
-            self.capture.start(0.5, self._on_capture)
+            self.capture.start(1.0)
+            self._sync_panel.set_mode(OpponentSyncMode.AUTO)
+
+        # Root-level mousewheel: route to the active scrollable canvas
+        # so scrolling works even when the cursor is over child buttons.
+        self._root.bind("<MouseWheel>", self._on_root_mousewheel)
 
         # Poll the cross-thread event queue every 50 ms
         self._root.after(50, self._poll_queue)
@@ -264,9 +526,15 @@ class InferenceGUI:
         sug.pack(fill="x", padx=6, pady=(0, 4))
         _label(sug, " ▶ MODEL", color=C["gold"],
                font=FONT_TITLE).pack(side="left", padx=6, pady=3)
-        self._sug_lbl = _label(sug, "—", color=C["text"], font=FONT_MONO,
+        sug_body = tk.Frame(sug, bg=sug["bg"])
+        sug_body.pack(side="left", padx=4, fill="x", expand=True)
+        self._sug_lbl = _label(sug_body, "—", color=C["text"], font=FONT_MONO,
                                wraplength=280, justify="left")
-        self._sug_lbl.pack(side="left", padx=4, fill="x", expand=True)
+        self._sug_lbl.pack(side="top", anchor="w", fill="x")
+        # Q(state, 即将执行的动作) 显示行（游戏线程经 set_q_value 更新）
+        self._qval_lbl = _label(sug_body, "", color=C["dim"], font=FONT_MONO,
+                                justify="left")
+        self._qval_lbl.pack(side="top", anchor="w", fill="x")
 
         # ── Capture status (hidden until active) ─
         self._cap_frame = _panel(root)
@@ -276,9 +544,12 @@ class InferenceGUI:
                                   color=C["dim"], font=FONT_LABEL)
         self._cap_status.pack(side="left", padx=6, pady=2)
 
+        # ── Log sync panel ────────────────────
+        self._sync_panel = LogSyncPanel(root, on_toggle=self._on_sync_toggle)
+
         # ── Action input area ──────────────────
         self._input_frame = _panel(root)
-        self._input_frame.pack(fill="x", padx=6, pady=(0, 4))
+        self._input_frame.pack(fill="both", expand=True, padx=6, pady=(0, 4))
         self._build_input_area()
 
         # ── Log ───────────────────────────────
@@ -342,7 +613,7 @@ class InferenceGUI:
 
         # Action list (for opponent multi-choice)
         self._action_list = tk.Frame(f, bg=f["bg"])
-        self._action_list.pack(fill="x", padx=6, pady=(0, 4))
+        self._action_list.pack(fill="both", expand=True, padx=6, pady=(0, 4))
 
     # ── PUBLIC API (called from game-loop thread) ──
 
@@ -351,6 +622,9 @@ class InferenceGUI:
 
     def set_model_action(self, text: str):
         self._q.put(("model_action", text))
+
+    def set_q_value(self, text: str):
+        self._q.put(("q_value", text))
 
     def append_log(self, text: str, tag: str = ""):
         self._q.put(("log", text, tag))
@@ -385,6 +659,8 @@ class InferenceGUI:
             self._render_snapshot(item[1])
         elif tag_key == "model_action":
             self._sug_lbl.config(text=item[1], fg=C["gold"])
+        elif tag_key == "q_value":
+            self._qval_lbl.config(text=item[1])
         elif tag_key == "log":
             self._append_log_ui(item[1], item[2] if len(item) > 2 else "")
         elif tag_key == "ask_input":
@@ -395,6 +671,44 @@ class InferenceGUI:
             self._show_continue(item[1], item[2])
         elif tag_key == "cap_status":
             self._cap_status.config(text=item[1], fg=item[2])
+        elif tag_key == "sync_toggle":
+            mode = item[1]
+            if mode == OpponentSyncMode.AUTO:
+                if not self.capture.is_available():
+                    self._q.put(("sync_status", "error"))
+                    self._sync_panel.add_warning(
+                        "PaddleOCR not available — cannot enable sync", "error")
+                    return
+                self.capture.start(1.0)
+                self._sync_panel.set_status("capturing")
+            else:
+                self.capture.stop()
+                self._sync_panel.set_status("idle")
+                self._sync_panel.set_mode(OpponentSyncMode.MANUAL)
+        elif tag_key == "sync_set_mode":
+            self._sync_panel.set_mode(item[1])
+        elif tag_key == "sync_status":
+            self._sync_panel.set_status(item[1])
+        elif tag_key == "sync_entries":
+            self._sync_panel.add_entries(item[1])
+        elif tag_key == "sync_heartbeat":
+            # Update status with current pipeline stats
+            stats = self.capture.get_stats()
+            metrics = self.capture.get_detection_metrics()
+            is_open = metrics.get('is_open')
+            if is_open:
+                self._sync_panel.set_status("capturing")
+            elif stats.get('capture_attempts', 0) > 0:
+                self._sync_panel.set_status(
+                    f"waiting (dark={metrics.get('dark_ratio', 0):.2f})")
+            self._cap_status.config(
+                text=f"⊙ attempts={stats.get('capture_attempts',0)} "
+                     f"open={stats.get('log_open_count',0)} "
+                     f"ocr={stats.get('last_ocr_text_count',0)} "
+                     f"parsed={stats.get('last_parsed_count',0)}",
+                fg=C["accent"] if is_open else C["dim"])
+        elif tag_key == "sync_warning":
+            self._sync_panel.add_warning(item[1], item[2] if len(item) > 2 else "warn")
 
     # ── RENDER ────────────────────────────────
 
@@ -424,6 +738,12 @@ class InferenceGUI:
         for line in snap.log_lines:
             self._append_log_ui(line, "sys")
 
+        # ── Sync fields ──
+        if snap.sync_status:
+            self._sync_panel.set_status(snap.sync_status)
+        for w in snap.sync_warnings:
+            self._sync_panel.add_warning(w)
+
     def _append_log_ui(self, text: str, tag: str = ""):
         self._log.config(state="normal")
         self._log.insert("end", text + "\n", tag or "")
@@ -441,7 +761,8 @@ class InferenceGUI:
         self._prompt_lbl.config(text=prompt, fg=C["text"])
         self._entry_var.set("")
         self._entry.focus()
-        # Clear old action buttons
+        # Clear old action buttons and unregister scroll canvas
+        self._active_scroll_canvas = None
         for w in self._action_list.winfo_children():
             w.destroy()
         self._current_callback = callback
@@ -467,20 +788,46 @@ class InferenceGUI:
         frame = self._action_list
         # Scrollable list of buttons
         canvas = tk.Canvas(frame, bg=C["panel"], bd=0,
-                           highlightthickness=0, height=80)
+                           highlightthickness=0)
         sb = ttk.Scrollbar(frame, orient="vertical",
                            command=canvas.yview)
         inner = tk.Frame(canvas, bg=C["panel"])
-        canvas.create_window((0, 0), window=inner, anchor="nw")
+        inner_id = canvas.create_window((0, 0), window=inner, anchor="nw")
         canvas.configure(yscrollcommand=sb.set)
-        inner.bind("<Configure>",
-                   lambda e: canvas.configure(
-                       scrollregion=canvas.bbox("all")))
+
+        # Register this canvas for root-level mousewheel routing so
+        # scrolling works even when the cursor is over child buttons.
+        self._active_scroll_canvas = canvas
+
+        def _on_inner_configure(e):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        inner.bind("<Configure>", _on_inner_configure)
+
+        def _on_canvas_configure(e):
+            # Keep inner frame width matched to canvas width
+            canvas.itemconfig(inner_id, width=e.width)
+        canvas.bind("<Configure>", _on_canvas_configure)
+
+        # Mousewheel scrolling — also bound directly for when cursor is
+        # over the canvas itself (belt-and-suspenders with root-level).
+        def _on_mousewheel(e):
+            canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+        canvas.bind("<MouseWheel>", _on_mousewheel)
+        inner.bind("<MouseWheel>", _on_mousewheel)
+        # Bind to scrollbar so drag-scrolling works
+        sb.bind("<MouseWheel>", _on_mousewheel)
+
         canvas.pack(side="left", fill="both", expand=True)
         sb.pack(side="right", fill="y")
 
+        def _cleanup():
+            """Unregister the canvas when the chooser is dismissed."""
+            if self._active_scroll_canvas is canvas:
+                self._active_scroll_canvas = None
+
         def make_handler(idx, action):
             def _h():
+                _cleanup()
                 for w in self._action_list.winfo_children():
                     w.destroy()
                 self._prompt_lbl.config(text="Waiting…", fg=C["dim"])
@@ -501,6 +848,7 @@ class InferenceGUI:
 
         # "Play a card" — passes None → game loop handles card entry
         def _play_card():
+            _cleanup()
             for w in self._action_list.winfo_children():
                 w.destroy()
             self._prompt_lbl.config(text="Enter card name:", fg=C["warn"])
@@ -516,6 +864,7 @@ class InferenceGUI:
 
     def _show_continue(self, message: str, evt: threading.Event):
         self._prompt_lbl.config(text=message, fg=C["gold"])
+        self._active_scroll_canvas = None
         for w in self._action_list.winfo_children():
             w.destroy()
 
@@ -534,14 +883,15 @@ class InferenceGUI:
         if self.mode == InputMode.MANUAL:
             if not self.capture.is_available():
                 self._q.put(("cap_status",
-                             "⚠ Capture backend not available",
+                             "⚠ PaddleOCR not available — install paddleocr",
                              C["warn"]))
                 return
             self.mode = InputMode.CAPTURE
             self._mode_lbl.config(text="[CAPTURE]", fg=C["success"])
             self._cap_btn.config(fg=C["success"])
             self._q.put(("cap_status", "⊙ Capture active", C["success"]))
-            self.capture.start(0.5, self._on_capture)
+            self._sync_panel.set_mode(OpponentSyncMode.AUTO)
+            self.capture.start(1.0)
         else:
             self.mode = InputMode.MANUAL
             self.capture.stop()
@@ -549,10 +899,47 @@ class InferenceGUI:
             self._cap_btn.config(fg=C["dim"])
             self._q.put(("cap_status",
                          "⊙ Capture inactive — manual mode", C["dim"]))
+            self._sync_panel.set_mode(OpponentSyncMode.MANUAL)
+
+    def _on_root_mousewheel(self, event):
+        """Route mousewheel events to the active scrollable canvas.
+
+        This ensures scrolling works even when the cursor is over child
+        widgets (buttons, labels) that would otherwise consume the event.
+        """
+        if self._active_scroll_canvas is not None:
+            self._active_scroll_canvas.yview_scroll(
+                int(-1 * (event.delta / 120)), "units")
 
     def _on_capture(self, snap: GameSnapshot):
         self.update_snapshot(snap)
         self.append_log("[capture] state refreshed", "sys")
+
+    def _on_sync_toggle(self, mode: OpponentSyncMode):
+        """Called when the user toggles sync mode via the panel button."""
+        self._q.put(("sync_toggle", mode))
+
+    def _on_log_entries(self, entries: list[BattleLogEntry]):
+        """Called from CaptureBackend thread when new log entries arrive."""
+        if entries:
+            self._q.put(("sync_entries", entries))
+        else:
+            # Periodic heartbeat — update status with pipeline stats
+            self._q.put(("sync_heartbeat", None))
+
+    # ── Sync API (called from game-loop thread) ──
+
+    def set_sync_mode(self, mode: OpponentSyncMode):
+        """Set the opponent sync mode from the game loop."""
+        self._q.put(("sync_set_mode", mode))
+
+    def set_sync_status(self, status: str):
+        """Update the sync status indicator."""
+        self._q.put(("sync_status", status))
+
+    def add_sync_warning(self, msg: str, severity: str = "warn"):
+        """Add a sync warning to the panel."""
+        self._q.put(("sync_warning", msg, severity))
 
     # ── RUN ───────────────────────────────────
 
@@ -616,6 +1003,9 @@ class GUIBridge:
         self.gui.set_model_action(text)
         self.gui.append_log(f"[AI] {text}", "ai")
 
+    def show_q_value(self, text: str):
+        self.gui.set_q_value(text)
+
     def wait_continue(self, msg: str = "▶ Press OK to execute model action"):
         self.gui.wait_for_continue(msg)
 
@@ -641,6 +1031,24 @@ class GUIBridge:
         evt.wait()
         return result_holder[0]
 
+    # ── Sync API ───────────────────────────────
+
+    def set_sync_mode(self, mode: OpponentSyncMode):
+        """Set opponent sync mode (from game-loop thread)."""
+        self.gui.set_sync_mode(mode)
+
+    def on_sync_entries(self, entries: list[BattleLogEntry]):
+        """Called when new battle-log entries arrive for processing."""
+        self.gui.append_log(f"[sync] {len(entries)} new log entries", "sys")
+
+    def set_sync_status(self, status: str):
+        """Update sync status indicator."""
+        self.gui.set_sync_status(status)
+
+    def add_sync_warning(self, msg: str, severity: str = "warn"):
+        """Add a sync verification warning."""
+        self.gui.add_sync_warning(msg, severity)
+
 
 # ─────────────────────────────────────────────
 #  EXAMPLE INTEGRATION SHIM
@@ -654,7 +1062,12 @@ def build_snapshot_from_game(game, player1, player2) -> GameSnapshot:
     Expand as more state becomes relevant.
     """
     try:
-        p1_hand = [str(c) for c in player1.hand.cards]
+        # 手牌排序：按己方式神顺序 → 等级需求 → 到手顺序
+        hero_order = {h.type_name: i for i, h in enumerate(player1.heroes)}
+        p1_hand = [str(c) for c in sorted(
+            player1.hand.cards,
+            key=lambda c: (hero_order.get(c.hero, len(hero_order)), c.level_req)
+        )]
     except Exception:
         p1_hand = []
     try:
@@ -679,6 +1092,8 @@ def build_snapshot_from_game(game, player1, player2) -> GameSnapshot:
         opponent_defense=getattr(player2, "defense", 0),
         opponent_hand_count=len(getattr(player2.hand, "cards", [])),
         opponent_heroes=p2_heroes,
+        sync_mode=OpponentSyncMode.MANUAL,
+        sync_status="",
     )
 
 

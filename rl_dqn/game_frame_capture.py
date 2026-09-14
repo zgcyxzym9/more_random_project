@@ -35,7 +35,8 @@ except ImportError:
     _MSS_AVAILABLE = False
 
 
-DEFAULT_TODESK_TITLE = "HNELP的Android"
+DEFAULT_TODESK_TITLE = "HONOR 11001000 Pro"     # Windows projection (was: "HNELP的Android" for ToDesk)
+DEFAULT_PROJECTION_TITLE = "HONOR 11001000 Pro"
 GAME_ASPECT_RATIO = 2700.0 / 1224.0
 
 if _WIN32_AVAILABLE:
@@ -68,15 +69,18 @@ def _largest_activity_span(activity: np.ndarray, min_len: int) -> Optional[Tuple
 
 
 def _detect_top_chrome(frame: np.ndarray) -> int:
-    """Return the bottom y of a ToDesk-style bright title/toolbar strip."""
+    """Return the bottom y of a title/toolbar strip at the top of the window."""
     H, W = frame.shape[:2]
     if H < 80 or W < 160:
         return 0
 
     limit = min(H // 5, 120)
     hsv = cv2.cvtColor(frame[:limit], cv2.COLOR_BGR2HSV)
+    grey = cv2.cvtColor(frame[:limit], cv2.COLOR_BGR2GRAY)
     sat = hsv[:, :, 1]
     val = hsv[:, :, 2]
+
+    # Try bright chrome (ToDesk white toolbar)
     chrome_rows = []
     for y in range(limit):
         mean_v = float(val[y].mean())
@@ -87,13 +91,26 @@ def _detect_top_chrome(frame: np.ndarray) -> int:
     first_run = 0
     while first_run < limit and chrome_rows[first_run]:
         first_run += 1
-    if first_run < 5:
-        return 0
+    if first_run >= 5:
+        y0 = first_run
+        while y0 < min(limit, first_run + 4) and float(val[y0].mean()) < 70:
+            y0 += 1
+        return y0
 
-    y0 = first_run
-    while y0 < min(limit, first_run + 4) and float(val[y0].mean()) < 70:
-        y0 += 1
-    return y0
+    # Try dark title bar (Windows projection window)
+    dark_rows = []
+    for y in range(limit):
+        row_var = float(grey[y].var())
+        dark_rows.append(row_var < 25 and float(val[y].mean()) < 80)
+
+    dark_start = 0
+    while dark_start < limit and dark_rows[dark_start]:
+        dark_start += 1
+    if dark_start >= 5 and dark_start < limit:
+        # Found dark title bar; return its bottom (first row that looks like content)
+        return dark_start
+
+    return 0
 
 
 def _trim_uniform_borders(frame: np.ndarray) -> Tuple[int, int, int, int]:
@@ -122,6 +139,33 @@ def _trim_uniform_borders(frame: np.ndarray) -> Tuple[int, int, int, int]:
         x1 -= 1
 
     return x0, y0, x1, y1
+
+
+def detect_title_bar_height(frame: np.ndarray) -> int:
+    """
+    Return the pixel height of the dark system title bar at the very top of
+    the captured window (the Windows 投屏 bar: ← 手机屏幕 … — □ ×), 0 if none.
+
+    The bar is near-grayscale (row mean saturation ≈ 0) and dark, while the
+    mirrored game image below is colourful; the small white text/icons inside
+    the bar do not move the row means past the thresholds.  Its height is
+    fixed in pixels (DPI-dependent), NOT proportional to the window size, so
+    it must be detected rather than cropped by a frame fraction.
+    """
+    H, W = frame.shape[:2]
+    if H < 80 or W < 160:
+        return 0
+
+    limit = min(H // 4, 160)
+    hsv = cv2.cvtColor(frame[:limit], cv2.COLOR_BGR2HSV)
+    sat = hsv[:, :, 1].mean(axis=1)
+    val = hsv[:, :, 2].mean(axis=1)
+
+    h = 0
+    while h < limit and sat[h] < 45 and val[h] < 110:
+        h += 1
+    # h == limit → the whole top strip looks bar-like: don't trust it
+    return h if 5 <= h < limit else 0
 
 
 def crop_game_frame_from_window(
@@ -341,24 +385,42 @@ class ToDeskGameFrameGrabber(WindowGrabber):
         title_hint: str = DEFAULT_TODESK_TITLE,
         monitor: int = 1,
         crop_to_game: bool = True,
+        crop_title_bar: bool = True,
     ):
         super().__init__(title_hint=title_hint, monitor=monitor, capture_method="screen")
         self.crop_to_game = crop_to_game
+        self.crop_title_bar = crop_title_bar
+        # 调试：调用方在 grab() 前把它设为 dict，grab() 会把各阶段中间帧记录
+        # 进去（"1_window" 原始窗口抓帧 / "2_title_bar" 顶部标题栏裁剪后 /
+        # "3_game_crop" 游戏画面裁剪后）；用完调用方应设回 None。
+        self.last_stages: Optional[dict] = None
 
     def grab_window(self) -> np.ndarray:
         return super().grab()
 
     def grab(self) -> np.ndarray:
         frame = self.grab_window()
+        if self.last_stages is not None:
+            self.last_stages["1_window"] = frame
+        if self.crop_title_bar:
+            bar_h = detect_title_bar_height(frame)
+            if bar_h:
+                frame = frame[bar_h:, :].copy()
+        if self.last_stages is not None:
+            self.last_stages["2_title_bar"] = frame
         if not self.crop_to_game:
             return frame
-        return crop_game_frame_from_window(frame)
+        frame = crop_game_frame_from_window(frame)
+        if self.last_stages is not None:
+            self.last_stages["3_game_crop"] = frame
+        return frame
 
 
 def capture_game_frame(
     window_title_hint: str = DEFAULT_TODESK_TITLE,
     monitor: int = 1,
     crop_to_game: bool = True,
+    crop_title_bar: bool = True,
 ) -> np.ndarray:
     """
     Capture the current game image from the ToDesk mirror window.
@@ -369,6 +431,7 @@ def capture_game_frame(
         title_hint=window_title_hint,
         monitor=monitor,
         crop_to_game=crop_to_game,
+        crop_title_bar=crop_title_bar,
     )
     try:
         return grabber.grab()
