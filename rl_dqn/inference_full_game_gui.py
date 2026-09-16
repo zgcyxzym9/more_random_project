@@ -601,6 +601,8 @@ class InferenceGUI:
 
         row = tk.Frame(f, bg=f["bg"])
         row.pack(fill="x", padx=6, pady=4)
+        self._entry_row = row          # 引用输入框行，便于隐藏/恢复
+        self._allow_empty_submit = False
         self._entry_var = tk.StringVar()
         self._entry = tk.Entry(row, textvariable=self._entry_var,
                                bg=C["btn"], fg=C["text"],
@@ -629,8 +631,21 @@ class InferenceGUI:
     def append_log(self, text: str, tag: str = ""):
         self._q.put(("log", text, tag))
 
-    def ask_input(self, prompt: str, on_done: Callable[[str], None]):
-        self._q.put(("ask_input", prompt, on_done))
+    def ask_input(self, prompt: str, on_done: Callable[[str], None],
+                  allow_empty: bool = False):
+        """
+        Show a one-line prompt.
+        allow_empty=True 时空输入直接回车也会提交（返回 ""），默认忽略空提交。
+        """
+        self._q.put(("ask_input", prompt, on_done, allow_empty))
+
+    def ask_execute_or_response(self, prompt: str,
+                                on_done: Callable[[str], None]):
+        """
+        Replace the entry box with two buttons after a model action.
+        on_done receives "execute" (no response) or "response".
+        """
+        self._q.put(("ask_exec_resp", prompt, on_done))
 
     def ask_opponent_action(self, legal_actions: List[Any],
                             on_done: Callable[[Any], None]):
@@ -664,7 +679,10 @@ class InferenceGUI:
         elif tag_key == "log":
             self._append_log_ui(item[1], item[2] if len(item) > 2 else "")
         elif tag_key == "ask_input":
-            self._show_input_prompt(item[1], item[2])
+            self._show_input_prompt(item[1], item[2],
+                                    item[3] if len(item) > 3 else False)
+        elif tag_key == "ask_exec_resp":
+            self._show_execute_or_response(item[1], item[2])
         elif tag_key == "ask_opponent":
             self._show_opponent_chooser(item[1], item[2])
         elif tag_key == "wait_continue":
@@ -757,9 +775,15 @@ class InferenceGUI:
 
     # ── INPUT WIDGETS ─────────────────────────
 
-    def _show_input_prompt(self, prompt: str, callback: Callable[[str], None]):
+    def _show_input_prompt(self, prompt: str, callback: Callable[[str], None],
+                           allow_empty: bool = False):
         self._prompt_lbl.config(text=prompt, fg=C["text"])
         self._entry_var.set("")
+        self._allow_empty_submit = allow_empty
+        # 输入框可能已被 execute/response 按钮替换，恢复到原位（action_list 之前）
+        if self._entry_row.winfo_manager() != "pack":
+            self._entry_row.pack(fill="x", padx=6, pady=4,
+                                 before=self._action_list)
         self._entry.focus()
         # Clear old action buttons and unregister scroll canvas
         self._active_scroll_canvas = None
@@ -769,8 +793,9 @@ class InferenceGUI:
 
     def _submit_entry(self):
         val = self._entry_var.get().strip()
-        if not val:
+        if not val and not self._allow_empty_submit:
             return
+        self._allow_empty_submit = False
         self._entry_var.set("")
         self._prompt_lbl.config(text="Waiting…", fg=C["dim"])
         cb = getattr(self, "_current_callback", None)
@@ -876,6 +901,34 @@ class InferenceGUI:
 
         _btn(self._action_list, "▶  OK — Next Step", _ok,
              color=C["success"]).pack(padx=4, pady=4, anchor="w")
+
+    def _show_execute_or_response(self, prompt: str,
+                                  callback: Callable[[str], None]):
+        """模型动作给出后：隐藏输入框，用两个按钮选择执行或处理响应。"""
+        self._prompt_lbl.config(text=prompt, fg=C["gold"])
+        self._active_scroll_canvas = None
+        for w in self._action_list.winfo_children():
+            w.destroy()
+        # 隐藏输入框，用按钮替代
+        self._entry_row.pack_forget()
+        self._entry_var.set("")
+
+        def _finish(choice: str):
+            # 恢复输入框到原位（action_list 之前）
+            self._entry_row.pack(fill="x", padx=6, pady=4,
+                                 before=self._action_list)
+            for w in self._action_list.winfo_children():
+                w.destroy()
+            self._prompt_lbl.config(text="Waiting…", fg=C["dim"])
+            threading.Thread(target=callback, args=(choice,),
+                             daemon=True).start()
+
+        _btn(self._action_list, "▶  Execute Action",
+             lambda: _finish("execute"), color=C["success"]
+             ).pack(fill="x", padx=4, pady=(8, 3), ipady=8)
+        _btn(self._action_list, "⚡  Handle Response",
+             lambda: _finish("response"), color=C["accent2"]
+             ).pack(fill="x", padx=4, pady=3, ipady=8)
 
     # ── CAPTURE TOGGLE ────────────────────────
 
@@ -996,6 +1049,41 @@ class GUIBridge:
             evt.set()
 
         self.gui.ask_input(prompt, on_done)
+        evt.wait()
+        return result_holder[0]
+
+    def ask_allow_empty(self, prompt: str) -> str:
+        """
+        Like ask(), but empty input + Enter is accepted and returns "".
+        （GameRecorder 包装的是 ask，签名保持不变；空提交走此方法）
+        """
+        evt = threading.Event()
+        result_holder = [None]
+
+        def on_done(val):
+            result_holder[0] = val
+            evt.set()
+
+        self.gui.ask_input(prompt, on_done, allow_empty=True)
+        evt.wait()
+        return result_holder[0]
+
+    def ask_execute_or_response(
+        self,
+        prompt: str = "Execute action, or handle opponent response?",
+    ) -> str:
+        """
+        Block until user picks after a model action.
+        Returns "execute" or "response".
+        """
+        evt = threading.Event()
+        result_holder = [None]
+
+        def on_done(choice):
+            result_holder[0] = choice
+            evt.set()
+
+        self.gui.ask_execute_or_response(prompt, on_done)
         evt.wait()
         return result_holder[0]
 

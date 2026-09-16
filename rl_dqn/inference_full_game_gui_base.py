@@ -102,7 +102,7 @@ def match_full(names, raw):
     return None
 
 
-def detect_opening_heroes(bridge: GUIBridge, timeout: float = 20.0):
+def detect_opening_heroes(bridge: GUIBridge, timeout: float = 60.0):
     assets_dir = os.path.join(root_dict, "game_core/assets")
     done = threading.Event()
     result_holder = [None]
@@ -395,7 +395,40 @@ def game_loop(bridge: GUIBridge, capture_backend: Optional[CaptureBackend] = Non
             bridge.show_q_value(f"Q(state, action_id={action_id}) = {q_value:.4f}")
             recorder.note("model_decision", action_id=action_id,
                           q_value=round(q_value, 4), action=str(action))
-            bridge.wait_continue("▶ Execute model action?  Press OK")
+
+            # ── 同步响应 ─────────────────────────────────────────────────────
+            # 真实对局中对方可能对我方操作打出响应牌。引擎在 step 内广播事件时
+            # 由 _auto_response 扫描 player2 手牌自动打出响应，因此必须先把真实
+            # 触发的响应牌注入对方模拟手牌，再执行操作。
+            #   Execute Action 按钮   → 选项1：无响应，直接执行
+            #   Handle Response 按钮  → 选项2：输入响应牌名，注入后执行
+            choice = bridge.ask_execute_or_response()
+            recorder.note("response_choice", choice=choice,
+                          action_id=action_id)
+            resp_card_name = ""
+            if choice == "response":
+                while True:
+                    raw = bridge.ask_allow_empty(
+                        "Response card name (empty Enter = give up response & execute):"
+                    ).strip()
+                    if not raw:
+                        break
+                    cn = match_by_caps(card_names, raw)
+                    if cn:
+                        resp_card_name = cn
+                        break
+                    bridge.log(f"✗ '{raw}' not found, try again", "warn")
+
+            if resp_card_name:
+                resp_card = _resolve_opponent_card(resp_card_name, player2)
+                recorder.note("opponent_response_inject", card=resp_card_name)
+                bridge.log(f"[resp] response card injected into opponent hand: {resp_card_name}", "opp")
+                can_play, why = game.can_play_card(player2, resp_card)
+                if not can_play:
+                    bridge.log(
+                        f"[resp] WARNING: response card can't be played in simulation ({why}) "
+                        "— state may desync", "warn")
+
             game.step(player1, action)
             bridge.log(f"[AI] executed: {action}", "ai")
 
