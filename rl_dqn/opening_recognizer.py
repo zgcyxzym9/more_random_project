@@ -106,6 +106,27 @@ def _save_region_config(cfg: dict):
         json.dump(cfg, f, indent=2, ensure_ascii=False)
 
 
+def _equal_fifths(roi: Tuple[float, float, float, float]) -> List[Tuple[float, float, float, float]]:
+    """把一个横向 ROI 五等分，返回 5 个牌位框（相对坐标，四舍五入到 4 位小数）。"""
+    x0, y0, x1, y1 = roi
+    w = (x1 - x0) / 5.0
+    return [
+        tuple(round(v, 4) for v in (x0 + i * w, y0, x0 + (i + 1) * w, y1))
+        for i in range(5)
+    ]
+
+
+def _load_hand_slot_boxes(cfg: dict) -> List[Tuple[float, float, float, float]]:
+    """
+    从 region 配置取 5 个手牌牌位框（hand_slot_boxes，逐框相对坐标）。
+    配置缺失或格式不对时，退回由 hand_cards_roi 五等分推出。
+    """
+    boxes = cfg.get("hand_slot_boxes")
+    if isinstance(boxes, list) and len(boxes) == 5:
+        return [tuple(b) for b in boxes]
+    return _equal_fifths(cfg.get("hand_cards_roi", [0.05, 0.45, 0.95, 0.72]))
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  CARD NAME MATCHER
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -222,7 +243,9 @@ class OpeningSceneRecognizer:
     turn_order_roi    : (x0, y0, x1, y1) as fractions of game frame for
                         the first/second indicator text region.
     hand_cards_roi    : (x0, y0, x1, y1) as fractions of game frame for
-                        the region containing all 5 card names.
+                        the region containing all 5 card names.  The region
+                        is divided into five equal slot boxes for per-slot
+                        OCR (see hand_slot_boxes).
     confirm_frames    : number of consecutive matching frames required.
     poll_interval     : seconds between frame grabs.
     debug_dir         : directory for stage-by-stage debug image dumps at key
@@ -258,6 +281,21 @@ class OpeningSceneRecognizer:
         )
         self.hand_cards_roi = hand_cards_roi or tuple(
             cfg.get("hand_cards_roi", [0.05, 0.45, 0.95, 0.72])
+        )
+        # 手牌五个牌位框（逐框相对坐标，可存于 config 的 hand_slot_boxes 单独
+        # 微调）；显式传入 hand_cards_roi 参数时忽略配置里的牌位框，按五等分推出
+        slots_cfg = dict(cfg)
+        if hand_cards_roi is not None:
+            slots_cfg.pop("hand_slot_boxes", None)
+        self.hand_slot_boxes = _load_hand_slot_boxes(slots_cfg)
+        # 每个牌位独立 OCR 前的放大倍率（批量验证的最优值）
+        self.hand_slot_scale = 4.0
+        # 五个牌位框的并集（发牌前空白帧的快速方差检查用）
+        self.hand_band_roi = (
+            min(b[0] for b in self.hand_slot_boxes),
+            min(b[1] for b in self.hand_slot_boxes),
+            max(b[2] for b in self.hand_slot_boxes),
+            max(b[3] for b in self.hand_slot_boxes),
         )
 
         # ── PaddleOCR lazy init ──
@@ -369,8 +407,8 @@ class OpeningSceneRecognizer:
             # 调试：最初 2 帧全链转储（横幅出现前的基线画面）
             if dbg_first < 2:
                 dbg_first += 1
-                self._dbg_dump(stages, game_frame, self.turn_order_roi,
-                               roi, None, "first")
+                self._dbg_dump(stages, game_frame, [self.turn_order_roi],
+                               [roi], None, "first")
             last = (stages, game_frame, roi, None)
 
             # Quick check: does the region have enough variance to contain text?
@@ -426,15 +464,15 @@ class OpeningSceneRecognizer:
                 # 调试：命中帧全链转储（前 3 帧），核对横幅在各裁剪阶段是否完整
                 if dbg_hits < 3:
                     dbg_hits += 1
-                    self._dbg_dump(stages, game_frame, self.turn_order_roi,
-                                   roi, pp_roi, f"hit{dbg_hits}")
+                    self._dbg_dump(stages, game_frame, [self.turn_order_roi],
+                                   [roi], [pp_roi], f"hit{dbg_hits}")
                 if keyword == confirmed_text:
                     confirm_count += 1
                     if confirm_count >= self.confirm_frames:
                         logger.info("detect_turn_order: confirmed %s (text='%s')",
                                     "先手" if is_first else "后手", raw_text)
-                        self._dbg_dump(stages, game_frame, self.turn_order_roi,
-                                       roi, pp_roi, "confirm")
+                        self._dbg_dump(stages, game_frame, [self.turn_order_roi],
+                                       [roi], [pp_roi], "confirm")
                         return TurnOrderResult(
                             is_first=is_first,
                             raw_text=raw_text,
@@ -449,7 +487,7 @@ class OpeningSceneRecognizer:
         # 调试：超时时转储最后一帧全链
         st, gf, roi_l, pp_l = last
         if gf is not None:
-            self._dbg_dump(st, gf, self.turn_order_roi, roi_l, pp_l, "timeout")
+            self._dbg_dump(st, gf, [self.turn_order_roi], [roi_l], [pp_l], "timeout")
         logger.warning("detect_turn_order: timeout (%.1fs)", timeout)
         return None
 
@@ -457,13 +495,18 @@ class OpeningSceneRecognizer:
         """
         Block until 5 initial hand cards appear and are recognised.
 
-        Polls frames, OCRs the hand_cards_roi, filters text by height
-        (to exclude smaller description text), and fuzzy-matches against
-        the card name database.
+        五等分逐张识别：把手牌区域横向均分为 5 个牌位框（逐框参数存于
+        config/opening_regions.json 的 hand_slot_boxes，缺省由 hand_cards_roi
+        五等分推出），每个牌位独立放大 hand_slot_scale 倍后彩色直送 OCR，
+        对框内置信度 >= 0.5 的文本块逐个模糊匹配，精确匹配优先、其次取
+        更高的块（详见 _match_slot）。
 
-        收紧：确认前要求 5 张全部模糊匹配成功（无 "unknown"）。发牌动画
-        从左到右逐张亮牌，中途帧的空槽会被无关大字填充凑数，带脏数据
-        确认返回会在后续 Card.GetCard 上崩溃；匹配不全的帧直接跳过，
+        旧实现把整条 ROI（~1300×50 的极扁长条）一次送检测，检测框命中
+        不稳定，且灰度+CLAHE 预处理会压掉花纹底上的白字（炎舞 -> 炎書），
+        各种预处理变体批量验证均无法稳定读全 5 张，已废弃。
+
+        收紧逻辑不变：确认前要求 5 个牌位全部模糊匹配成功。发牌动画
+        从左到右逐张亮牌，中途帧的空牌位 OCR 不到文本，该帧直接跳过，
         持续等待到完整稳定帧，等不到则超时返回 None（走手动输入）。
 
         Returns InitialHandResult, or None on timeout / error.
@@ -479,8 +522,8 @@ class OpeningSceneRecognizer:
         confirm_count = 0
         deadline = time.monotonic() + timeout
         dbg_first = 0    # 已转储的开场前几帧数
-        dbg_hands = 0    # 已转储的凑满 5 候选帧数
-        last = ({}, None, None, None)  # 最后一帧 (stages, game_frame, roi, pp_roi)
+        dbg_hands = 0    # 已转储的凑满 5 张帧数
+        last = ({}, None, None, None)  # 最后一帧 (stages, game_frame, slot_rois, pp_slots)
 
         while time.monotonic() < deadline:
             try:
@@ -495,164 +538,33 @@ class OpeningSceneRecognizer:
                 time.sleep(self.poll_interval)
                 continue
 
-            # Crop the hand-cards region
-            roi = self._crop_roi(game_frame, self.hand_cards_roi)
-            if roi is None:
-                time.sleep(self.poll_interval)
-                continue
+            cards, slot_rois, pp_slots = self._read_hand_slots(ocr, game_frame)
 
             # 调试：最初 2 帧全链转储（发牌前的基线画面）
-            if dbg_first < 2:
-                dbg_first += 1
-                self._dbg_dump(stages, game_frame, self.hand_cards_roi,
-                               roi, None, "first")
-            last = (stages, game_frame, roi, None)
+            if slot_rois is not None:
+                if dbg_first < 2:
+                    dbg_first += 1
+                    self._dbg_dump(stages, game_frame, self.hand_slot_boxes,
+                                   slot_rois, None, "first")
+                last = (stages, game_frame, slot_rois, pp_slots)
 
-            # Quick check: enough variance?
-            grey = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-            if grey.var() < 20:
+            # 不满 5 张（空牌位 / 未匹配 / 空白帧）：视为未就绪，继续轮询
+            if cards is None:
                 time.sleep(self.poll_interval)
                 continue
 
-            # Preprocess for better OCR
-            pp_roi, pp_scale = self._preprocess_roi(roi)
-            last = (stages, game_frame, roi, pp_roi)
-
-            # OCR
-            try:
-                results = ocr.predict(pp_roi)
-                if isinstance(results, list):
-                    ocr_result = results[0] if results else None
-                else:
-                    ocr_result = next(results, None)
-            except Exception as e:
-                logger.error("detect_initial_hand: OCR error: %s", e)
-                time.sleep(self.poll_interval)
-                continue
-
-            if ocr_result is None:
-                time.sleep(self.poll_interval)
-                continue
-
-            rec_texts = list(ocr_result.get("rec_texts", []))
-            rec_scores = list(ocr_result.get("rec_scores", []))
-            dt_polys = list(ocr_result.get("dt_polys", []))
-            rec_boxes = list(ocr_result.get("rec_boxes", []))
-
-            if not rec_texts:
-                time.sleep(self.poll_interval)
-                continue
-
-            # ── Build list of (text, height, x_center, y_min, ocr_conf) tuples ──
-            text_blocks: List[Tuple[str, float, float, float, float]] = []
-            for i, text in enumerate(rec_texts):
-                if not text or not text.strip():
-                    continue
-                # OCR confidence filter
-                ocr_conf = rec_scores[i] if i < len(rec_scores) else 1.0
-                if ocr_conf < 0.5:
-                    continue
-                # Get bounding box height (coordinates are in pp_roi / scaled space)
-                if i < len(dt_polys):
-                    poly = dt_polys[i]
-                    y_vals = [p[1] for p in poly]
-                    x_vals = [p[0] for p in poly]
-                    height = max(y_vals) - min(y_vals)
-                    y_min = min(y_vals)
-                    x_center = (min(x_vals) + max(x_vals)) / 2.0
-                elif i < len(rec_boxes):
-                    box = rec_boxes[i]
-                    height = box[3] - box[1]
-                    y_min = box[1]
-                    x_center = (box[0] + box[2]) / 2.0
-                else:
-                    height = 0.0
-                    y_min = 0.0
-                    x_center = 0.0
-
-                if height <= 0:
-                    continue
-
-                text_blocks.append((text.strip(), height, x_center, y_min, ocr_conf))
-
-            if len(text_blocks) < 5:
-                time.sleep(self.poll_interval)
-                continue
-
-            # ── Filter: keep only larger-font text blocks (card names) ──
-            # The height distribution has two clusters: larger (card names)
-            # and smaller (description text).  We take blocks whose height
-            # is at least 60% of the maximum height in this batch.
-            heights = [h for _, h, _, _, _ in text_blocks]
-            max_height = max(heights)
-            height_threshold = max_height * 0.55
-
-            name_candidates = [
-                (text, x_center, y_min, height, ocr_conf)
-                for text, height, x_center, y_min, ocr_conf in text_blocks
-                if height >= height_threshold
-            ]
-
-            if len(name_candidates) < 5:
-                # Not enough large-font text blocks yet
-                time.sleep(self.poll_interval)
-                continue
-
-            # ── Sort by x position and take the 5 highest-confidence matches ──
-            name_candidates.sort(key=lambda t: t[1])  # sort by x_center
-
-            # If there are more than 5 large-font blocks, cluster by x and
-            # take the highest (topmost) one in each cluster
-            if len(name_candidates) > 5:
-                name_candidates = self._cluster_and_pick(
-                    name_candidates, target_count=5
-                )
-
-            if len(name_candidates) < 5:
-                time.sleep(self.poll_interval)
-                continue
-
-            # Take exactly the first 5 by x position
-            selected = name_candidates[:5]
-
-            # 临时调试：CLI 输出本帧选中的 5 个原始 OCR 文本
-            # （观察发牌动画期的脏数据，定位后删除）
-            print(f"[hand-debug] raw texts: {[t for t, *_ in selected]}",
-                  flush=True)
-
-            # 调试：凑满 5 候选的帧全链转储（前 3 帧）
+            # 调试：凑满 5 张的帧全链转储（前 3 帧）
             if dbg_hands < 3:
                 dbg_hands += 1
-                self._dbg_dump(stages, game_frame, self.hand_cards_roi,
-                               roi, pp_roi, f"hand{dbg_hands}")
-
-            # Match each candidate against card name database
-            cards: List[HandCard] = []
-            for idx, (text, xc, ym, h, ocr_conf) in enumerate(selected):
-                eng, cn, match_conf = self.matcher.fuzzy_match(text)
-                # Combine OCR confidence with match confidence
-                combined_conf = match_conf * ocr_conf
-                cards.append(HandCard(
-                    position_index=idx,
-                    cn_name=cn or text,
-                    eng_name=eng or "unknown",
-                    raw_ocr_text=text,
-                    confidence=combined_conf,
-                ))
-
-            # ── 收紧：5 张必须全部匹配成功，含 "unknown" 的帧不参与确认 ──
-            # 不重置 confirm_count / last_cards：中间的脏帧视为未就绪，
-            # 仍是同一稳定内容的两帧照样可以先后确认
-            if any(c.eng_name == "unknown" for c in cards):
-                time.sleep(self.poll_interval)
-                continue
+                self._dbg_dump(stages, game_frame, self.hand_slot_boxes,
+                               slot_rois, pp_slots, f"hand{dbg_hands}")
 
             # Check if this batch matches the previous batch
             if self._same_cards(cards, last_cards):
                 confirm_count += 1
                 if confirm_count >= self.confirm_frames:
-                    self._dbg_dump(stages, game_frame, self.hand_cards_roi,
-                                   roi, pp_roi, "confirm")
+                    self._dbg_dump(stages, game_frame, self.hand_slot_boxes,
+                                   slot_rois, pp_slots, "confirm")
                     all_good = all(c.confidence >= 0.35 for c in cards)
                     logger.info(
                         "detect_initial_hand: confirmed %d cards (all_confident=%s)",
@@ -669,9 +581,9 @@ class OpeningSceneRecognizer:
             time.sleep(self.poll_interval)
 
         # 调试：超时时转储最后一帧全链
-        st, gf, roi_l, pp_l = last
+        st, gf, rois_l, pps_l = last
         if gf is not None:
-            self._dbg_dump(st, gf, self.hand_cards_roi, roi_l, pp_l, "timeout")
+            self._dbg_dump(st, gf, self.hand_slot_boxes, rois_l, pps_l, "timeout")
         logger.warning("detect_initial_hand: timeout (%.1fs)", timeout)
         return None
 
@@ -691,19 +603,24 @@ class OpeningSceneRecognizer:
         return frame, stages
 
     def _dbg_dump(self, stages: dict, game_frame: Optional[np.ndarray],
-                  roi_fracs: Tuple[float, float, float, float],
-                  roi: Optional[np.ndarray], pp_roi: Optional[np.ndarray],
+                  boxes: List[Tuple[float, float, float, float]],
+                  rois: Optional[List[Optional[np.ndarray]]],
+                  pps: Optional[List[Optional[np.ndarray]]],
                   moment: str) -> None:
         """
-        把一个关键帧的全链图像存到 debug_dir（self.debug_dir 为 None 时跳过）：
+        把一个关键帧的全链图像存到 debug_dir（self.debug_dir 为 None 时跳过）。
+
+        boxes 是要画出的全部框（相对坐标）：turn-order 传单框，手牌传 5 个
+        牌位框。rois/pps 与之对应，是各框的裁剪图 / 预处理后送 OCR 的图；
+        多框时存为带下标的 _5_roiN.png / _6_roi_ppN.png，单框保持旧文件名。
 
           dbgNNN_<moment>_1_window.png          原始窗口抓帧（未做任何裁剪）
           dbgNNN_<moment>_2_title_bar.png       顶部"手机屏幕"标题栏裁剪之后
           dbgNNN_<moment>_3_game_crop.png       grabber 内 crop_game_frame_from_window 之后
           dbgNNN_<moment>_4_game_frame.png      detect_* 内再次 crop 后（ROI 的来源帧）
-          dbgNNN_<moment>_4_game_frame_roi.png  同上并画出 ROI 框
-          dbgNNN_<moment>_5_roi.png             送识别的 ROI 裁剪
-          dbgNNN_<moment>_6_roi_pp.png          ROI 预处理（放大/CLAHE）后，OCR 实际输入
+          dbgNNN_<moment>_4_game_frame_roi.png  同上并画出全部框
+          dbgNNN_<moment>_5_roi*.png            送识别的 ROI 裁剪
+          dbgNNN_<moment>_6_roi_pp*.png         ROI 预处理（放大等）后，OCR 实际输入
         """
         if not self.debug_dir:
             return
@@ -720,16 +637,28 @@ class OpeningSceneRecognizer:
                 cv2.imwrite(f"{prefix}_4_game_frame.png", game_frame)
                 vis = game_frame.copy()
                 H, W = vis.shape[:2]
-                x0 = int(roi_fracs[0] * W)
-                y0 = int(roi_fracs[1] * H)
-                x1 = int(roi_fracs[2] * W)
-                y1 = int(roi_fracs[3] * H)
-                cv2.rectangle(vis, (x0, y0), (x1, y1), (0, 0, 255), 2)
+                for i, fracs in enumerate(boxes):
+                    x0 = int(fracs[0] * W)
+                    y0 = int(fracs[1] * H)
+                    x1 = int(fracs[2] * W)
+                    y1 = int(fracs[3] * H)
+                    cv2.rectangle(vis, (x0, y0), (x1, y1), (0, 0, 255), 2)
+                    label = f"slot{i}" if len(boxes) > 1 else "roi"
+                    cv2.putText(vis, label, (x0 + 2, max(12, y0 - 5)),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 1)
                 cv2.imwrite(f"{prefix}_4_game_frame_roi.png", vis)
-            if roi is not None and roi.size > 0:
-                cv2.imwrite(f"{prefix}_5_roi.png", roi)
-            if pp_roi is not None and pp_roi.size > 0:
-                cv2.imwrite(f"{prefix}_6_roi_pp.png", pp_roi)
+            if rois is not None:
+                multi = len(rois) > 1
+                for i, r in enumerate(rois):
+                    if r is not None and r.size > 0:
+                        tag = str(i) if multi else ""
+                        cv2.imwrite(f"{prefix}_5_roi{tag}.png", r)
+            if pps is not None:
+                multi = len(pps) > 1
+                for i, p in enumerate(pps):
+                    if p is not None and p.size > 0:
+                        tag = str(i) if multi else ""
+                        cv2.imwrite(f"{prefix}_6_roi_pp{tag}.png", p)
             print(f"[dbg] saved {prefix}_*.png", flush=True)
         except Exception as exc:
             logger.warning("debug dump failed: %s", exc)
@@ -748,47 +677,129 @@ class OpeningSceneRecognizer:
             return None
         return frame[y0:y1, x0:x1]
 
+    def _read_hand_slots(self, ocr, game_frame: np.ndarray) -> tuple:
+        """
+        对单帧做五等分逐张识别（detect_initial_hand 的每帧核心逻辑）。
+
+        Returns (cards, slot_rois, pp_slots):
+          cards     -- 5 张 HandCard（全部牌位模糊匹配成功）；
+                       不满 5 张（空白帧 / 空牌位 / 有牌位匹配失败）时为 None
+          slot_rois -- 5 个牌位裁剪；游戏帧无效时为 None
+          pp_slots  -- 各牌位放大后送 OCR 的图；未走到该步骤时为 None
+        """
+        slot_rois = [self._crop_roi(game_frame, b) for b in self.hand_slot_boxes]
+        if any(r is None for r in slot_rois):
+            return None, None, None
+
+        # Quick check: hand band 有足够方差才值得逐牌位 OCR
+        band = self._crop_roi(game_frame, self.hand_band_roi)
+        if band is None or cv2.cvtColor(band, cv2.COLOR_BGR2GRAY).var() < 20:
+            return None, slot_rois, None
+
+        # 逐牌位放大（彩色直送，不做灰度/CLAHE：灰度会压掉花纹底上的白字）
+        pp_slots = [
+            cv2.resize(slot, None,
+                       fx=self.hand_slot_scale, fy=self.hand_slot_scale,
+                       interpolation=cv2.INTER_CUBIC)
+            for slot in slot_rois
+        ]
+
+        cards: List[HandCard] = []
+        for idx, big in enumerate(pp_slots):
+            try:
+                results = ocr.predict(big)
+            except Exception as e:
+                logger.error("detect_initial_hand: OCR error: %s", e)
+                return None, slot_rois, pp_slots
+            card = self._match_slot(results, idx)
+            if card is None:
+                # 该牌位没有可匹配文本：发牌动画未到 / 花纹噪声 / 中间脏帧
+                return None, slot_rois, pp_slots
+            cards.append(card)
+        return cards, slot_rois, pp_slots
+
+    def _match_slot(self, ocr_results, idx: int) -> Optional[HandCard]:
+        """
+        识别单个牌位：对框内合格文本块逐个模糊匹配后择优。
+
+        择优规则：精确匹配（match=1.0）优先；无精确匹配时取更高的块
+        （牌位内卡牌名是最大的字，误识的名字变体如 '小文射小' 比描述
+        文字高）。不能只取最高块再匹配——换牌界面上卡名旁的花纹会被
+        误识成 '小' 且恰好比卡名高（dbg011: 崩山被 '小' 压制）。
+        单字块仅在精确命中卡名库时有效（库里有单字卡名 '离' / '会'），
+        单字的子串 / Jaccard 匹配一律拒收（花纹误识 '小' 的假匹配）。
+
+        无匹配块返回 None（牌位未就绪，整帧不参与确认）。
+        """
+        best = None  # ((is_exact, height), text, conf, eng, cn, match_conf)
+        for text, height, conf in self._slot_blocks(ocr_results):
+            eng, cn, match_conf = self.matcher.fuzzy_match(text)
+            if eng is None:
+                continue
+            # 单字块只可能是装饰花纹误识，唯一例外是精确命中单字卡名
+            # （cards.json 里的 '离' / '会'）；单字走子串/Jaccard 层一律拒收，
+            # 否则 '小' 会假匹配成 '觉醒·小鹿男'(0.85)，对含 '小' 的双字名
+            # Jaccard 也恰好 = 0.5 蹭过阈值
+            if match_conf < 1.0 and len(text) < 2:
+                continue
+            key = (1 if match_conf >= 1.0 else 0, height)
+            if best is None or key > best[0]:
+                best = (key, text, conf, eng, cn, match_conf)
+        if best is None:
+            return None
+        _, text, conf, eng, cn, match_conf = best
+        return HandCard(
+            position_index=idx,
+            cn_name=cn or text,
+            eng_name=eng,
+            raw_ocr_text=text,
+            confidence=match_conf * conf,
+        )
+
     @staticmethod
-    def _cluster_and_pick(
-        candidates: List[Tuple[str, float, float, float, float]],
-        target_count: int = 5,
-    ) -> List[Tuple[str, float, float, float, float]]:
+    def _slot_blocks(ocr_results,
+                     conf_threshold: float = 0.5) -> List[Tuple[str, float, float]]:
         """
-        Cluster text blocks by x position and keep the highest (smallest y)
-        block in each cluster.  Used to merge multiple detections in the same
-        card column (name + description) into a single candidate per column.
+        从单个牌位的 OCR 结果里取合格文本块 [(text, height, ocr_conf)]。
 
-        Each candidate: (text, x_center, y_min, height, ocr_conf)
+        过滤：OCR 置信度 >= conf_threshold、框高 > 0、非空文本。
+        不按长度过滤——库里存在单字卡名（'离' / '会'）；单字垃圾块
+        （花纹误识的 '小'）由 _match_slot 按匹配层级拒收。
         """
-        if len(candidates) <= target_count:
-            return candidates
+        if ocr_results is None:
+            return []
+        if isinstance(ocr_results, list):
+            result = ocr_results[0] if ocr_results else None
+        else:
+            result = next(ocr_results, None)
+        if result is None:
+            return []
 
-        # Use the actual x-range of candidates for column width calculation
-        x_min = min(c[1] for c in candidates)
-        x_max = max(c[1] for c in candidates)
-        roi_width = x_max - x_min if x_max > x_min else 1.0
-        col_width = roi_width / target_count
+        rec_texts = list(result.get("rec_texts", []))
+        rec_scores = list(result.get("rec_scores", []))
+        dt_polys = list(result.get("dt_polys", []))
+        rec_boxes = list(result.get("rec_boxes", []))
 
-        # Assign each candidate to a column bucket by x_center
-        buckets: Dict[int, List[Tuple[str, float, float, float, float]]] = {}
-        for item in candidates:
-            xc = item[1]
-            col = min(target_count - 1, max(0, int((xc - x_min) / col_width)))
-            if isinstance(col, float):
-                col = int(col)
-            buckets.setdefault(col, []).append(item)
-
-        # From each bucket pick the topmost (smallest y_min) text block
-        result = []
-        for col in range(target_count):
-            bucket = buckets.get(col, [])
-            if bucket:
-                # Pick the one with smallest y_min (card name is above description)
-                best = min(bucket, key=lambda t: t[2])
-                result.append(best)
-
-        result.sort(key=lambda t: t[1])  # re-sort by x_center
-        return result
+        blocks: List[Tuple[str, float, float]] = []
+        for i, text in enumerate(rec_texts):
+            t = (text or "").strip()
+            if not t:
+                continue
+            conf = rec_scores[i] if i < len(rec_scores) else 1.0
+            if conf < conf_threshold:
+                continue
+            if i < len(dt_polys):
+                y_vals = [p[1] for p in dt_polys[i]]
+                height = max(y_vals) - min(y_vals)
+            elif i < len(rec_boxes):
+                box = rec_boxes[i]
+                height = box[3] - box[1]
+            else:
+                height = 0.0
+            if height <= 0:
+                continue
+            blocks.append((t, height, conf))
+        return blocks
 
     @staticmethod
     def _same_cards(a: List[HandCard], b: List[HandCard]) -> bool:
@@ -833,6 +844,7 @@ def calibrate_on_screenshot(screenshot_path: str,
     cfg = _load_region_config()
     turn_roi = tuple(cfg.get("turn_order_roi", [0.25, 0.72, 0.75, 0.90]))
     hand_roi = tuple(cfg.get("hand_cards_roi", [0.05, 0.45, 0.95, 0.72]))
+    slot_boxes = _load_hand_slot_boxes(cfg)
 
     matcher = CardNameMatcher.from_cards_json()
 
@@ -856,6 +868,14 @@ def calibrate_on_screenshot(screenshot_path: str,
     cv2.rectangle(vis, (hc_x0, hc_y0), (hc_x1, hc_y1), (255, 200, 0), 2)
     cv2.putText(vis, "hand_cards_roi", (hc_x0 + 2, hc_y0 - 6),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 200, 0), 1)
+
+    # ── Hand slot boxes (per-slot OCR 逐框参数) ──
+    for i, (sx0f, sy0f, sx1f, sy1f) in enumerate(slot_boxes):
+        sx0, sy0 = int(sx0f * W), int(sy0f * H)
+        sx1, sy1 = int(sx1f * W), int(sy1f * H)
+        cv2.rectangle(vis, (sx0, sy0), (sx1, sy1), (0, 165, 255), 1)
+        cv2.putText(vis, f"slot{i}", (sx0 + 2, max(12, sy0 - 4)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 165, 255), 1)
 
     cv2.imwrite(os.path.join(out_dir, "opening_regions.png"), vis)
     print(f"Annotated regions -> {os.path.join(out_dir, 'opening_regions.png')}")
@@ -1029,6 +1049,7 @@ def run_live_debug(window_hint: str = DEFAULT_TODESK_TITLE,
     cfg = _load_region_config()
     turn_roi = tuple(cfg.get("turn_order_roi", [0.25, 0.72, 0.75, 0.90]))
     hand_roi = tuple(cfg.get("hand_cards_roi", [0.05, 0.45, 0.95, 0.72]))
+    slot_boxes = _load_hand_slot_boxes(cfg)
 
     n = 0
     print(f"Live debug  window='{window_hint}'  Ctrl-C to stop")
@@ -1096,6 +1117,11 @@ def run_live_debug(window_hint: str = DEFAULT_TODESK_TITLE,
                           (hand_x0 // 3, hand_y0 // 3),
                           (hand_x1 // 3, hand_y1 // 3),
                           (255, 200, 0), 1)
+            for sx0f, sy0f, sx1f, sy1f in slot_boxes:
+                cv2.rectangle(thumb,
+                              (int(sx0f * W) // 3, int(sy0f * H) // 3),
+                              (int(sx1f * W) // 3, int(sy1f * H) // 3),
+                              (0, 165, 255), 1)
             cv2.imwrite(os.path.join(out_dir, f"opening_{n:04d}.png"), thumb)
 
             n += 1

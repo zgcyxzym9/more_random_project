@@ -1,0 +1,57 @@
+{
+    "_comment": "战斗日志面板区域裁剪参数与颜色阈值。值均为预估值，需在首次运行时通过校准脚本确认。",
+    "log_x_frac": [
+        0.0,
+        0.2909999999999999
+    ],
+    "log_y_frac": [
+        0.0,
+        0.9502762430939228
+    ],
+    "game_resolution": [
+        1592,
+        721
+    ],
+    "line_spacing_wrap_ratio": 0.55,
+    "line_spacing_normal_px": null,
+    "color_thresholds": {
+        "_comment_hsv": "OpenCV HSV: H∈[0,180], S∈[0,255], V∈[0,255]. Log-panel text is very desaturated (S≈5-30) — thresholds are intentionally low.",
+        "red_h_range": [
+            [
+                0,
+                15
+            ],
+            [
+                165,
+                180
+            ]
+        ],
+        "red_s_min": 5,
+        "red_v_min": 120,
+        "blue_h_range": [
+            [
+                100,
+                130
+            ]
+        ],
+        "blue_s_min": 5,
+        "blue_v_min": 120,
+        "yellow_h_range": [
+            [
+                20,
+                35
+            ]
+        ],
+        "yellow_s_min": 5,
+        "yellow_v_min": 120,
+        "purple_h_range": [
+            [
+                140,
+                160
+            ]
+        ],
+        "purple_s_min": 5,
+        "purple_v_min": 120,
+        "black_v_max": 80
+    }
+}

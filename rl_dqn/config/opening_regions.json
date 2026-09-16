@@ -1,6 +1,13 @@
 {
-    "_comment": "Relative coordinates (0.0-1.0) of the game frame for opening-scene OCR regions.",
+    "_comment": "Relative coordinates (0.0-1.0) of the game frame for opening-scene OCR regions. hand_slot_boxes: the 5 per-slot hand-card boxes used by per-slot OCR; falls back to splitting hand_cards_roi into five equal fifths if absent.",
     "_reference_resolution": "2700x1224",
     "turn_order_roi": [0.44, 0.89, 0.56, 0.98],
-    "hand_cards_roi": [0.10, 0.55, 0.93, 0.62]
+    "hand_cards_roi": [0.10, 0.55, 0.93, 0.62],
+    "hand_slot_boxes": [
+        [0.1, 0.55, 0.266, 0.62],
+        [0.266, 0.55, 0.432, 0.62],
+        [0.432, 0.55, 0.598, 0.62],
+        [0.598, 0.55, 0.764, 0.62],
+        [0.764, 0.55, 0.93, 0.62]
+    ]
 }
