@@ -799,7 +799,7 @@ class YaoDaoJi:
                  (_yaodaoji_grant_instant,)),
         # 本回合结束（下一次己方回合开始）清除瞬发
         Listener("begin turn",
-                 lambda e, s: s.is_alive and e.next_player == s.owner,
+                 lambda e, s: e.next_player == s.owner.opponent,
                  (_yaodaoji_clear_instant,)),
         # 击杀计数：本局消灭式神数（killer 为 _last_damage_source，战斗击杀即妖刀姬）
         Listener("hero kill",
