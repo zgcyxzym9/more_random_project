@@ -446,7 +446,7 @@ def game_loop(bridge: GUIBridge, capture_backend: Optional[CaptureBackend] = Non
                     bridge.log("[sync] AUTO failed — falling back to manual input", "warn")
                     bridge.set_sync_status("idle")
                     legal = player2.get_legal_actions()
-                    non_card = [a for a in legal if a.type != "play card"]
+                    non_card = [a for a in legal if a.type != "play card action"]
                     choice = bridge.show_opponent_actions(non_card)
                     if isinstance(choice, tuple) and choice[0] == "play_card":
                         card_name = choice[1]
@@ -469,7 +469,7 @@ def game_loop(bridge: GUIBridge, capture_backend: Optional[CaptureBackend] = Non
             else:
                 # ── MANUAL mode (original behaviour) ──────────────────────
                 legal = player2.get_legal_actions()
-                non_card = [a for a in legal if a.type != "play card"]
+                non_card = [a for a in legal if a.type != "play card action"]
 
                 choice = bridge.show_opponent_actions(non_card)
 

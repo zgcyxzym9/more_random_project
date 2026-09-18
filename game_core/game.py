@@ -226,14 +226,14 @@ class Game:
         # play_card，由 play_card 内部统一扣费。
         if card.type == "attack":
             self._consume_fire(player, card)
-        # 响应牌出牌也广播 "play card"（step 之外的出牌通道），供监听器在生效前介入
-        # （魔音扰心主动效果依赖此点拦截敌方响应牌）。check_response=False：
-        # 响应牌自身不再触发其它响应（响应不可再响应）。
-        use_evt = Event("play card", player=player, card=card)
-        self.broadcast("play card", event=use_evt, check_response=False)
-        if getattr(use_evt, "revert", False):
-            return   # 被监听器拦截（如魔音扰心）：响应牌不生效（费用处理见上方注释）
-        if card.type == "attack":
+            # 响应牌出牌也广播前置事件（PrePlayCardEvent，response=True；
+            # step 之外的出牌通道），供监听器在生效前介入（魔音扰心主动效果
+            # 依赖此点拦截敌方响应牌）。check_response=False：响应牌自身不再
+            # 触发其它响应（响应不可再响应）。
+            use_evt = PrePlayCardEvent(player, card, response=True)
+            self.broadcast("pre play card", event=use_evt, check_response=False)
+            if getattr(use_evt, "revert", False):
+                return   # 被监听器拦截（如魔音扰心）：响应牌不生效（费用处理见上方注释）
             hero = card.get_corresponding_hero()
             # 记录战前 atk/defense，战斗结算后整体还原：响应牌是防御方，战斗过程中
             # defense（护甲）会被伤害消耗，对称相减会把 defense 减成负数泄漏到后续回合。
@@ -252,8 +252,13 @@ class Game:
                     self.handle_event(result)
             player.move_card_to_used(card)
             self._pending_response_cleanups.append((card, hero, pre_atk, pre_def))
+            # 结算完成事件：与 play_card 末尾一致，「使用牌时」类触发被动
+            # （凤凰火投射等）同样监听响应打出的完成。
+            self.broadcast("play card",
+                           event=PlayCardEvent(player, card, response=True),
+                           check_response=False)
         else:
-            self.play_card(player, card)
+            self.play_card(player, card, via_response=True)
 
     def _consume_fire(self, player, card):
         """打出一张牌的鬼火消耗（主动打出 / 响应打出统一走此实现）。
@@ -411,6 +416,9 @@ class Game:
         # check_response=False：step 的 hero attack 会再经 handle_event 二次广播
         # 同一攻击；响应只在 handle_event 的广播点扫描（见 broadcast），保证一次
         # 攻击至多打出一张响应、且监听器先于响应结算。
+        # play card 动作广播为 "play card action"；事件层 "pre play card"
+        # （结算前，否定/注入）与 "play card"（结算后，触发被动）均由
+        # play_card / _play_response_card 在对应时机广播。
         self.broadcast(action.type, event=action, check_response=False)
         if hasattr(action, "revert") and action.revert == True:
             return
@@ -477,7 +485,7 @@ class Game:
                             self.handle_event(event(action.hero))
                 self.current_player.upgrade_remaining -= 1
 
-            case "play card":
+            case "play card action":
                 if not self.current_player == player:
                     print("trying to play a card when it's not his turn, will ignore")
                     return
@@ -862,7 +870,7 @@ class Game:
 
 
     def play_card(self, player: Player, card: Card, target=None, use_blast: bool = False,
-                  use_charge: bool = False):
+                  use_charge: bool = False, via_response: bool = False):
         # ── 增强（wiki 关键字-增强）：判定通过、确定打出后，在结算开头把增强
         # 写到这张即将打出的卡上（不还原，#13 用户裁决，见 _apply_enhance）──
         self._apply_enhance(card)
@@ -921,6 +929,18 @@ class Game:
                     player.candidate_targets = []
                     player.state = PlayerState.PLAYING
                     return
+
+        # ── 使用牌前置事件（PrePlayCardEvent）：目标选择已完成，此后确定结算。
+        # 仅供需在结算生效前介入的监听器：否定（魔音扰心 revert）与注入
+        # （不夜之舞/心技一体写入 buff）。「使用牌时」类触发被动听结算后的
+        # "play card"（PlayCardEvent，函数末尾）。被拒绝/放弃的打出不会走到
+        # 这里；check_response=False 与既有出牌通道一致（出牌不触发响应扫描）。
+        # 被拦截则整体放弃结算。──
+        play_evt = PrePlayCardEvent(player, card, response=via_response)
+        self.broadcast("pre play card", event=play_evt, check_response=False)
+        if getattr(play_evt, "revert", False):
+            player.selected_targets = None
+            return
 
         # ── 鬼火消耗：主动打出 / 响应打出统一走此实现。置于全部挂起点之后——
         # select target 重放只会到达这里一次，不会二次扣费；放弃出牌发生在
@@ -1045,6 +1065,13 @@ class Game:
         else:
             player.move_card_to_used(card)
         player.selected_targets = None
+
+        # ── 使用牌完成事件（PlayCardEvent）：结算与卡牌去向均已落定。
+        # 「使用牌时」类触发被动（凤凰火投射/火取魔计数等）在此广播——
+        # 监听器读到的是结算后的战场状态（投射目标按结算后的对手战斗区
+        # 解析等）。此处不再处理 revert：牌已实际打出。──
+        self.broadcast("play card", event=PlayCardEvent(player, card, response=via_response),
+                       check_response=False)
 
 
     # ═══════════════════════════════════════════════════════════════════════════

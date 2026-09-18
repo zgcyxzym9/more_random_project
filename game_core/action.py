@@ -26,7 +26,7 @@ class UpgradeHero(Action):
 
 class PlayCard(Action):
     def __init__(self, card, target=None, use_blast: bool = False, use_charge: bool = False):
-        self.type = "play card"
+        self.type = "play card action"
         self.card = card
         self.target = target
         self.use_blast = use_blast   # 爆能：额外消耗能量触发增强

@@ -191,7 +191,7 @@ def _action_to_id(player, action):
     if t == "hero attack":
         idx = player.heroes.index(action.hero)
         return HERO_ATTACK_START + idx if idx < NUM_HEROES else None
-    if t == "play card":
+    if t == "play card action":
         cid = action.card.id
         if not (1 <= cid <= MAX_CARD_ID):
             return None

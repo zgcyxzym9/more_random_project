@@ -198,7 +198,7 @@ def _yingxiongwuwei_on_play(s):
     _ytg_remove_random_illusion(player, target)
     # 3. 眩晕，直到鸦天狗使用牌、攻击或气绝
     target.stun()
-    _ytg_register_stun_release(player, hero, target)
+    _ytg_register_stun_release(player, hero, target, exclude_card=s)
 
 def _ytg_remove_random_illusion(player, target):
     """随机移除一个属于目标的幻境。"""
@@ -211,15 +211,21 @@ def _ytg_remove_random_illusion(player, target):
         player.opponent.illusion_zone.remove(picked[0])
         player.game.handle_event(IllusionDestroyedEvent(player.opponent, picked[0]))
 
-def _ytg_register_stun_release(player, hero, target):
-    """登记眩晕解除：鸦天狗使用牌 / 攻击 / 气绝时解除目标眩晕。"""
+def _ytg_register_stun_release(player, hero, target, exclude_card=None):
+    """登记眩晕解除：鸦天狗使用牌 / 攻击 / 气绝时解除目标眩晕。
+
+    exclude_card：英雄无畏自身。完成事件在 on_play（挂载）之后广播，
+    不排除的话本次打出会立刻自触发解除、眩晕形同虚设。
+    """
     tag = "yingxiongwuwei"
     player.listeners = [l for l in player.listeners if getattr(l, "_tag", "") != tag]
     def _release(e, p):
         target.unstun()
         player.listeners = [l for l in player.listeners if getattr(l, "_tag", "") != tag]
     l_play = Listener("play card",
-                      lambda e, p: e.event.card is not None and e.event.card.owner == player,
+                      lambda e, p: (e.event.card is not None
+                                    and e.event.card is not exclude_card
+                                    and e.event.card.owner == player),
                       (_release,))
     l_play._tag = tag
     l_atk = Listener("hero attack",

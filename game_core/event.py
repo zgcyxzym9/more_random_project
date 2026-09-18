@@ -60,6 +60,40 @@ class HeroAttackEvent(Event):
     def __str__(self):
         return f"Attack with {self.hero.name}" + (f" by {self.card.name}" if self.card else "")
 
+class PlayCardEvent(Event):
+    """使用牌完成事件：结算与卡牌去向均已落定后在 play_card 末尾广播。
+
+    「使用牌时」类触发被动（凤凰火投射、火取魔计数等）监听此事件——
+    监听器读到的是结算后的战场状态（如对手战斗区是否已被打出的牌清空）。
+    被拒绝/放弃/否定的打出不广播。
+
+    response：是否经响应通道打出（_play_response_card）。响应战斗牌只施加
+    效果不消耗鼓舞（既有语义），供「仅主动打出」类监听器区分。
+    """
+    def __init__(self, player, card, response=False):
+        self.type = "play card"
+        self.player = player
+        self.card = card
+        self.response = response
+
+    def __str__(self):
+        return f"Play card {getattr(self.card, 'name', self.card)}"
+
+
+class PrePlayCardEvent(PlayCardEvent):
+    """使用牌前置事件：目标选择完成后、实际结算（扣费/效果）前广播。
+
+    仅供必须在结算生效前介入的监听器：否定（魔音扰心 revert 拦截）与
+    注入（不夜之舞/心技一体把鼓舞/增强写入本牌 buff_atk/buff_def）。
+    revert 置位后 play_card 放弃本次打出（费用未扣）。
+    """
+    def __init__(self, player, card, response=False):
+        super().__init__(player, card, response)
+        self.type = "pre play card"
+
+    def __str__(self):
+        return f"Pre play card {getattr(self.card, 'name', self.card)}"
+
 class InspireEvent(Event):
     """鼓舞生效事件（可修改）：某牌手的鼓舞即将生效，监听器可修改 atk/defense。
 

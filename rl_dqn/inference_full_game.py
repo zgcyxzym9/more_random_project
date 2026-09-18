@@ -120,7 +120,7 @@ while not game.check_end_condition():
         game.step(player1, action)
     else:
         legal_actions = player2.get_legal_actions()
-        legal_actions = [action for action in legal_actions if action.type != "play card"]
+        legal_actions = [action for action in legal_actions if action.type != "play card action"]
         print("Here are all the possible actions of the opponent:")
         for i in range(len(legal_actions)):
             action = legal_actions[i]

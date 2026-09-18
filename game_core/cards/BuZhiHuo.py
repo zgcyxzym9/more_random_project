@@ -33,25 +33,25 @@ def _buyezhiwu_inject(e, s):
 
 
 def _buyezhiwu_match(e, s):
-    """仅拦截本方主动打出的战斗牌（step 层 PlayCard action）。
+    """仅拦截本方主动打出的战斗牌（play_card 内 PrePlayCardEvent 前置广播点）。
 
     - 形态门控：不知火当前形态不再是此卡时被动失效（仿笨拙/妖刀万华的
       morphed_id 模式；死亡时 morphed_id 清零，同样自动失效）。
-    - 复检 can_play_card：监听点在 step 广播（can_play_card 正式校验之前），
-      打出将被拒绝时（鬼火不足/等级不足等）不得消耗鼓舞、不得污染手牌上的
-      buff。判定逻辑与 step 随后的正式校验完全一致。
+    - 前置广播点位于 can_play_card 正式校验与目标选择之后：打出必然发生，不再
+      复检 can_play_card（此时鬼火已扣，复检会因鬼火不足误判）。响应通道
+      （response=True）不触发：响应牌只施加效果，不消耗鼓舞（既有语义）。
     """
     c = e.event.card
     return (s.morphed_id == BuYeZhiWu.id and
-            isinstance(e.event, PlayCard) and
+            isinstance(e.event, PlayCardEvent) and
+            not e.event.response and
             getattr(c, 'owner', None) == s.owner and
-            c.type == "attack" and
-            s.owner.game.can_play_card(s.owner, c)[0])
+            c.type == "attack")
 
 
 def _buyezhiwu_on_play(card):
     hero = card.get_corresponding_hero()
-    l = Listener("play card", _buyezhiwu_match, (_buyezhiwu_inject,))
+    l = Listener("pre play card", _buyezhiwu_match, (_buyezhiwu_inject,))
     # 防止重复叠加（不夜之舞只生效一份）
     hero.listeners = [lst for lst in hero.listeners if getattr(lst, '_tag', '') != 'buyezhiwu']
     l._tag = 'buyezhiwu'

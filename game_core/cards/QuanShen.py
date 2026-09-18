@@ -68,8 +68,9 @@ def _xinjiyiti_enhance(card):
         c.buff_atk = getattr(c, 'buff_atk', 0) + bonus
         c.buff_def = getattr(c, 'buff_def', 0) + bonus
 
-    l = Listener("play card",
-                 lambda e, s: (isinstance(e.event, PlayCard) and
+    l = Listener("pre play card",
+                 lambda e, s: (isinstance(e.event, PlayCardEvent) and
+                               not e.event.response and
                                getattr(e.event.card, 'owner', None) == s.owner and
                                e.event.card.hero == "QuanShen" and
                                e.event.card.type == "attack"),

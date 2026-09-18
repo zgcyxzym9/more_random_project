@@ -947,7 +947,7 @@ def _yixigong_cook(_e, s):
 # 计数存于牌手对象（跨式神气绝/复活持续，「本局游戏」口径，随饴细工开局即生效）：
 # - 烹饪合成：CookEvent 广播前佳肴已入手牌，以手牌佳肴增量计入；
 # - 直接获得（甘如暖阳等）：经 _yxg_gain_jiaoyao 同步（cards/YiXiGong.py 调用）；
-# - 佳肴从手牌打出（"play card" 广播发生在移出手牌前）时同步基准。
+# - 佳肴从手牌打出（"play card" 完成事件广播）时同步基准。
 # 监听条件不带 is_alive：饴细工气绝期间的获得仍属「本局游戏」；等级门槛无影响
 # （佳肴只可能产生于烹饪/直接获得，均需饴细工已升级）。
 
@@ -970,7 +970,7 @@ def _yxg_track_cook(_e, s):
 
 
 def _yxg_jiaoyao_played(e, s):
-    """监听条件：本牌手的「佳肴」从手牌打出（广播发生在移出手牌前）。"""
+    """监听条件：本牌手的「佳肴」从手牌打出（"play card" 完成事件）。"""
     card = getattr(e.event, "card", None)
     return (card is not None and getattr(card, "eng_name", "") == "JiaYao"
             and getattr(card, "owner", None) is s.owner)

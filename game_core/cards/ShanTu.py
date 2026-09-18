@@ -75,9 +75,16 @@ class SongZhuFu:
 # ── 形态遗留清理（快来保护我 / 萌即正义 共用）───────────────────────────────────
 
 def _morph_replaced_cond(e, s):
-    """同一式神身上打出另一张形态牌 → 旧形态离场。"""
+    """同一式神身上打出另一张形态牌 → 旧形态离场。
+
+    排除挂载时的形态卡自身（_st_morph_cleanup_exclude）：完成事件在
+    on_play（挂载）之后广播，不排除的话本次打出的完成事件会当场清除
+    新形态刚设置的强制6/不屈。
+    """
     card = getattr(e.event, "card", None)
     if card is None or getattr(card, "type", None) != "morph":
+        return False
+    if card is getattr(s, "_st_morph_cleanup_exclude", None):
         return False
     return card.get_corresponding_hero() is s
 
@@ -101,9 +108,14 @@ def _st_morph_cleanup(e, s):
                       if getattr(l, "_tag", "") not in ("_st_mengji_force6", "_st_morph_cleanup")]
 
 
-def _st_morph_attach_cleanup(hero):
-    """挂载形态离场/气绝时的清理监听器（统一 tag）。"""
+def _st_morph_attach_cleanup(hero, exclude_card=None):
+    """挂载形态离场/气绝时的清理监听器（统一 tag）。
+
+    exclude_card：挂载时的形态卡自身，供 _morph_replaced_cond 排除
+    本次打出的完成事件（挂载发生在 on_play，先于完成广播）。
+    """
     hero.listeners = [l for l in hero.listeners if getattr(l, "_tag", "") != "_st_morph_cleanup"]
+    hero._st_morph_cleanup_exclude = exclude_card
     l_play = Listener("play card", _morph_replaced_cond, (_st_morph_cleanup,))
     l_play._tag = "_st_morph_cleanup"
     l_die = Listener("about to die", _about_to_die_cond, (_st_morph_cleanup,))
@@ -128,7 +140,7 @@ def _kuailaibaohuwo_on_play(s):
         if HeroAttributes.TENACIOUS not in hero.attributes:
             hero.attributes.append(HeroAttributes.TENACIOUS)
         hero._kuailai_tenacious = True
-    _st_morph_attach_cleanup(hero)
+    _st_morph_attach_cleanup(hero, exclude_card=s)
 
 
 class KuaiLaiBaoHuWo:
@@ -401,7 +413,7 @@ def _mengjizhengyi_on_play(s):
                  (_st_mengji_force6,))
     l._tag = "_st_mengji_force6"
     hero.listeners.append(l)
-    _st_morph_attach_cleanup(hero)
+    _st_morph_attach_cleanup(hero, exclude_card=s)
 
 
 class MengJiZhengYi:

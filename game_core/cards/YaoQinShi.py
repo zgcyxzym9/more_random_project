@@ -245,16 +245,15 @@ _MOYIN_TAG = "moyinraoxin_active"
 
 
 def _moyin_negate(act, enemy):
-    """让正在使用的牌失效：拦截出牌、补扣费用（仅普通出牌路径）、移出牌堆。
+    """让正在使用的牌失效：拦截出牌、补扣费用（仅主动打出）、移出牌堆。
 
-    act 为 "play card" 广播的原始事件：普通出牌是 PlayCard action（手动广播/
-    尚未进入 step 或 play_card，扣费未发生），响应牌是 Event（费用已由
-    _consume_fire 扣除）。
+    act 为 "play card" 广播的 PlayCardEvent。主动打出（response=False）的
+    广播点在 play_card 扣费之前，需在此补扣，使被失效的牌费用（鬼火/瞬发
+    次数）正常消耗；响应通道维持各自现状（战斗响应已预扣、法术响应被拦截
+    时不扣费——既有行为）。
     """
     card = getattr(act, "card", None)
-    if isinstance(act, PlayCard):
-        # 手动广播的 PlayCard 事件未经过 play_card，需手动补扣，
-        # 使被失效的牌费用（鬼火/瞬发次数）正常消耗。
+    if not getattr(act, "response", True):
         enemy.game._consume_fire(enemy, card)
     act.revert = True
     if card is not None:
@@ -301,7 +300,7 @@ def _moyin_active_on_play(s):
     """主动打出：本回合敌方使用的下一张牌失效（己方回合敌方只会出响应牌）。"""
     player = s.owner
     player.listeners = [l for l in player.listeners if getattr(l, "_tag", "") != _MOYIN_TAG]
-    l_neg = Listener("play card", _moyin_active_cond, (_moyin_active_negate,))
+    l_neg = Listener("pre play card", _moyin_active_cond, (_moyin_active_negate,))
     l_neg._tag = _MOYIN_TAG
     l_clean = Listener("begin turn",
                        lambda e, p: e.next_player is p.opponent,
@@ -333,7 +332,8 @@ def _moyin_active_cleanup(e, p):
 class MoYinRaoXin:
     """魔音扰心：响应——当敌方牌手将使用牌时，自动使用；效果——敌方牌手本回合使用的下一张牌不会生效。
 
-    纯卡牌层实现（引擎仅在 _play_response_card 补了「响应牌出牌」的 "play card" 广播）：
+    纯卡牌层实现（引擎在结算前广播 "pre play card" 前置事件，监听器据此
+    在牌生效前 revert 拦截）：
     - 响应场景（敌方回合、此牌在手牌）：手牌自携监听器拦截敌方本回合使用的牌，
       自动消耗此牌（模拟响应打出）并使敌方正在使用的牌失效。
     - 主动场景（己方回合打出）：on_play 挂一次性监听器，使敌方在己方回合使用的牌
@@ -347,7 +347,7 @@ class MoYinRaoXin:
     level_req = 2
     on_play = (lambda s: _moyin_active_on_play(s),)
     # 手牌自携响应监听器（不走引擎 _auto_response：以监听器模拟响应门槛）
-    listeners = (Listener("play card", _moyin_response_cond, (_moyin_response,)),)
+    listeners = (Listener("pre play card", _moyin_response_cond, (_moyin_response,)),)
 
 
 class JueXingZhenHunGe:
