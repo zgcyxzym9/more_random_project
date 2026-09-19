@@ -33,7 +33,7 @@ def _buyezhiwu_inject(e, s):
 
 
 def _buyezhiwu_match(e, s):
-    """仅拦截本方主动打出的战斗牌（play_card 内 PrePlayCardEvent 前置广播点）。
+    """仅拦截本方主动打出的战斗牌（play_card 内 "play card" before 前置广播点）。
 
     - 形态门控：不知火当前形态不再是此卡时被动失效（仿笨拙/妖刀万华的
       morphed_id 模式；死亡时 morphed_id 清零，同样自动失效）。
@@ -51,7 +51,7 @@ def _buyezhiwu_match(e, s):
 
 def _buyezhiwu_on_play(card):
     hero = card.get_corresponding_hero()
-    l = Listener("pre play card", _buyezhiwu_match, (_buyezhiwu_inject,))
+    l = Listener("play card", _buyezhiwu_match, (_buyezhiwu_inject,), phase="before")
     # 防止重复叠加（不夜之舞只生效一份）
     hero.listeners = [lst for lst in hero.listeners if getattr(lst, '_tag', '') != 'buyezhiwu']
     l._tag = 'buyezhiwu'

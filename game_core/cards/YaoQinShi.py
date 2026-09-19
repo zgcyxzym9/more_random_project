@@ -300,7 +300,7 @@ def _moyin_active_on_play(s):
     """主动打出：本回合敌方使用的下一张牌失效（己方回合敌方只会出响应牌）。"""
     player = s.owner
     player.listeners = [l for l in player.listeners if getattr(l, "_tag", "") != _MOYIN_TAG]
-    l_neg = Listener("pre play card", _moyin_active_cond, (_moyin_active_negate,))
+    l_neg = Listener("play card", _moyin_active_cond, (_moyin_active_negate,), phase="before")
     l_neg._tag = _MOYIN_TAG
     l_clean = Listener("begin turn",
                        lambda e, p: e.next_player is p.opponent,
@@ -332,7 +332,7 @@ def _moyin_active_cleanup(e, p):
 class MoYinRaoXin:
     """魔音扰心：响应——当敌方牌手将使用牌时，自动使用；效果——敌方牌手本回合使用的下一张牌不会生效。
 
-    纯卡牌层实现（引擎在结算前广播 "pre play card" 前置事件，监听器据此
+    纯卡牌层实现（引擎在结算前广播 "play card" 的 before 阶段，监听器据此
     在牌生效前 revert 拦截）：
     - 响应场景（敌方回合、此牌在手牌）：手牌自携监听器拦截敌方本回合使用的牌，
       自动消耗此牌（模拟响应打出）并使敌方正在使用的牌失效。
@@ -347,7 +347,7 @@ class MoYinRaoXin:
     level_req = 2
     on_play = (lambda s: _moyin_active_on_play(s),)
     # 手牌自携响应监听器（不走引擎 _auto_response：以监听器模拟响应门槛）
-    listeners = (Listener("pre play card", _moyin_response_cond, (_moyin_response,)),)
+    listeners = (Listener("play card", _moyin_response_cond, (_moyin_response,), phase="before"),)
 
 
 class JueXingZhenHunGe:

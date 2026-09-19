@@ -267,7 +267,7 @@ def _liulangzhiyu_on_play(s):
     l = Listener("play card",
                  lambda e, h: e.event.card is not None and e.event.card.owner == h.owner
                               and e.event.card.eng_name in ("HuangJinYu", "JinFengLiuYu"),
-                 (lambda e, h: _liulangzhiyu_trigger(e, h),))
+                 (lambda e, h: _liulangzhiyu_trigger(e, h),), phase="after")
     l._tag = "liulangzhiyu"
     hero.listeners.append(l)
 

@@ -41,7 +41,7 @@ class Game:
         # 先清除上一回合临时加成，再广播 begin turn，让式神（如泷夜叉姬）按当前状态生成本回合加成
         self.player1.clear_round_effects()
         self.player2.clear_round_effects()
-        self.broadcast("begin turn", next_player=self.current_player)
+        self.broadcast("begin turn", next_player=self.current_player, phase="before")
         self.current_player.state = PlayerState.PLAYING if self.current_player.initial_pick_reject_left == 0 else PlayerState.INITIAL_PICK
         self.current_player.opponent.state = PlayerState.WAITING
         if self.player1.state != PlayerState.INITIAL_PICK and self.player2.state != PlayerState.INITIAL_PICK:
@@ -97,6 +97,11 @@ class Game:
                 hero.counters.inc("energy")
                 self.handle_event(EnergyGainEvent(hero, 1))
 
+        # ── 回合开始完成广播（begin turn after）：位于清甲/复活/倒计时/充能
+        # 结算之后、抽牌与蓄力结算之前。注意 attack_zone 已被
+        # retract_hero 清空：需要读取上一回合战斗区状态的效果应监听 before。──
+        self.broadcast("begin turn", next_player=self.current_player, phase="after")
+
         if self.current_player.state != PlayerState.INITIAL_PICK:
             self.current_player.draw()
 
@@ -128,8 +133,9 @@ class Game:
         return False
 
 
-    def broadcast(self, event_type, check_response=True, **kwargs):
+    def broadcast(self, event_type, check_response=True, phase="before", **kwargs):
         event = Event(event_type, **kwargs)
+        event.phase = phase
         for entity in self.iter_entities():
             # 0 级式神的被动技能不生效
             if isinstance(entity, Hero) and entity.level == 0:
@@ -139,9 +145,9 @@ class Game:
                     listener.trigger(event, entity)
         # ── 响应机制：与监听器同一广播点 ──────────────────────────────────
         # 响应牌也是「事件触发被动」：敌方回合、在手牌、满足条件时自动打出。
-        # step 的广播传 check_response=False —— step 的 hero attack 会再经
-        # handle_event 二次广播同一攻击，只在 handle_event 的广播点扫描，
-        # 保证一次攻击至多打出一张响应。
+        # step 的 before 广播传 check_response=False —— step 的 hero attack 会
+        # 再经 handle_event 二次广播同一攻击，保证同一阶段只扫一次；before/after
+        # 各扫一次由 response_phase 单选阶段兜底（一张牌只响应一个阶段）。
         if not check_response:
             return
         # 事件被监听器 revert（如鸦羽疾走）后不再触发响应
@@ -181,6 +187,10 @@ class Game:
             if card.response_trigger is None or card.response_condition is None:
                 continue
             if card.response_trigger != src.type:
+                continue
+            # 响应牌单选阶段（response_phase，默认 before）：同一事件 before/after
+            # 各扫描一次，一张牌只在其中一个阶段响应，保证不会有两次响应机会
+            if getattr(card, "response_phase", "before") != getattr(event, "phase", "before"):
                 continue
             conds = card.response_condition
             conds = conds if isinstance(conds, tuple) else (conds,)
@@ -226,12 +236,12 @@ class Game:
         # play_card，由 play_card 内部统一扣费。
         if card.type == "attack":
             self._consume_fire(player, card)
-            # 响应牌出牌也广播前置事件（PrePlayCardEvent，response=True；
+            # 响应牌出牌也广播前置事件（"play card" phase="before"，response=True；
             # step 之外的出牌通道），供监听器在生效前介入（魔音扰心主动效果
             # 依赖此点拦截敌方响应牌）。check_response=False：响应牌自身不再
             # 触发其它响应（响应不可再响应）。
-            use_evt = PrePlayCardEvent(player, card, response=True)
-            self.broadcast("pre play card", event=use_evt, check_response=False)
+            use_evt = PlayCardEvent(player, card, response=True)
+            self.broadcast("play card", event=use_evt, phase="before", check_response=False)
             if getattr(use_evt, "revert", False):
                 return   # 被监听器拦截（如魔音扰心）：响应牌不生效（费用处理见上方注释）
             hero = card.get_corresponding_hero()
@@ -253,10 +263,10 @@ class Game:
             player.move_card_to_used(card)
             self._pending_response_cleanups.append((card, hero, pre_atk, pre_def))
             # 结算完成事件：与 play_card 末尾一致，「使用牌时」类触发被动
-            # （凤凰火投射等）同样监听响应打出的完成。
+            # （凤凰火投射等）同样监听响应打出的完成（phase="after"）。
             self.broadcast("play card",
                            event=PlayCardEvent(player, card, response=True),
-                           check_response=False)
+                           phase="after", check_response=False)
         else:
             self.play_card(player, card, via_response=True)
 
@@ -414,12 +424,12 @@ class Game:
             # 复位离殇之舞的一次性标记：上一次出击若被拒绝（眩晕/鬼火不足等）可能泄漏
             player._skip_inspiration_consume = False
         # check_response=False：step 的 hero attack 会再经 handle_event 二次广播
-        # 同一攻击；响应只在 handle_event 的广播点扫描（见 broadcast），保证一次
-        # 攻击至多打出一张响应、且监听器先于响应结算。
-        # play card 动作广播为 "play card action"；事件层 "pre play card"
-        # （结算前，否定/注入）与 "play card"（结算后，触发被动）均由
+        # 同一攻击；同一阶段只扫一次，before/after 各扫一次由 response_phase
+        # 单选阶段兜底（见 broadcast），一张响应牌不会对同一事件响应两次。
+        # play card 动作广播为 "play card action"；事件层 "play card" 的
+        # before（结算前，否定/注入）与 after（结算后，触发被动）均由
         # play_card / _play_response_card 在对应时机广播。
-        self.broadcast(action.type, event=action, check_response=False)
+        self.broadcast(action.type, event=action, check_response=False, phase="before")
         if hasattr(action, "revert") and action.revert == True:
             return
         match action.type:
@@ -631,6 +641,12 @@ class Game:
         while len(self.action_queue) > 0:
             self.handle_event(self.action_queue.pop(0))
 
+        # ── 动作完成广播（两阶段之 after）：动作主体完整走完本 step 才广播；
+        # 校验失败 / revert / 挂起选目标（HUNTING 等 pending 提前 return）的路径
+        # 自然不会到达此处。注意 "end turn" 的 after 广播时下一回合的 begin_turn
+        # 已完整执行；"play card action" 的结算若挂起选目标同样不会广播。──
+        self.broadcast(action.type, event=action, phase="after")
+
 
     def handle_event(self, event: Event):
         """
@@ -638,7 +654,7 @@ class Game:
         """
         if event is None:
             return
-        self.broadcast(event.type, event=event)
+        self.broadcast(event.type, event=event, phase="before")
         if hasattr(event, "revert") and event.revert == True:
             # 事件被 revert（如鸦羽疾走取消攻击）：响应战斗牌暂存的 buff 未被战斗
             # 结算消费，防御性排空，避免泄漏。
@@ -868,6 +884,12 @@ class Game:
             case _:
                 print(f"handling event with undefined event type {event.type}, check code!")
 
+        # ── 事件完成广播（两阶段之 after）：事件主体应用完毕后广播同一事件对象。
+        # revert 与 "hero attack" 目标已死等提前 return 的路径自然不会到达此处
+        # （事件未真正生效）。after 阶段对事件的修改与 revert 不再被评估；
+        # 响应扫描照常（response_phase 单选阶段防重复响应）。──
+        self.broadcast(event.type, event=event, phase="after")
+
 
     def play_card(self, player: Player, card: Card, target=None, use_blast: bool = False,
                   use_charge: bool = False, via_response: bool = False):
@@ -930,14 +952,14 @@ class Game:
                     player.state = PlayerState.PLAYING
                     return
 
-        # ── 使用牌前置事件（PrePlayCardEvent）：目标选择已完成，此后确定结算。
-        # 仅供需在结算生效前介入的监听器：否定（魔音扰心 revert）与注入
-        # （不夜之舞/心技一体写入 buff）。「使用牌时」类触发被动听结算后的
-        # "play card"（PlayCardEvent，函数末尾）。被拒绝/放弃的打出不会走到
-        # 这里；check_response=False 与既有出牌通道一致（出牌不触发响应扫描）。
+        # ── 使用牌前置广播（"play card" before）：目标选择已完成，此后确定结算。
+        # 仅供需在结算生效前介入的监听器（phase="before"）：否定（魔音扰心
+        # revert）与注入（不夜之舞/心技一体写入 buff）。「使用牌时」类触发被动
+        # 听同一事件类型的 phase="after"（函数末尾）。被拒绝/放弃的打出不会走
+        # 到这里；check_response=False 与既有出牌通道一致（出牌不触发响应扫描）。
         # 被拦截则整体放弃结算。──
-        play_evt = PrePlayCardEvent(player, card, response=via_response)
-        self.broadcast("pre play card", event=play_evt, check_response=False)
+        play_evt = PlayCardEvent(player, card, response=via_response)
+        self.broadcast("play card", event=play_evt, phase="before", check_response=False)
         if getattr(play_evt, "revert", False):
             player.selected_targets = None
             return
@@ -1066,12 +1088,12 @@ class Game:
             player.move_card_to_used(card)
         player.selected_targets = None
 
-        # ── 使用牌完成事件（PlayCardEvent）：结算与卡牌去向均已落定。
-        # 「使用牌时」类触发被动（凤凰火投射/火取魔计数等）在此广播——
-        # 监听器读到的是结算后的战场状态（投射目标按结算后的对手战斗区
-        # 解析等）。此处不再处理 revert：牌已实际打出。──
+        # ── 使用牌完成广播（"play card" after）：结算与卡牌去向均已落定。
+        # 「使用牌时」类触发被动（凤凰火投射/火取魔计数等）监听 phase="after"
+        # 的同一事件类型——监听器读到的是结算后的战场状态（投射目标按结算后
+        # 的对手战斗区解析等）。此处不再处理 revert：牌已实际打出。──
         self.broadcast("play card", event=PlayCardEvent(player, card, response=via_response),
-                       check_response=False)
+                       phase="after", check_response=False)
 
 
     # ═══════════════════════════════════════════════════════════════════════════

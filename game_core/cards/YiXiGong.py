@@ -128,7 +128,7 @@ def _tangrendashi_on_play(s):
     def effect(e, h):
         h.owner.game.handle_event(SummonEvent(h.owner, "DaTangRen"))
 
-    l = Listener("play card", cond, (effect,))
+    l = Listener("play card", cond, (effect,), phase="after")
     l._tag = tag
     hero.listeners.append(l)
 
@@ -248,7 +248,7 @@ def _juexing_yxg_on_play(s):
     # 挂在牌手上（觉醒是永久能力，不随式神气绝重置）；与基础能力共用
     # "yixigong_cooked" 每回合一次计数，避免同一法术触发两次烹饪。
     player.listeners = [l for l in player.listeners if getattr(l, "_tag", "") != "yxg_awaken"]
-    l = Listener("play card", _yxg_awaken_cond, (_yxg_awaken_cook,))
+    l = Listener("play card", _yxg_awaken_cond, (_yxg_awaken_cook,), phase="after")
     l._tag = "yxg_awaken"
     player.listeners.append(l)
 

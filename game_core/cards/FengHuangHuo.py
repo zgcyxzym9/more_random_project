@@ -104,7 +104,7 @@ def _niepanyehuo_apply(s, hero):
         h.listeners = [l for l in h.listeners if getattr(l, "_tag", "") != "fhh_niepan_buff"]
         h.original_listeners = [x for x in h.original_listeners if getattr(x, "_tag", "") != "fhh_niepan_buff"]
 
-    l_trig = Listener("play card", lambda e, h: True, (_trigger,))
+    l_trig = Listener("play card", lambda e, h: True, (_trigger,), phase="after")
     l_trig._tag = "fhh_niepan_buff"
     l_clr = Listener("begin turn", lambda e, h: e.next_player != h.owner, (_clear,))
     l_clr._tag = "fhh_niepan_buff"
@@ -243,7 +243,7 @@ def _juexing_fhh_on_play(s):
                  lambda e, h: h.is_alive and e.event.card.owner == h.owner
                  and e.event.card.card_type == CardType.SPELL
                  and e.event.card.get_corresponding_hero() is not h,
-                 (_fhh_awaken_projectile,))
+                 (_fhh_awaken_projectile,), phase="after")
     l._tag = "fhh_awaken"
     for tag in ("fhh_awaken",):
         hero.listeners = [x for x in hero.listeners if getattr(x, "_tag", "") != tag]
@@ -310,7 +310,7 @@ def _chuyun_on_play(s):
                  and e.event.card.owner == h.owner
                  and e.event.card.card_type == CardType.SPELL
                  and e.event.card.get_corresponding_hero() == h,
-                 (_chuyun_give_fenghuo,))
+                 (_chuyun_give_fenghuo,), phase="after")
     l._tag = "chuyun_fenghuo"
     hero.listeners.append(l)
 

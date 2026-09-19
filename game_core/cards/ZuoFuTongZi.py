@@ -121,7 +121,7 @@ def _fushoushuangquan_on_play(s):
     hero.listeners = [l for l in hero.listeners if getattr(l, "_tag", "") != "fushou_leave"]
     l_death = Listener("about to die", _fushou_death_cond, (_fushou_leave_give_fire,))
     l_death._tag = "fushou_leave"
-    l_play = Listener("pre play card", _fushou_play_cond, (_fushou_leave_give_fire,))
+    l_play = Listener("play card", _fushou_play_cond, (_fushou_leave_give_fire,), phase="before")
     l_play._tag = "fushou_leave"
     hero.listeners.append(l_death)
     hero.listeners.append(l_play)
@@ -132,7 +132,7 @@ def _fushou_death_cond(e, h):
 
 def _fushou_play_cond(e, h):
     # 福寿双全仍生效时打出另一张座敷童子形态牌 → 福寿双全离场
-    # （必须监听 "pre play card" 前置事件：完成事件广播时新形态已替换完毕，
+    # （必须监听 "play card" 的 before 阶段：完成（after）广播时新形态已替换完毕，
     # morphed_id != 81 守卫将永远不成立；前置时机与旧版广播时序一致）
     if h.morphed_id != 81:
         return False

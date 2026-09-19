@@ -162,8 +162,10 @@ class HuoQuMo:
     atk = 2
     hp = 5
     type = "fire"
+    # "play card" 监听器一律 phase="after"（完成广播）——历史语义即读结算后的
+    # 战场状态，全项目统一（见 manager.Listener 与 PlayCardEvent 的说明）
     listeners = (Listener("play card", _huoqumo_fire_card_cond,
-                          (_huoqumo_fire_card_effect,)),)
+                          (_huoqumo_fire_card_effect,), phase="after"),)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -268,7 +270,7 @@ class JingLiuLiYuQian:
                                        and e.event.card.get_corresponding_hero() is not None
                                        and e.event.card.get_corresponding_hero() != s
                                        and e.event.card.get_corresponding_hero().type == "wood",
-                          (_jingliuliyuqian_on_wood_card,)),)
+                          (_jingliuliyuqian_on_wood_card,), phase="after"),)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -366,7 +368,7 @@ def _yaohu_damage_track(e, s):
 def _yaohu_spell_listener():
     l = Listener("play card",
                  lambda e, s: s.is_alive and e.event.card.owner == s.owner and e.event.card.card_type == CardType.SPELL,
-                 (_yaohu_spell,))
+                 (_yaohu_spell,), phase="after")
     l._tag = "yaohu_spell"
     return l
 
@@ -388,7 +390,7 @@ def _yaohu_awaken_listeners():
     """觉醒·妖狐的监听器集合：使用法术牌 / 运势判定成功 均触发基础伤害。"""
     l1 = Listener("play card",
                   lambda e, s: s.is_alive and e.event.card.owner == s.owner and e.event.card.card_type == CardType.SPELL,
-                  (_yaohu_awaken_spell,))
+                  (_yaohu_awaken_spell,), phase="after")
     l1._tag = "yaohu_awaken"
     l2 = Listener("fortune success",
                   lambda e, s: s.is_alive and getattr(e.event, "source_hero", None) is not None
@@ -739,7 +741,7 @@ class FengHuangHuo:
     type = "fire"
     listeners = (Listener("play card",
                           lambda e, s: s.is_alive and e.event.card.owner == s.owner and e.event.card.card_type == CardType.SPELL and e.event.card.get_corresponding_hero() == s,
-                          (_fhh_base_ability,)),)
+                          (_fhh_base_ability,), phase="after"),)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -891,7 +893,7 @@ class YaoQinShi:
                           lambda e, s: s.is_alive and e.event.card.owner == s.owner
                                        and e.event.card.eng_name.startswith("JueXing")
                                        and e.event.card.get_corresponding_hero() == s,
-                          (_yaoqinshi_awaken,)),
+                          (_yaoqinshi_awaken,), phase="after"),
                  Listener("countdown",
                           lambda e, s: getattr(e.event, "hero", None) is s,
                           (_yaoqinshi_track_resolved,)))
@@ -926,9 +928,13 @@ class YiMuLian:
     atk = 2
     hp = 6
     type = "wood"
+    # phase="after"：引擎的回合开始清甲（hero.defense = 0）发生在 before 广播之后，
+    # 监听 before 阶段的 +1 防御会随即被清零（从未生效的既有 bug）；after 广播点
+    # 位于清甲/复活/倒计时/充能结算之后、抽牌之前，+1 防御得以保留。
     listeners = (Listener("begin turn",
                           lambda e, s: s.is_alive and e.next_player == s.owner,
-                          (lambda e, s: GiveBuff("defense", 1, s, [s]),)),)
+                          (lambda e, s: GiveBuff("defense", 1, s, [s]),),
+                          phase="after"),)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1005,11 +1011,11 @@ class YiXiGong:
                           lambda e, s: s.is_alive and e.event.card.owner == s.owner
                                        and e.event.card.card_type == CardType.SPELL
                                        and e.event.card.get_corresponding_hero() == s,
-                          (_yixigong_cook,)),
+                          (_yixigong_cook,), phase="after"),
                  Listener("cook",
                           lambda e, s: e.event.player is s.owner,
                           (_yxg_track_cook,)),
-                 Listener("play card", _yxg_jiaoyao_played, (_yxg_track_play,)))
+                 Listener("play card", _yxg_jiaoyao_played, (_yxg_track_play,), phase="after"))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

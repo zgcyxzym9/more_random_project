@@ -63,6 +63,9 @@ class Card(Entity):
         # 响应机制：response_trigger 匹配广播的事件类型；on_response 为响应打出时的回调。
         # 与 response_condition 同时存在时走新机制（见 game.Game._auto_response）。
         self.response_trigger = card_obj.response_trigger if hasattr(card_obj, "response_trigger") else None
+        # 响应牌单选阶段（两阶段广播）：只在 "before"（事件生效前）或 "after"
+        # （事件生效后）之一响应，默认 "before" 与既有响应牌行为一致
+        self.response_phase = getattr(card_obj, "response_phase", "before")
         self.on_response = card_obj.on_response if hasattr(card_obj, "on_response") else ()
         self.enhance_condition = card_obj.enhance_condition if hasattr(card_obj, "enhance_condition") else None
         # 增强（wiki 关键字-增强）声明：CardEnhance 元组，判定/结算由 Game 的

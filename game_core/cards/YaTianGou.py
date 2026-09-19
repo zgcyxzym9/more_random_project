@@ -226,7 +226,7 @@ def _ytg_register_stun_release(player, hero, target, exclude_card=None):
                       lambda e, p: (e.event.card is not None
                                     and e.event.card is not exclude_card
                                     and e.event.card.owner == player),
-                      (_release,))
+                      (_release,), phase="after")
     l_play._tag = tag
     l_atk = Listener("hero attack",
                      lambda e, p: getattr(e.event, "hero", None) is hero,

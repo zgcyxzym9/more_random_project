@@ -47,7 +47,7 @@ def _install_sll_tracker(player, on_gain=None):
         player._sll_jiaoyao_callbacks.append(on_gain)
     l_cook = Listener("cook", lambda e, p: e.event.player == p, (_on_sll_cook,))
     l_cook._tag = tag
-    l_play = Listener("play card", _sll_play_cond, (_on_sll_play,))
+    l_play = Listener("play card", _sll_play_cond, (_on_sll_play,), phase="after")
     l_play._tag = tag
     player.listeners += [l_cook, l_play]
 
@@ -283,7 +283,7 @@ def _shishen_on_play(s):
     # 每回合一次：食材/佳肴不消耗鬼火（以返还鬼火近似；代价：仍需先持有 1 鬼火才能打出）
     tag2 = "shishen_refund"
     player.listeners = [l for l in player.listeners if getattr(l, "_tag", "") != tag2]
-    l2 = Listener("play card", _shishen_refund_cond, (_shishen_refund,))
+    l2 = Listener("play card", _shishen_refund_cond, (_shishen_refund,), phase="after")
     l2._tag = tag2
     player.listeners.append(l2)
 

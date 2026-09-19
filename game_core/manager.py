@@ -16,14 +16,32 @@ class CardEnhance:
 
 
 class Listener:
-    def __init__(self, event_type, condition, effects):
+    """事件监听器（两阶段广播）。
+
+    phase 只能取 "before"（生效前）或 "after"（生效后）二者之一——每个监听器
+    只匹配其中一个阶段，同一事件不会让同一监听器触发两次。未显式指定时默认
+    "before"，与历史单阶段行为兼容（绝大多数广播点在生效前）。
+
+    例外历史约定："play card" 的常规监听器习惯上读的是结算完成后的战场状态，
+    全部旧监听器已显式迁移为 phase="after"（对应完成广播位置），不能依赖默认值。
+
+    after 阶段语义：广播点位于事件/动作完整生效之后（revert、校验失败、挂起
+    等提前返回的路径不会广播 after）；对 wrapper 事件的修改与 revert 在 after
+    阶段不再被评估。
+    """
+
+    def __init__(self, event_type, condition, effects, phase="before"):
+        if phase not in ("before", "after"):
+            raise ValueError(f"invalid listener phase: {phase!r}")
         self.event_type = event_type
         self.condition = condition      # event -> bool
         self.effects = effects          # list[Effect]
+        self.phase = phase              # "before" | "after"，二选一
 
     def matches(self, event, owner):
         return (
             event.type == self.event_type
+            and getattr(event, "phase", "before") == self.phase
             and self.condition(event, owner)
         )
 

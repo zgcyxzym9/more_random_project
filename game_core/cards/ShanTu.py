@@ -116,7 +116,7 @@ def _st_morph_attach_cleanup(hero, exclude_card=None):
     """
     hero.listeners = [l for l in hero.listeners if getattr(l, "_tag", "") != "_st_morph_cleanup"]
     hero._st_morph_cleanup_exclude = exclude_card
-    l_play = Listener("play card", _morph_replaced_cond, (_st_morph_cleanup,))
+    l_play = Listener("play card", _morph_replaced_cond, (_st_morph_cleanup,), phase="after")
     l_play._tag = "_st_morph_cleanup"
     l_die = Listener("about to die", _about_to_die_cond, (_st_morph_cleanup,))
     l_die._tag = "_st_morph_cleanup"
