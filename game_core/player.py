@@ -104,8 +104,14 @@ class Player():
         from .agent import Agent, IOAgent
         self.agent = IOAgent(self.game, self)
 
-    def advance_hero(self, hero: Hero):
+    def advance_hero(self, hero: Hero) -> bool:
+        """进入战斗区（替换已有占位者）。尘缚之阵替换锁拦截需替换的进入：
+        返回 False 且不改变战斗区（空位进入/占位者本人/远程不受限）。"""
         if self.attack_zone is not None and self.attack_zone is not hero:
+            if self.game._replace_blocked(self, hero):
+                print(f"battle zone is locked: {hero.type_name} cannot "
+                      f"replace {self.attack_zone.type_name}")
+                return False
             if getattr(self.attack_zone, 'is_summoned', False):
                 # 召唤物被其他式神进入战斗区替换时直接离场（非气绝）
                 self.dismiss_summon(self.attack_zone)
@@ -113,6 +119,7 @@ class Player():
                 self.attack_zone.state = "pending"
         self.attack_zone = hero
         hero.state = "attacking"
+        return True
 
     def dismiss_summon(self, summon: Hero):
         """召唤物直接离场：从己方式神列表移除，不视为气绝/死亡。"""
@@ -231,6 +238,12 @@ class Player():
                         self._append_blast_action(actions, card, None)
                         self._append_charge_action(actions, card, None)
                 for hero in self.heroes:
+                    # 激怒限制：己方有可出击的激怒式神时，只能让激怒式神出击
+                    if self.game._enrage_blocks(self, hero):
+                        continue
+                    # 尘缚之阵替换锁：需替换被锁占位者的出击不列入动作
+                    if self.game._replace_blocked(self, hero):
+                        continue
                     if hero.is_alive and hero.level > 0 and self.attack_available and hero.can_act():
                         # 迅捷/昂扬 不需要鬼火
                         if HeroAttributes.AGILE in hero.attributes or HeroAttributes.VALIANT in hero.attributes:
@@ -381,6 +394,12 @@ class InferenceOpponent(Player):
                     return actions
                 actions.append(EndTurn())
                 for hero in self.heroes:
+                    # 激怒限制：己方有可出击的激怒式神时，只能让激怒式神出击
+                    if self.game._enrage_blocks(self, hero):
+                        continue
+                    # 尘缚之阵替换锁：需替换被锁占位者的出击不列入动作
+                    if self.game._replace_blocked(self, hero):
+                        continue
                     if hero.is_alive and hero.level > 0 and self.attack_available and hero.can_act():
                         if self.fire_cnt > 0 or HeroAttributes.AGILE in hero.attributes or HeroAttributes.VALIANT in hero.attributes:
                             actions.append(HeroAttack(hero))

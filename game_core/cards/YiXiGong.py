@@ -153,8 +153,7 @@ class HuiLuChengJiang:
         attributes=(CardAttributes.INSTANT,),
         on_play=(lambda s: Heal(2, s, [s.owner]),),
     ),)
-    on_play = (lambda s: s.owner.draw(),
-               lambda s: s.owner.draw(),
+    on_play = (lambda s: s.owner.game.handle_event(DrawEvent(s.owner, 2)),
                lambda s: Heal(2, s, [s.owner]),)
 
 

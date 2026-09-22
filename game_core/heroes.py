@@ -1256,3 +1256,184 @@ class RiHeFang:
     hp = 6
     type = "fire"
     base_attributes = (HeroAttributes.ENERGY_CHARGE,)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  34. 兵俑 (BingYong) — 紫岩派系
+#  基础能力：己方回合开始时，兵俑获得2点护甲（觉醒·兵俑后替换为3点）。
+#  形态持续效果（不动如山/森罗之阵）以 morphed_id 门控挂在下方监听器里
+#  （仿焚羽的 morphed_id 模式）：original_listeners 气绝时重置、复活后恢复，
+#  与形态状态天然同步，无需卡牌侧手动装卸。
+# ═══════════════════════════════════════════════════════════════════════════════
+def _bingyong_snapshot_armor(e, s):
+    # 觉醒后「兵俑的护甲不会在己方回合开始时被移除」的快照侧：before 广播点
+    # 位于引擎清甲（begin_turn 式神循环中 hero.defense = 0）之前，此处把当前
+    # 护甲存入普通属性。快照不门控 is_alive：气绝式神的护甲同样被清零，快照
+    # 到 0 即可避免复活后读到最后一次存活回合的陈旧数值产生幻影护甲。
+    s._by_armor_snapshot = s.defense
+
+
+def _bingyong_restore_armor(e, s):
+    s.defense += getattr(s, "_by_armor_snapshot", 0)
+
+
+def _bingyong_budongru_eff(e, s):
+    # 不动如山（morphed_id==284）：己方回合开始时若兵俑在战斗区，获得3点力量。
+    # round_buff_atk 为本回合力量（clear_round_effects 在 before 广播前已清零，
+    # 此处加的数值本回合有效）。battle_zone 判定须在 before 广播点：begin_turn
+    # 的 retract_hero 在 after 前已清空 attack_zone，after 读到的恒为空。
+    s.round_buff_atk += 3
+
+
+def _bingyong_senluo_cap(e, s):
+    # 森罗之阵（morphed_id==286）：兵俑有护甲时受到的伤害封顶。用户裁决语义
+    # （2026-09-22）：伤害最多只能移除护甲——有护甲时本次命中的气血损失为 0，
+    # 溢出部分蒸发。封顶 min(伤害, 护甲) 后必被护甲全额吸收（护甲减免统一在
+    # receive_damage 结算）。效果伤害与战斗伤害两条路径的 pre-damage 广播时
+    # 护甲均完好（战斗路径护甲减免已随扣血移交 receive_damage），单公式通吃。
+    # 广播传入的是包装 Event，真实 DealDamage 在 e.event 上，改其 value。
+    # 局限：多目标 AOE 的 value 为共享数值，无法按单目标封顶，仅单目标可封顶。
+    dmg = getattr(e, "event", None)
+    if dmg is not None:
+        dmg.value = min(dmg.value, s.defense)
+
+
+class BingYong:
+    id = 34
+    name = "兵俑"
+    atk = 1
+    hp = 6
+    type = "earth"
+    listeners = (
+        # 快照（before，每个己方回合开始都刷新）
+        Listener("begin turn",
+                 lambda e, s: e.next_player == s.owner,
+                 (_bingyong_snapshot_armor,),
+                 phase="before"),
+        # 觉醒侧：还原清甲前的护甲（after 广播点在清甲之后）。常驻监听器靠
+        # is_awakened 门控——觉醒跨气绝保留，且本监听器属于 original_listeners，
+        # 气绝时随 listeners 重置、复活后恢复，与觉醒状态始终同步。
+        Listener("begin turn",
+                 lambda e, s: (s.is_alive and s.is_awakened
+                               and e.next_player == s.owner),
+                 (_bingyong_restore_armor,),
+                 phase="after"),
+        # 不动如山（284）：己方回合开始时若兵俑在战斗区，获得3点力量。
+        # before 广播点读上一回合的战斗区状态（见 _bingyong_budongru_eff）。
+        Listener("begin turn",
+                 lambda e, s: (s.is_alive and s.morphed_id == 284
+                               and e.next_player == s.owner
+                               and s.owner.attack_zone is s),
+                 (_bingyong_budongru_eff,),
+                 phase="before"),
+        # 森罗之阵（286）：兵俑有护甲时受伤封顶（单目标伤害，效果与战斗路径
+        # 通吃，语义见 _bingyong_senluo_cap）。广播包装对象的负载在 e.event 上。
+        Listener("deal damage",
+                 lambda e, s: (s.is_alive and s.morphed_id == 286
+                               and s.defense > 0
+                               and getattr(e, "event", None) is not None
+                               and len(e.event.target) == 1
+                               and e.event.target[0] is s),
+                 (_bingyong_senluo_cap,),
+                 phase="before"),
+        # 基础能力：己方回合开始时获得2点护甲；觉醒·兵俑后替换为3点。用 after
+        # 广播点——引擎的回合开始清甲发生在 before 广播之后，监听 before 加的
+        # 护甲会随即被清零（从未生效的既有 bug）；after 位于清甲之后，护甲得以
+        # 保留。觉醒后先还原旧甲（还原监听器在前）再加新甲。
+        Listener("begin turn",
+                 lambda e, s: s.is_alive and e.next_player == s.owner,
+                 (lambda e, s: GiveBuff("defense", 3 if s.is_awakened else 2, s, [s]),),
+                 phase="after"),
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  35. 书翁 (ShuWeng) — 青岚派系
+#  基础能力：起始手牌+1。
+#  形态持续效果（纪行 290 / 明心 294）以 morphed_id 门控挂在下方监听器里
+#  （仿兵俑的 morphed_id 模式）。觉醒·书翁（297）的空牌库被动由引擎
+#  handle_event 的 "draw" 分支结算（DrawEvent 抽牌事件，用户裁决 2026-09-22）。
+# ═══════════════════════════════════════════════════════════════════════════════
+def _shuweng_bonus_draw(e, s):
+    s._sw_bonus_drawn = True
+    s.owner.game.handle_event(DrawEvent(s.owner, 1))
+
+
+def _shuweng_mingxin_replace(e, s):
+    """明心（morphed_id==294）：回合开始的抽牌改为检视牌库顶三张然后选一张
+    置入手牌，然后洗牌库。在 "turn draw" 事件上置 replaced 并给出候选与回调；
+    引擎在蓄力结算完成后进入 SELECTING_TARGET（复用既有选目标流程），选定后
+    回调结算（ShuWeng 检视流程的洗牌用 game.rng，同五道难题惯例）。
+    """
+    evt = getattr(e, "event", None)
+    if evt is None or evt.player is not s.owner:
+        return
+    top = s.owner.deck.cards[:3]
+    if not top:
+        return   # 牌库空：无牌可检视，不替换（交回引擎正常抽牌 → 空牌库流程）
+    evt.replaced = True
+    evt.candidates = list(top)
+
+    def _apply(chosen):
+        p = s.owner
+        if chosen in p.deck.cards:
+            p.deck.remove(chosen)
+            p.hand.append(chosen)
+            p.sort_hand()
+        p.game.rng.shuffle(p.deck.cards)
+
+    evt.on_chosen = _apply
+
+
+class ShuWeng:
+    id = 35
+    name = "书翁"
+    atk = 1
+    hp = 5
+    type = "wind"
+    # 基础能力「起始手牌+1」：起始手牌发放依赖引擎层发牌流程（审批清单改动2，
+    # 未实现），经用户裁决改为「5张调度完成后、第一回合开始时再抽一张牌」。
+    # begin turn 的 after 广播位于常规抽牌之前：双方 INITIAL_PICK 阶段被
+    # state 条件跳过，双方调度完成后的首个真实回合开始时先抽这张牌、再抽
+    # 回合抽牌。一次性旗标用普通属性而非 per-turn 计数器——计数器清零发生在
+    # before/after 广播之间，普通属性不受影响。书翁 0 级即可触发：broadcast
+    # 对 type_name == "ShuWeng" 豁免 0 级跳过（开局即生效的能力，game.py），
+    # 因此书翁在阵容任意位置都能在首回合生效，无需等待升级。
+    listeners = (
+        Listener("begin turn",
+                 lambda e, s: (e.next_player == s.owner
+                               and s.owner.state != PlayerState.INITIAL_PICK
+                               and not getattr(s, "_sw_bonus_drawn", False)),
+                 (_shuweng_bonus_draw,),
+                 phase="after"),
+        # 纪行（290）迅捷：引擎的 AGILE 在出击后被消耗，故在己方回合开始时
+        # 重新授予（胡桃觉醒的既有近似）：形态期间每回合第一个出击免鬼火。
+        Listener("begin turn",
+                 lambda e, s: (s.is_alive and s.morphed_id == 290
+                               and e.next_player == s.owner
+                               and HeroAttributes.AGILE not in s.attributes),
+                 (lambda e, s: s.attributes.append(HeroAttributes.AGILE),)),
+        # 纪行（290）形态离场：未消耗的迅捷随形态移除（形态离场含被替换与
+        # 随气绝消灭两种；气绝路径 check_death 随后还会移除一次，幂等）。
+        Listener("morph leave",
+                 lambda e, s: (getattr(e.event, "morph_id", 0) == 290
+                               and e.event.hero is s
+                               and HeroAttributes.AGILE in s.attributes),
+                 (lambda e, s: s.attributes.remove(HeroAttributes.AGILE),)),
+        # 纪行（290）：当书翁对敌方牌手造成伤害时，抽一张牌。damage dealt 为
+        # 结算后通知（连浪先例：value>0 才计）；对手 LOST 后不再触发（觉醒·
+        # 书翁空牌库「伤害→抽牌→伤害」链在对手死亡时自然终止）。抽牌走
+        # DrawEvent（觉醒后空牌库时同样经引擎分支结算为10点伤害）。
+        Listener("damage dealt",
+                 lambda e, s: (s.is_alive and s.morphed_id == 290
+                               and e.event.source is s
+                               and s.owner.opponent in e.event.target
+                               and getattr(e.event, "value", 0) > 0
+                               and s.owner.opponent.state != PlayerState.LOST),
+                 (lambda e, s: s.owner.game.handle_event(DrawEvent(s.owner, 1)),)),
+        # 明心（294）：回合开始的抽牌改为检视三选一（见 _shuweng_mingxin_replace）。
+        Listener("turn draw",
+                 lambda e, s: (s.is_alive and s.morphed_id == 294
+                               and getattr(e.event, "player", None) is s.owner),
+                 (_shuweng_mingxin_replace,)),
+    )

@@ -208,9 +208,9 @@ def _sheguainiaoshi_on_play(s):
     for c in to_discard:
         player.hand.remove(c)
         player.used_card.append(c)
-    # 抽等量的牌
-    for _ in range(count):
-        player.draw()
+    # 抽等量的牌（一个效果抽 count 张，觉醒·书翁空牌库时只结算一次10点伤害）
+    if count:
+        player.game.handle_event(DrawEvent(player, count))
 
 
 class JueXingYiJinZhenTian:

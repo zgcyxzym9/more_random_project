@@ -31,4 +31,6 @@ from .GuiShiHeiGuiShiBai import *
 from .XiaoLuNan import *
 from .LianYou import *
 from .RiHeFang import *
+from .BingYong import *
+from .ShuWeng import *
 from ._ingredients import *

@@ -53,12 +53,12 @@ def _jinyundaji_on_play(s):
     if hero is None:
         return
     # 进场：双方牌手运势4 → 抽一张牌
-    _fortune_both(s, 4, lambda p: p.draw())
+    _fortune_both(s, 4, lambda p: p.game.handle_event(DrawEvent(p, 1)))
     # 己方回合开始时：双方牌手运势4 → 抽一张牌（形态离场后失效）
     hero.listeners = [l for l in hero.listeners if getattr(l, "_tag", "") != "jinyundaji_begin"]
     l = Listener("begin turn",
                  lambda e, h: e.next_player == h.owner and h.morphed_id == 79,
-                 (lambda e, h: _fortune_both(s, 4, lambda p: p.draw()),))
+                 (lambda e, h: _fortune_both(s, 4, lambda p: p.game.handle_event(DrawEvent(p, 1))),))
     l._tag = "jinyundaji_begin"
     hero.listeners.append(l)
 
@@ -113,7 +113,7 @@ def _fushoushuangquan_on_play(s):
     # 增强：座敷童子已有形态牌时 → 获得瞬发（返还刚消耗的1点鬼火）且使用时抽一张牌
     if hero.morphed_id != 0:
         owner.fire_cnt += 1
-        owner.draw()
+        owner.game.handle_event(DrawEvent(owner, 1))
     # 进场：双方各获得1点鬼火
     owner.fire_cnt += 1
     owner.opponent.fire_cnt += 1
@@ -195,7 +195,7 @@ class FuYunChangLong:
     on_play = (lambda s: _fuyunchanglong_on_play(s),)
 
 def _fuyunchanglong_on_play(s):
-    s.owner.draw()
+    s.owner.game.handle_event(DrawEvent(s.owner, 1))
     hero = s.get_corresponding_hero()
     if hero is not None and s.owner.game.roll_fortune(hero, 4):
         s.owner.fire_cnt += 2

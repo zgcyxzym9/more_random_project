@@ -370,8 +370,8 @@ def _penglai_on_play(s):
 
 def _penglai_effect(e, s, card):
     mult = 2 if _hyj_durability(s) >= 10 else 1
-    for _ in range(mult):
-        s.draw()
+    # 一次效果抽 mult 张（觉醒·书翁空牌库时整个效果只结算一次10点伤害）
+    s.game.handle_event(DrawEvent(s, mult))
     s.fire_cnt += mult
 
 

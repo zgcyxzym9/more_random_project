@@ -102,8 +102,17 @@ class Game:
         # retract_hero 清空：需要读取上一回合战斗区状态的效果应监听 before。──
         self.broadcast("begin turn", next_player=self.current_player, phase="after")
 
+        turn_draw_evt = None
         if self.current_player.state != PlayerState.INITIAL_PICK:
-            self.current_player.draw()
+            # ── 回合抽牌（明心/觉醒·书翁批准钩子 2026-09-22）：先广播 "turn
+            # draw"，监听器（明心）置 replaced 时本次抽牌改为检视牌库顶三张选
+            # 一（candidates/on_chosen 随事件给出，在下方蓄力结算完成后进入选
+            # 目标）；未替换则经 DrawEvent 普通抽一张（觉醒·书翁空牌库被动在
+            # "draw" 分支结算）。──
+            turn_draw_evt = TurnDrawEvent(self.current_player)
+            self.handle_event(turn_draw_evt)
+            if not turn_draw_evt.replaced:
+                self.handle_event(DrawEvent(self.current_player, 1))
 
         # ── 蓄力结算：本回合开始时，正在蓄力的式神按蓄力顺序打出所蓄之卡。
         # 位于倒计时/眩晕块之后：自动解除后的眩晕不再阻止结算，只有 begin turn
@@ -126,6 +135,18 @@ class Game:
             if self.current_player.state == PlayerState.SELECTING_TARGET:
                 break
 
+        # ── 明心（294）替换的回合抽牌：检视三选一在蓄力结算完成后进入（复用
+        # 既有选目标流程，无挂起动作的纯回调选择，见 step "select target"）。
+        # 若蓄力结算挂起了自己的选目标（上方 break），明心让位：退化为普通抽
+        # 一张（极限边缘，已报备）。──
+        if getattr(turn_draw_evt, "replaced", False):
+            if self.current_player.state == PlayerState.PLAYING:
+                self.current_player.candidate_targets = list(turn_draw_evt.candidates)
+                self.current_player._pending_option_callback = turn_draw_evt.on_chosen
+                self.current_player.state = PlayerState.SELECTING_TARGET
+            elif self.current_player.state != PlayerState.LOST:
+                self.handle_event(DrawEvent(self.current_player, 1))
+
 
     def check_end_condition(self):
         if self.player1.state == PlayerState.LOST or self.player2.state == PlayerState.LOST:
@@ -137,8 +158,10 @@ class Game:
         event = Event(event_type, **kwargs)
         event.phase = phase
         for entity in self.iter_entities():
-            # 0 级式神的被动技能不生效
-            if isinstance(entity, Hero) and entity.level == 0:
+            # 0 级式神的被动技能不生效。书翁例外：「起始手牌+1」是开局即生效的
+            # 能力，不随等级解锁，须在书翁尚未升级的首个回合前触发。
+            if (isinstance(entity, Hero) and entity.level == 0
+                    and entity.type_name != "ShuWeng"):
                 continue
             for listener in entity.listeners:
                 if listener.matches(event, entity):
@@ -196,7 +219,9 @@ class Game:
             conds = conds if isinstance(conds, tuple) else (conds,)
             if not all(c(card, src, target) for c in conds):
                 continue
-            can_play, _ = self.can_play_card(responder, card)
+            # via_response=True：响应战斗牌只加 buff 不进入战斗区（wiki），
+            # 尘缚之阵替换锁不检查 attack 卡的替换合法性
+            can_play, _ = self.can_play_card(responder, card, via_response=True)
             if not can_play:
                 continue
             self._play_response_card(responder, card, src, target)
@@ -358,7 +383,7 @@ class Game:
             if enh.on_play:
                 card.on_play = tuple(getattr(card, "on_play", ())) + enh.on_play
 
-    def can_play_card(self, player: Player, card: Card):
+    def can_play_card(self, player: Player, card: Card, via_response: bool = False):
         msg = None
         # 增强（wiki 关键字-增强）：以「满足条件增强后的复制体」判定，原卡不被
         # 修改；确定打出后在 play_card 开头实装（#13 用户裁决）。
@@ -390,6 +415,13 @@ class Game:
             elif getattr(card, "form", "") and getattr(hero, "form", None) and card.form != hero.form:
                 msg = "trying to play a card whose form doesn't match the current hero form"
         # token 卡（食材/佳肴等）无对应式神，跳过式神等级/状态检查，可随时打出
+        # ── 尘缚之阵替换锁：战斗牌打出会使对应式神进入战斗区，需替换被锁占用区
+        # 时不可打出（占位者本人/远程/空位不受限）。响应战斗牌只加 buff 不进入
+        # 战斗区（wiki），经 via_response=True 豁免——被攻击者≠占位者（守护重定向）
+        # 时锁不得连坐响应。──
+        if (msg is None and not via_response and card.type == "attack"
+                and hero is not None and self._replace_blocked(player, hero)):
+            msg = "trying to play a battle card that would replace a locked battle zone occupant"
         # ── 目标候选为空的牌判定为不可打出（#13 用户裁决）：手牌打出在判定阶段
         # 即拦截，play_card 内的「放弃打出」分支仅作引擎内部自动使用路径的兜底。
         # 探测以快照/还原方式运行 select_target 回调，不污染牌手选择状态。──
@@ -416,6 +448,18 @@ class Game:
         All the effects triggered by a card should be handled by handle_event function below.
         """
         if action is None:
+            return
+        # 云游（291）中途调度的出口（用户批准 2026-09-22）：调度期间主动结束
+        # （EndTurn 动作，含调度次数用尽时 reject 分支的自动 EndTurn）在广播
+        # 前拦截——恢复 PLAYING、洗牌库，不广播 end turn（辉夜姬/鸦天狗/一目
+        # 连等回合结束类监听器依赖真实回合结束语义，不应被中途调度误触发）。
+        if (action.type == "end turn" and player.state == PlayerState.INITIAL_PICK
+                and getattr(player, "_sw_dispatch_active", False)):
+            player._sw_dispatch_active = False
+            player.initial_pick_reject_left = 0
+            player.state = PlayerState.PLAYING
+            player.sort_hand()
+            self.rng.shuffle(player.deck.cards)
             return
         # hero attack 事件广播前解析并挂载攻击目标，供 e.event.target 类监听器使用。
         # 目标解析逻辑与 handle_event 的 "hero attack" 分支保持一致。
@@ -529,6 +573,19 @@ class Game:
                 if action.hero.stunned:
                     print("trying to attack with a stunned hero")
                     return
+                # 激怒限制（wiki 补充定义）：己方有可出击的激怒状态式神时，
+                # 只能让激怒状态的式神出击
+                if self._enrage_blocks(player, action.hero):
+                    print("trying to attack with a non-enraged hero "
+                          "while an enraged hero can attack")
+                    return
+                # 尘缚之阵替换锁：需替换被锁占位者的出击不合法（空位进入/
+                # 占位者本人/远程不受限）。必须在鼓舞与鬼火消耗前拒绝，
+                # 否则玩家白损一次出击。
+                if self._replace_blocked(player, action.hero):
+                    print("trying to attack with a hero that would replace "
+                          "a locked battle zone occupant")
+                    return
                 if player.attack_available == False:
                     print("trying to attack when attack is not available")
                     return
@@ -597,7 +654,14 @@ class Game:
                 player.pending_card = None
                 pending_action = self.pending_action
                 self.pending_action = None
-                if pending_action.type == "hero attack":
+                if pending_action is None:
+                    # 无挂起动作的纯回调选择（明心替换的回合抽牌，begin_turn
+                    # 挂起）：把选定目标交给挂起回调结算，不走 play_card/攻击
+                    cb = player._pending_option_callback
+                    player._pending_option_callback = None
+                    if cb is not None:
+                        cb(action.target)
+                elif pending_action.type == "hero attack":
                     self.step(player, pending_action)
                 else:
                     # 保留 use_blast：爆能卡在目标选择后仍要触发爆能
@@ -741,7 +805,11 @@ class Game:
                 # RANGED: 远程式神不进入战斗区，从准备区攻击
                 is_ranged = HeroAttributes.RANGED in event.hero.attributes
                 if not is_ranged:
-                    player.advance_hero(event.hero)
+                    if not player.advance_hero(event.hero):
+                        # 尘缚之阵替换锁拦截：未进入战斗区，本次攻击不发生
+                        # （同下方死亡路径，防御性排空响应战斗牌暂存的 buff）
+                        self._drain_response_cleanups()
+                        return
 
                 target = self._resolve_attack_target(player, event.hero)
                 if target is not None:
@@ -772,6 +840,29 @@ class Game:
                     player.heroes.append(hero)
                     # 召唤物直接进战斗区（原战斗区式神由 move_to_battle 处理：召唤物离场/普通式神撤回准备区）
                     hero.move_to_battle()
+
+            case "draw":
+                # ── 抽牌（用户裁决 2026-09-22）：一个事件=一次抽牌效果，逐张
+                # 调用 player.draw()。空牌库在本分支内一次性结算：觉醒·书翁改
+                # 为对敌方牌手造成10点伤害且不败北，未觉醒维持败北——本分支处
+                # 理单个事件只执行一次，天然满足「一次抽多张的效果只触发一次伤
+                # 害」。既有直接调用 draw() 的卡牌暂未迁移：仍走 draw() 自身的
+                # 原始败北。──
+                player = event.player
+                for _ in range(event.count):
+                    if player.deck.is_empty():
+                        shuweng = next((h for h in player.heroes
+                                        if h.type_name == "ShuWeng"
+                                        and getattr(h, "is_awakened", False)), None)
+                        if shuweng is not None:
+                            opp = player.opponent
+                            if opp is not None and opp.state != PlayerState.LOST:
+                                self.handle_event(DealDamage(10, shuweng, [opp]))
+                        else:
+                            player.hp = 0
+                            player.state = PlayerState.LOST
+                        break
+                    player.draw()
 
             case "draw selected card from deck":
                 if event.card not in event.player.deck.cards:
@@ -878,6 +969,8 @@ class Game:
                 pass  # 仅广播，供「射怪鸟事」等响应牌在死亡结算前触发；死亡仍照常发生
             case "morph leave":
                 pass  # 仅广播，供「形态牌离场/被消灭时触发 XXX」被动（如一目连）监听
+            case "turn draw":
+                pass  # 仅广播：回合开始抽牌协商（明心置 replaced 改为检视三选一）
             case "after revive":
                 pass  # 仅广播，供复活加成类被动（桃花妖）监听；广播点在 case "revive" 内
 
@@ -1205,6 +1298,65 @@ class Game:
             return player.opponent.attack_zone
         return player.opponent
 
+    def _enrage_blocks(self, player, hero):
+        """激怒限制：己方有可出击的激怒状态式神时，只能让激怒状态的式神出击。
+
+        「出击」特指主动让式神攻击（step 的 hero attack action）：仅
+        主动出击路径与 get_legal_actions 动作生成调用本校验；战斗牌/
+        其他效果使式神攻击不属出击，不受阻拦。可出击 = 存活、可行动
+        （未眩晕）、玩家 attack_available 且鬼火/迅捷/昂扬满足——与
+        get_legal_actions 的出击条件对齐（玩家级条件不满足时本就无出击
+        可言）。激怒标记由卡牌层施加（target.enraged，如尘缚之阵），
+        attack() 结束时统一清除。0 级式神不可出击，不构成阻断。
+        """
+        if getattr(hero, 'enraged', False):
+            return False
+        for h in player.heroes:
+            if (h.is_alive and h.level > 0 and getattr(h, 'enraged', False)
+                    and h.can_act() and player.attack_available
+                    and (HeroAttributes.AGILE in h.attributes
+                         or HeroAttributes.VALIANT in h.attributes
+                         or player.fire_cnt > 0)):
+                return True
+        return False
+
+    def _replace_locked(self, player):
+        """尘缚之阵替换锁（卡牌层标记：morphed_id==289）：对方存活兵俑带
+        尘缚之阵形态且在对方战斗区时，player 的战斗区式神不可被其他式神
+        替换（空位进入允许，用户裁决 2026-09-20）。
+
+        纯查询无状态：morphed_id 气绝/换形态自动复位，兵俑撤回/战死后
+        attack_zone 为 None，锁随「兵俑带形态站在战斗区」自动解除。
+        """
+        opp = player.opponent
+        h = opp.attack_zone if opp is not None else None
+        return (h is not None and h.type_name == "BingYong"
+                and h.is_alive and h.morphed_id == 289)
+
+    def _replace_blocked(self, player, hero):
+        """hero 进入 player 战斗区是否构成被锁禁止的替换。
+
+        空位进入、占位者本人再进入均不构成替换；远程式神不进入战斗区
+        （从准备区攻击），同样不受限。player 战斗区未被锁返回 False。
+        """
+        if (player.attack_zone is None or player.attack_zone is hero
+                or HeroAttributes.RANGED in hero.attributes):
+            return False
+        return self._replace_locked(player)
+
+    def _direct_destroy_immune(self, target):
+        """尘缚之阵直接消灭免疫（卡牌层标记：morphed_id==289）：兵俑带该形态
+        且在己方战斗区时，免疫直接消灭效果（必杀/卡牌直接消灭）。纯查询无状态
+        ——形态与战斗区位置生命周期严格同步，无脱节可能（同 _replace_locked）。
+        语义（用户裁决 2026-09-22）：仅免"消灭"本身，伤害照常结算，伤害本身
+        致死仍正常气绝；免疫时效果无事发生（不落回替代前的伤害分支）。
+        """
+        if not isinstance(target, Hero):
+            return False
+        owner = getattr(target, 'owner', None)
+        return (owner is not None and owner.attack_zone is target
+                and target.morphed_id == 289)
+
     def attack(self, attacker, defender, card=None):
         """结算一次完整的战斗。
 
@@ -1212,8 +1364,7 @@ class Game:
         1. on_before_damage 回调
         2. DOUBLE_STRIKE (连击) / FIRST_STRIKE (先攻) — 额外攻击
         3. BARRIER (屏障) — 免疫一次伤害
-        4. 护甲减免
-        5. CRITICAL (暴击) — 伤害 ×2
+        4. CRITICAL (暴击) — 将被护甲吸收的部分原样带过、溢出部分 ×2
         6. 实际扣血 + RANGED 反伤检查
         7. LIFESTEAL (吸血) — 恢复生命
         8. TENACIOUS (不屈) — 降至 1 血
@@ -1286,6 +1437,10 @@ class Game:
 
         # ── 12-13. 清理 ────────────────────────────────────────────────
         self._post_attack_cleanup(attacker, defender)
+        # 激怒（wiki 补充定义）：激怒状态在攻击后清除。统一在 attack() 收口，
+        # 主动出击 / 战斗牌攻击 / 效果强制攻击全部覆盖。
+        if getattr(attacker, 'enraged', False):
+            attacker.enraged = False
 
 
     def _resolve_single_hit(self, source, target, raw_damage, is_extra=False, is_counter=False):
@@ -1317,15 +1472,15 @@ class Game:
             target.attributes.remove(HeroAttributes.BARRIER)
             return  # 免疫这一次伤害，完全不扣血
 
-        # ── 5. 护甲减免 ────────────────────────────────────────────────
-        if hasattr(target, 'defense') and target.defense > 0:
-            absorbed = min(target.defense, actual_damage)
-            target.defense -= absorbed
-            actual_damage -= absorbed
-
-        # ── 6. CRITICAL ────────────────────────────────────────────────
+        # ── 5. CRITICAL ────────────────────────────────────────────────
+        # wiki「关键字-暴击」：护甲/破甲、「鹗之守护」等改变伤害的效果先结算、
+        # 再翻倍。护甲减免已统一移交扣血时的 receive_damage（与法术路径一致，
+        # pre-damage 广播时护甲完好），此处把将被护甲吸收的部分原样带过翻倍、
+        # 仅对溢出部分加倍——receive_damage 吸掉带过的护甲部分后，净扣血即
+        # 「吸甲后翻倍」。夹取：伤害不足护甲时溢出取 0，护甲部分原样保留。
         if HeroAttributes.CRITICAL in getattr(source, 'attributes', []):
-            actual_damage *= 2
+            overflow = max(0, actual_damage - getattr(target, 'defense', 0))
+            actual_damage = overflow * 2 + (actual_damage - overflow)
 
         # 对牌手造成的战斗伤害 +X（来源式神本回合的 round_buff_player_damage）
         if isinstance(target, Player):
@@ -1342,12 +1497,16 @@ class Game:
         # 把 target 加入 combo.immune_targets；引擎侧不做任何来源/类型判断。
         combo = DealDamage(actual_damage, source, [target], "combat")
         self.broadcast("deal damage", event=combo, check_response=False)
+        # 回读监听器修改后的 value（与法术路径 case "deal damage" 的
+        # dmg = event.value 对齐，封顶类监听器如森罗之阵由此生效），下限 0。
+        actual_damage = max(0, combo.value)
         if target in getattr(combo, "immune_targets", ()):
             self._penetrate_overflow(source, target, actual_damage, hp_before, is_counter)
             return
 
-        # 实际扣血：统一走 receive_damage，应用破甲/幻境/鸮之守护等机制。
-        # 战斗路径此处 defense 已为 0，receive_damage 内的护甲减免为 no-op。
+        # 实际扣血：统一走 receive_damage，应用护甲/破甲/幻境/鸮之守护等机制。
+        # 护甲减免在此结算（广播时护甲完好，封顶类监听器可按命中时护甲封顶），
+        # 与法术路径同一入口。
         if hasattr(target, 'hp') and hasattr(target, 'receive_damage'):
             damage_dealt = target.receive_damage(actual_damage)
         elif hasattr(target, 'hp'):
@@ -1380,7 +1539,9 @@ class Game:
         # ── 10. FATAL ──────────────────────────────────────────────────
         if hasattr(target, 'hp') and target.hp > 0:
             if isinstance(target, Hero) and HeroAttributes.FATAL in getattr(source, 'attributes', []):
-                if actual_damage > 0 or is_extra:
+                # 尘缚之阵直接消灭免疫：仅免消灭，伤害已照常结算
+                if ((actual_damage > 0 or is_extra)
+                        and not self._direct_destroy_immune(target)):
                     target.hp = 0
 
         # ── 11. PENETRATE（贯通）──────────────────────────────────────

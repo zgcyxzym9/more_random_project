@@ -128,7 +128,7 @@ class QiGong:
 
 
 def _qigong_on_play(s):
-    s.owner.draw()
+    s.owner.game.handle_event(DrawEvent(s.owner, 1))
     hero = s.get_corresponding_hero()
     if hero is None:
         return

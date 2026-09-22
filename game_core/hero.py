@@ -162,10 +162,16 @@ class Hero(Entity):
 
     # ── 移动 ──────────────────────────────────────────────────────────────
 
-    def move_to_battle(self):
-        """移入战斗区。"""
+    def move_to_battle(self) -> bool:
+        """移入战斗区。尘缚之阵替换锁拦截需替换的进入：返回 False，不触发
+        on_move/MoveEvent（空位进入/占位者本人/远程不受限）。"""
         from .event import MoveEvent
         player = self.owner
+        if (player.attack_zone is not None and player.attack_zone is not self
+                and player.game._replace_blocked(player, self)):
+            print(f"battle zone is locked: {self.type_name} cannot replace "
+                  f"{player.attack_zone.type_name}")
+            return False
         if player.attack_zone is not None and player.attack_zone is not self:
             if getattr(player.attack_zone, 'is_summoned', False):
                 player.dismiss_summon(player.attack_zone)
@@ -176,6 +182,7 @@ class Hero(Entity):
         for callback in self.on_move:
             callback(self, "standby", "battle")
         player.game.handle_event(MoveEvent(self, "standby", "battle"))
+        return True
 
     def move_to_standby(self):
         """移出战斗区。"""

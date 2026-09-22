@@ -3115,12 +3115,180 @@
     },
     {
         "id": 282,
+        "type": "attack",
+        "hero": "BingYong",
+        "name": "尘刀",
+        "eng_name": "ChenDao",
+        "description": "每有1点护甲兵俑便获得1点力量。",
+        "is_beginning_card": true,
+        "level_req": 1
+    },
+    {
+        "id": 283,
         "type": "spell",
-        "hero": "YanYanLuo",
-        "name": "烟影",
-        "eng_name": "YanYing",
-        "description": "协战牌「日霭相织」的烟烟罗选项牌（选择打出）。效果文本与勾玉待核实，类型按协战选项牌惯例暂记为法术。",
-        "is_beginning_card": false,
-        "level_req": null
-    }
+        "hero": "BingYong",
+        "name": "古尘之盾",
+        "eng_name": "GuChenZhiDun",
+        "description": "使一个己方式神得5点护甲。响应：当兵俑被攻击时，自动对其使用。",
+        "is_beginning_card": true,
+        "level_req": 1
+    },
+    {
+        "id": 284,
+        "type": "morph",
+        "hero": "BingYong",
+        "name": "不动如山",
+        "eng_name": "BuDongRuShan",
+        "description": "进场时将兵俑移入战斗区。己方回合开始时若兵俑在战斗区，则获得3点力量。",
+        "is_beginning_card": true,
+        "level_req": 2,
+        "atk": 1,
+        "hp": 9
+    },
+    {
+        "id": 285,
+        "type": "attack",
+        "hero": "BingYong",
+        "name": "冲撞",
+        "eng_name": "ChongZhuang",
+        "description": "增强：己方回合开始时若兵俑在战斗区，此牌获得+1点力量与+1点护甲。",
+        "is_beginning_card": true,
+        "level_req": 2,
+        "buff_atk": 2,
+        "buff_def": 2
+    },
+    {
+        "id": 286,
+        "type": "morph",
+        "hero": "BingYong",
+        "name": "森罗之阵",
+        "eng_name": "SenLuoZhiZhen",
+        "description": "进场时使兵俑获得2点护甲。兵俑有护甲时，至多只会受到等于其护甲值的伤害。",
+        "is_beginning_card": true,
+        "level_req": 2,
+        "atk": 4,
+        "hp": 7
+    },
+    {
+        "id": 287,
+        "type": "spell",
+        "hero": "BingYong",
+        "name": "觉醒·兵俑",
+        "eng_name": "JueXingBingYong",
+        "description": "兵俑获得3点护甲。觉醒：己方回合开始时，兵俑得3点护甲。他的护甲不会在回合开始移除。",
+        "is_beginning_card": true,
+        "level_req": 2
+    },
+    {
+        "id": 288,
+        "type": "morph",
+        "hero": "BingYong",
+        "name": "古尘之壁",
+        "eng_name": "GuChenZhiBi",
+        "description": "进场时兵俑每有1点护甲，己方所有其他式神获得1点生命。",
+        "is_beginning_card": true,
+        "level_req": 3,
+        "atk": 5,
+        "hp": 10
+    },
+    {
+        "id": 289,
+        "type": "morph",
+        "hero": "BingYong",
+        "name": "尘缚之阵",
+        "eng_name": "ChenFuZhiZhen",
+        "description": "使一个敌方式神获得激怒。当兵俑在战斗区时免疫直接消灭效果，敌方战斗区式神无法被其他式神替换。",
+        "is_beginning_card": true,
+        "level_req": 3,
+        "atk": 5,
+        "hp": 9
+    },
+    {
+    "id": 290,
+    "type": "morph",
+    "hero": "ShuWeng",
+    "name": "纪行",
+    "eng_name": "JiXing",
+    "description": "迅捷 当书翁对敌方牌手造成伤害时，抽一张牌。",
+    "is_beginning_card": true,
+    "level_req": 1,
+    "atk": 2,
+    "hp": 5
+  },
+  {
+    "id": 291,
+    "type": "spell",
+    "hero": "ShuWeng",
+    "name": "云游",
+    "eng_name": "YunYou",
+    "description": "瞬发 调度你的手牌，然后洗牌库。（3次调度次数）。",
+    "is_beginning_card": true,
+    "level_req": 1
+  },
+  {
+    "id": 292,
+    "type": "spell",
+    "hero": "ShuWeng",
+    "name": "开卷",
+    "eng_name": "KaiJuan",
+    "description": "抽两张牌。",
+    "is_beginning_card": true,
+    "level_req": 2
+  },
+  {
+    "id": 293,
+    "type": "spell",
+    "hero": "ShuWeng",
+    "name": "墨染",
+    "eng_name": "MoRan",
+    "description": "抽一张牌，对一个式神造成等同于你手牌数量一半的伤害。",
+    "is_beginning_card": true,
+    "level_req": 2
+  },
+  {
+    "id": 294,
+    "type": "morph",
+    "hero": "ShuWeng",
+    "name": "明心",
+    "eng_name": "MingXin",
+    "description": "回合开始的抽牌改为检视牌库顶三张牌然后选择一张置入手牌，然后洗牌库。",
+    "is_beginning_card": true,
+    "level_req": 2,
+    "atk": 4,
+    "hp": 5
+  },
+  {
+    "id": 295,
+    "type": "morph",
+    "hero": "ShuWeng",
+    "name": "闻世",
+    "eng_name": "WenShi",
+    "description": "每有一张其他手牌此牌便获得1点力量和1点生命。",
+    "is_beginning_card": true,
+    "level_req": 3,
+    "atk": 1,
+    "hp": 1
+  },
+  {
+    "id": 296,
+    "type": "spell",
+    "hero": "ShuWeng",
+    "name": "万象之书",
+    "eng_name": "WanXiangZhiShu",
+    "description": "瞬发 随机将其他己方式神的各一张牌置入手牌。",
+    "is_beginning_card": true,
+    "level_req": 3
+  },
+  {
+    "id": 297,
+    "type": "spell",
+    "hero": "ShuWeng",
+    "name": "觉醒·书翁",
+    "eng_name": "JueXingShuWeng",
+    "description": "觉醒：在本局游戏的剩余时间内，每当你抽牌时若牌库里没有牌，则改为对敌方牌手造成10点伤害，你不会因此输掉游戏。",
+    "is_beginning_card": true,
+    "level_req": 3,
+    "buff_atk": 2,
+    "buff_hp": 2
+  }
 ]

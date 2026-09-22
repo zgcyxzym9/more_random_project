@@ -108,7 +108,7 @@ def _chuhui_zhiwu_on_play(card):
                                getattr(e.event, 'target', None) == s.owner.opponent
                                and getattr(e.event, 'hero', None) is not None
                                and e.event.hero.owner == s.owner),
-                 (lambda e, s: s.owner.draw(),))
+                 (lambda e, s: s.owner.game.handle_event(DrawEvent(s.owner, 1)),))
     hero.listeners = [lst for lst in hero.listeners if getattr(lst, '_tag', '') != 'chuhui_zhiwu']
     l._tag = 'chuhui_zhiwu'
     hero.listeners.append(l)
@@ -320,7 +320,7 @@ def _jinghongzhiwu_trigger_effect(e, s):
 
     # 11. 我方抽一张牌
     def eff_draw():
-        me.draw()
+        me.game.handle_event(DrawEvent(me, 1))
 
     # 12. 我方获得一点鬼火
     def eff_gain_fire():

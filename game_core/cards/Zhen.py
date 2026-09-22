@@ -82,7 +82,7 @@ class ZhenYuSuSheng:
 def _zhenyususheng_on_play(s):
     # 使鸩倒计时-2，抽一张牌
     _countdown_reduce(s.get_corresponding_hero(), 2)
-    s.owner.draw()
+    s.owner.game.handle_event(DrawEvent(s.owner, 1))
 
 
 _JILIAO_TAG = "jiliaoxinxiang_passive"

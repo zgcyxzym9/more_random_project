@@ -119,8 +119,8 @@ def _renwuzhuiji_on_play(s):
         return getattr(e.event, "killed", None) is getattr(owner, "_renwuzhuiji_marked", None)
 
     def effect(e, owner):
-        owner.draw()
-        owner.draw()
+        # 一次效果抽两张（觉醒·书翁空牌库时只结算一次10点伤害）
+        owner.game.handle_event(DrawEvent(owner, 2))
         owner.listeners = [l for l in owner.listeners if getattr(l, "_tag", "") != tag]
         if hasattr(owner, "_renwuzhuiji_marked"):
             del owner._renwuzhuiji_marked
@@ -220,9 +220,12 @@ def _shenshizhendao_on_play(s):
         if h.owner.game.roll_fortune(h, 4):
             if getattr(target, "charging_card", None) is not None:
                 # 目标处在蓄力状态：改为消灭（消灭模式同既有：置 0 血后走死亡结算）
-                h.owner.game._last_damage_source = h
-                target.hp = 0
-                target.check_death()
+                # 尘缚之阵直接消灭免疫：免疫则无事发生（不落回 3 点伤害，
+                # 「改为消灭」已替换掉伤害，用户裁决 2026-09-22）
+                if not h.owner.game._direct_destroy_immune(target):
+                    h.owner.game._last_damage_source = h
+                    target.hp = 0
+                    target.check_death()
             else:
                 h.owner.game.handle_event(DealDamage(3, h, [target]))
 

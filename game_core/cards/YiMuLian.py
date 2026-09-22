@@ -194,6 +194,9 @@ def _fengfuyan_countdown(hero):
     opp = hero.owner.opponent
     target = opp.attack_zone
     if target is not None and getattr(target, "is_alive", False):
+        # 尘缚之阵直接消灭免疫：免疫则无事发生（纯消灭效果无伤害分支）
+        if hero.owner.game._direct_destroy_immune(target):
+            return
         hero.owner.game._last_damage_source = hero
         target.hp = 0
         target.check_death()
@@ -276,8 +279,8 @@ def _gangfeng_on_play(s):
     hero = s.get_corresponding_hero()
     if hero is not None:
         _yl_destroy_morph(hero, reason="destroy")
-    s.owner.draw()
-    s.owner.draw()
+    # 一次效果抽两张（觉醒·书翁空牌库时只结算一次10点伤害，用户裁决 2026-09-22）
+    s.owner.game.handle_event(DrawEvent(s.owner, 2))
 
 
 class FengFuShi:

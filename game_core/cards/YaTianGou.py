@@ -46,7 +46,7 @@ def _zhuifeng_on_play(s):
         hero.move_to_standby()
     else:
         hero.move_to_battle()
-    s.owner.draw()
+    s.owner.game.handle_event(DrawEvent(s.owner, 1))
 
 
 class ZhengYiBiSheng:

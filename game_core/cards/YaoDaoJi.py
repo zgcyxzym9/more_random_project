@@ -94,7 +94,7 @@ def _buxiang_on_play(s):
 def _buxiang_after_play(s):
     # 本次出击产生了击杀 → 抽一张牌
     if s.owner.game.counters.get("yaodaoji_kills", 0) > getattr(s, "_buxiang_before_kills", 0):
-        s.owner.draw()
+        s.owner.game.handle_event(DrawEvent(s.owner, 1))
 
 
 class JianQie:

@@ -138,7 +138,7 @@ def _mengxiang_on_play(s):
 
     def _draw(gained, p):
         if not getattr(s, "_mxl_destroyed", False):
-            p.draw()
+            p.game.handle_event(DrawEvent(p, 1))
 
     _install_sll_tracker(player, _draw)
     # 进场时烹饪

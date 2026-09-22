@@ -147,7 +147,7 @@ def _yezhi_should_draw(player):
 def _yezhi_draw(player):
     """满足抽牌条件则抽一张牌。"""
     if _yezhi_should_draw(player):
-        player.draw()
+        player.game.handle_event(DrawEvent(player, 1))
 
 
 def _yezhi_on_play_extra(card):

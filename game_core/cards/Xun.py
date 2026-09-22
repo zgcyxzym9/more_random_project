@@ -121,7 +121,7 @@ def _wenrou_on_play(s):
     player = s.owner
     target = player.selected_targets[0]
     _attach_guard(player, target)
-    player.draw()
+    player.game.handle_event(DrawEvent(player, 1))
 
 
 class JueYi:
@@ -508,7 +508,7 @@ def _xiaoming_on_play(s):
         attacker = e.event.hero
         attacker.round_buff_atk += 1
         if state["count"] == 2:
-            p.draw()
+            p.game.handle_event(DrawEvent(p, 1))
 
     tag = f"xiaoming_{id(s)}"
     player.listeners = [l for l in player.listeners if getattr(l, "_tag", "") != tag]

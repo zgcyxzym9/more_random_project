@@ -168,7 +168,7 @@ def _wannao_on_play(s):
     player = s.owner
     _ensure_usage_tracking(player)
     _use_jiaoyao_on(player)
-    player.draw()
+    player.game.handle_event(DrawEvent(player, 1))
 
 
 # ── 2勾 ────────────────────────────────────────────────────────────────────
@@ -339,7 +339,7 @@ def _chibao_on_play(s):
         if id(e.event.source) in seen:
             return
         seen.add(id(e.event.source))
-        h.owner.draw()
+        h.owner.game.handle_event(DrawEvent(h.owner, 1))
         h.owner.fire_cnt += 1
 
     l = Listener("give buff", cond, (effect,))

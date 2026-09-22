@@ -66,7 +66,7 @@ class JuQi:
 
 def _juqi_on_play(s):
     _yaohu_boost_basic_damage(s.get_corresponding_hero())
-    s.owner.draw()
+    s.owner.game.handle_event(DrawEvent(s.owner, 1))
 
 
 class AiYiMianMian:

@@ -143,6 +143,35 @@ class DrawSelectedCardFromDeck(Event):
         self.card = card
 
 
+class DrawEvent(Event):
+    """抽牌事件（用户裁决 2026-09-22）：表示一次抽牌效果要抽 count 张。
+    handle_event 的 "draw" 分支逐张调用 player.draw()；分支内遇空牌库时一次性
+    结算（觉醒·书翁改为对敌方牌手造成10点伤害且不败北，未觉醒维持败北）——
+    本分支处理单个事件只执行一次，天然满足「一次抽多张的效果只触发一次伤害」。
+    一个事件即一次效果边界：重复多次的抽卡效果各发一个事件、各结算一次。
+    卡牌效果应优先发本事件而非直接调用 draw()（既有直接调用暂未迁移：仍走
+    draw() 自身的原始败北，不经过觉醒）。
+    """
+    def __init__(self, player, count=1):
+        self.type = "draw"
+        self.player = player
+        self.count = count
+
+
+class TurnDrawEvent(Event):
+    """回合开始抽牌事件（明心）：begin_turn 在回合抽牌前广播，监听器置
+    replaced=True 并给出 candidates（牌库顶候选）与 on_chosen 回调时，本次
+    回合抽牌改为检视候选选一——引擎在蓄力结算完成后进入 SELECTING_TARGET，
+    选定后经 "select target" 的回调槽结算。
+    """
+    def __init__(self, player):
+        self.type = "turn draw"
+        self.player = player
+        self.replaced = False
+        self.candidates = None
+        self.on_chosen = None
+
+
 # ── 新增事件类型 (Phase 1) ──────────────────────────────────────────────────
 
 class MoveEvent(Event):

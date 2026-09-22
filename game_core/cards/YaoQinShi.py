@@ -118,7 +118,7 @@ def _juexing_shenyuege_countdown(hero):
 
 def _juexing_zhenhun_countdown(hero):
     """倒计时3：抽一张牌，获得1点鬼火。"""
-    hero.owner.draw()
+    hero.owner.game.handle_event(DrawEvent(hero.owner, 1))
     hero.owner.fire_cnt += 1
 
 

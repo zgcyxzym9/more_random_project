@@ -52,7 +52,7 @@ def _songzhufu_on_play(s):
     game = s.owner.game
     game.handle_event(GiveBuff("atk", 1, s, [target]))
     game.handle_event(GiveBuff("hp", 1, s, [target]))
-    s.owner.draw()
+    game.handle_event(DrawEvent(s.owner, 1))
     if _sixes(s.owner) >= 3:
         game.handle_event(GiveBuff("atk", 2, s, [target]))
         game.handle_event(GiveBuff("hp", 2, s, [target]))
@@ -306,7 +306,7 @@ def _xixuetaosuo_on_play(s):
     破甲全部失效（attributes/listeners/回调/counters 全部置空），本回合结束后
     变回原式神。恢复监听器挂在目标所属牌手（式神监听器已被清空）。
     """
-    s.owner.draw()  # 抽一张牌（无论是否成功变成纸人）
+    s.owner.game.handle_event(DrawEvent(s.owner, 1))  # 抽一张牌（无论是否成功变成纸人）
     target = s.owner.opponent.attack_zone
     if target is None or not target.is_alive:
         return
