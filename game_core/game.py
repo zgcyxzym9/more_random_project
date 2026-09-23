@@ -1161,6 +1161,9 @@ class Game:
                 hero.current_max_hp = card.hp + hero.perm_buff_hp + give_buff_hp
                 hero.hp = hero.current_max_hp  # 形态牌满血
                 hero.morphed_id = card.id
+                # after_play 在身材替换+满血之后执行：进场效果需要基于替换后
+                # 身材判定己方状态的（如丰实/盛开随机治疗"受伤式神"）应写在
+                # after_play；on_play 阶段身材仍是旧形态
                 if hasattr(card, "after_play"):
                     for event in card.after_play:
                         result = event(card)
@@ -1362,7 +1365,8 @@ class Game:
 
         结算顺序：
         1. on_before_damage 回调
-        2. DOUBLE_STRIKE (连击) / FIRST_STRIKE (先攻) — 额外攻击
+        2. DOUBLE_STRIKE (连击) — 仅持有方额外先击一次（攻击方或防御方）；
+           FIRST_STRIKE (先攻) — 主交换先后
         3. BARRIER (屏障) — 免疫一次伤害
         4. CRITICAL (暴击) — 将被护甲吸收的部分原样带过、溢出部分 ×2
         6. 实际扣血 + RANGED 反伤检查
@@ -1410,13 +1414,25 @@ class Game:
                 self._post_attack_cleanup(attacker, defender)
                 return
 
+        # 连击（防御方）：被攻击时同样先对攻击者额外造成一次伤害（此击不受
+        # 反击），随后正常结算攻击与反击。觉醒·五丸「攻击时连击」以
+        # _combo_attack_only 标记保持仅攻击侧生效。
+        if (HeroAttributes.DOUBLE_STRIKE in getattr(defender, 'attributes', [])
+                and not getattr(defender, '_combo_attack_only', False)):
+            self._resolve_single_hit(defender, attacker, def_val, is_extra=True)
+            if isinstance(attacker, Hero) and attacker.hp <= 0:
+                self._post_attack_cleanup(attacker, defender)
+                return
+
         attacker_has_first = HeroAttributes.FIRST_STRIKE in getattr(attacker, 'attributes', [])
         defender_has_first = HeroAttributes.FIRST_STRIKE in getattr(defender, 'attributes', [])
 
         if attacker_has_first and not defender_has_first:
             # 只有攻击方有先攻：先结算攻击方伤害
             self._resolve_single_hit(attacker, defender, atk_val)
-            if hasattr(defender, 'is_alive') and not defender.is_alive:
+            # 击杀判定用 hp 而非 is_alive——同上方连击：战斗中途 is_alive 恒为
+            # True，原判定永不触发（被先攻击杀的一方仍会打出伤害/反击）
+            if isinstance(defender, Hero) and defender.hp <= 0:
                 self._post_attack_cleanup(attacker, defender)
                 return
             # 防御方还击（反击：贯通默认不生效，见 _penetrate_overflow）
@@ -1425,7 +1441,7 @@ class Game:
         elif defender_has_first and not attacker_has_first:
             # 只有防御方有先攻
             self._resolve_single_hit(defender, attacker, def_val, is_counter=True)
-            if hasattr(attacker, 'is_alive') and not attacker.is_alive:
+            if isinstance(attacker, Hero) and attacker.hp <= 0:
                 self._post_attack_cleanup(attacker, defender)
                 return
             self._resolve_single_hit(attacker, defender, atk_val)

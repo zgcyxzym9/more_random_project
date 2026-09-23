@@ -366,9 +366,11 @@ def _juexingwuwan_on_play(s):
     hero.get_permanent_buff("atk", 1)
     hero.get_permanent_buff("hp", 1)
     hero.is_awakened = True
-    # 觉醒：攻击时连击
+    # 觉醒：攻击时连击（_combo_attack_only：连击关键字为战斗通用——被攻击的
+    # 持有方也先额外击中一次，五丸按文本保持仅攻击侧生效，引擎防御侧跳过）
     if HeroAttributes.DOUBLE_STRIKE not in hero.attributes:
         hero.attributes.append(HeroAttributes.DOUBLE_STRIKE)
+    hero._combo_attack_only = True
     # 当五丸造成战斗伤害时，烹饪。
     # 牌手目标由五丸基础能力（heroes.py）触发烹饪，此处只补式神目标，避免一次攻击重复烹饪。
     # 战斗/法术统一走 "damage dealt" 纯通知；仅过滤 combat（贯通过量走 spell 不烹饪）。

@@ -198,13 +198,21 @@ def _dushi_match(e, h):
 
 
 def _dushi_convert(e, _h):
-    """受击方获得等量破甲，并写入 immune_targets 使引擎跳过扣血。"""
+    """受击方获得等量破甲，并写入 immune_targets 使引擎跳过扣血。
+
+    转化量与护甲同口径（receive_damage 的护甲分支）：护甲先吸收
+    min(伤害, 护甲) 并照常消耗，溢出部分才转化为破甲。
+    """
     base = e.event
     targets = [t for t in (getattr(base, "target", None) or ())
                if getattr(t, "state", None) != "dead"]
     game = base.source.owner.game
     for t in targets:
-        game.apply_penetration(base.source, t, base.value)
+        armor = getattr(t, "defense", 0) or 0
+        absorbed = min(armor, base.value)
+        if armor:
+            t.defense = armor - absorbed
+        game.apply_penetration(base.source, t, base.value - absorbed)
     base.immune_targets = getattr(base, "immune_targets", set()) | set(targets)
 
 

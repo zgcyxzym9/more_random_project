@@ -74,7 +74,9 @@ class FengShi:
     on_play = (lambda s: s.get_corresponding_hero().listeners.append(
         Listener("begin turn", lambda e, s: e.next_player == s.owner, (
             lambda e, s: Heal(3, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes), context="丰实: 回合开始随机治疗一个受伤式神"),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,),)),
-        lambda s: Heal(3, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes), context="丰实: 入场随机治疗一个受伤式神"),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,)
+    )
+    # 进场治疗写在 after_play：morph 分支在 on_play 之后才替换身材并满血
+    after_play = (lambda s: Heal(3, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes), context="丰实: 入场随机治疗一个受伤式神"),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,)
 
 class TaoYuChunFeng:
     id = 22
@@ -101,10 +103,11 @@ class ShengKai:
             lambda e, s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes), context="盛开: 回合开始随机治疗"),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
             lambda e, s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes), context="盛开: 回合开始随机治疗"),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
         ))),
-        lambda s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes), context="盛开: 入场随机治疗"),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
-        lambda s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes), context="盛开: 入场随机治疗"),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
-        lambda s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes), context="盛开: 入场随机治疗"),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
     )
+    # 同丰实：进场治疗放 after_play，避免"受伤式神"判定算入替换中的自己
+    after_play = (lambda s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes), context="盛开: 入场随机治疗"),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
+                  lambda s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes), context="盛开: 入场随机治疗"),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,
+                  lambda s: Heal(2, s, (select_random_target(s.owner, IsDamaged(s.owner.heroes), context="盛开: 入场随机治疗"),)) if len(IsDamaged(s.owner.heroes)) > 0 else None,)
 
 class TaoHuaZhuoZhuo:
     id = 24
