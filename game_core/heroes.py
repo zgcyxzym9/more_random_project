@@ -1282,7 +1282,7 @@ def _bingyong_budongru_eff(e, s):
     # round_buff_atk 为本回合力量（clear_round_effects 在 before 广播前已清零，
     # 此处加的数值本回合有效）。battle_zone 判定须在 before 广播点：begin_turn
     # 的 retract_hero 在 after 前已清空 attack_zone，after 读到的恒为空。
-    s.round_buff_atk += 3
+    s.owner.game.handle_event(GiveBuff("atk", 3, s, [s]))
 
 
 def _bingyong_senluo_cap(e, s):
