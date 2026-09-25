@@ -33,4 +33,5 @@ from .LianYou import *
 from .RiHeFang import *
 from .BingYong import *
 from .ShuWeng import *
+from .JiuTunTongZi import *
 from ._ingredients import *

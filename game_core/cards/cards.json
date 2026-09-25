@@ -3290,5 +3290,114 @@
     "level_req": 3,
     "buff_atk": 2,
     "buff_hp": 2
+  },
+  {
+    "id": 298,
+    "type": "spell",
+    "hero": "JiuTunTongZi",
+    "name": "醉里乾坤",
+    "eng_name": "ZuiLiQianKun",
+    "description": "瞬发 对酒吞童子造成1点伤害，抽一张牌。",
+    "is_beginning_card": true,
+    "level_req": 1
+  },
+  {
+    "id": 299,
+    "type": "attack",
+    "hero": "JiuTunTongZi",
+    "name": "狂气",
+    "eng_name": "KuangQi",
+    "description": "本次战斗获得不屈。",
+    "is_beginning_card": true,
+    "level_req": 1,
+    "buff_atk": 1
+  },
+  {
+    "id": 300,
+    "type": "morph",
+    "hero": "JiuTunTongZi",
+    "name": "鬼王",
+    "eng_name": "GuiWang",
+    "description": "进场时对酒吞童子造成4点伤害。",
+    "is_beginning_card": true,
+    "level_req": 2,
+    "atk": 6,
+    "hp": 10
+  },
+  {
+    "id": 301,
+    "type": "spell",
+    "hero": "JiuTunTongZi",
+    "name": "狂啸",
+    "eng_name": "KuangXiao",
+    "description": "本回合酒吞童子生命不会降到1以下。响应：当酒吞童子将受到伤害时，自动使用。",
+    "is_beginning_card": true,
+    "level_req": 2
+  },
+  {
+    "id": 302,
+    "type": "attack",
+    "hero": "JiuTunTongZi",
+    "name": "无尽愤怒",
+    "eng_name": "WuJinFenNu",
+    "description": "若本回合酒吞童子受到过己方伤害，此牌获得+2力量和+2护甲。",
+    "is_beginning_card": true,
+    "level_req": 2,
+    "buff_atk": 2
+  },
+  {
+    "id": 303,
+    "type": "morph",
+    "hero": "JiuTunTongZi",
+    "name": "神子",
+    "eng_name": "ShenZi",
+    "description": "瞬发 不屈",
+    "is_beginning_card": true,
+    "level_req": 3,
+    "atk": 6,
+    "hp": 8
+  },
+  {
+    "id": 304,
+    "type": "spell",
+    "hero": "JiuTunTongZi",
+    "name": "觉醒·酒吞童子",
+    "eng_name": "JueXingJiuTunTongZi",
+    "description": "觉醒：贯通 每当酒吞童子受到伤害时，获得等量的力量。",
+    "is_beginning_card": true,
+    "level_req": 3,
+    "buff_atk": 1,
+    "buff_hp": 3
+  },
+  {
+    "id": 305,
+    "type": "spell",
+    "hero": "JiuTunTongZi",
+    "name": "百鬼夜行",
+    "eng_name": "BaiGuiYeXing",
+    "description": "瞬发 对其他所有式神各造成X点伤害，X为酒吞童子本回合所受伤害之和。",
+    "is_beginning_card": true,
+    "level_req": 3
+  },
+  {
+    "id": 306,
+    "type": "coop",
+    "hero": "JiuTunTongZi",
+    "heroes": ["JiuTunTongZi", "CiMuTongZi"],
+    "name": "狂歌豪情",
+    "eng_name": "KuangGeHaoQing",
+    "description": "选择使用一项：酒吞童子-醉酒当歌；茨木童子-地狱豪焰",
+    "is_beginning_card": true,
+    "level_req": 1
+  },
+  {
+    "id": 307,
+    "type": "attack",
+    "hero": "JiuTunTongZi",
+    "name": "醉酒当歌",
+    "eng_name": "ZuiJiuDangGe",
+    "description": "不屈 对酒吞童子造成3点伤害，获得等量的护甲。羁绊：获得一张茨木童子当前等级的战斗牌。",
+    "is_beginning_card": false,
+    "level_req": 1
   }
 ]

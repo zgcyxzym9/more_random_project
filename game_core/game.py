@@ -1511,8 +1511,10 @@ class Game:
         # 免疫战斗伤害（本回合）：完全不扣血，但贯通的“理论过量”依旧转移给牌手
         # （wiki 贯通与免疫战斗伤害交互）。由卡牌/式神层的监听器在 pre-damage 广播里
         # 把 target 加入 combo.immune_targets；引擎侧不做任何来源/类型判断。
+        # 该 before 广播同时是「当…将受到伤害时」响应牌的扫描点（与法术路径的
+        # deal damage 广播同语义）；每段命中各广播一次，连击两段各一个响应点。
         combo = DealDamage(actual_damage, source, [target], "combat")
-        self.broadcast("deal damage", event=combo, check_response=False)
+        self.broadcast("deal damage", event=combo, check_response=True)
         # 回读监听器修改后的 value（与法术路径 case "deal damage" 的
         # dmg = event.value 对齐，封顶类监听器如森罗之阵由此生效），下限 0。
         actual_damage = max(0, combo.value)
@@ -1531,9 +1533,10 @@ class Game:
         else:
             damage_dealt = 0
 
-        # 记录式神在战斗中实际造成的伤害：战斗路径不广播 deal damage，
-        # 单独广播 damage dealt（结算后纯通知），供「本局造成伤害 N 次」类条件计数
-        # （如妖狐狂风刃卷增强）。value 取实际 damage_dealt，target 为单元素列表。
+        # 记录式神在战斗中实际造成的伤害：结算后另广播 damage dealt（纯通知，
+        # 不开放响应——响应扫描只在结算前的 deal damage 广播），供「本局造成伤害
+        # N 次」类条件计数（如妖狐狂风刃卷增强）。value 取实际 damage_dealt，
+        # target 为单元素列表。
         if damage_dealt > 0:
             self.broadcast("damage dealt",
                            event=DamageDealt(damage_dealt, source, [target], "combat"),

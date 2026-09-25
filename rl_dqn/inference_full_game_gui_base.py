@@ -102,7 +102,7 @@ def match_full(names, raw):
     return None
 
 
-def detect_opening_heroes(bridge: GUIBridge, timeout: float = 60.0):
+def detect_opening_heroes(bridge: GUIBridge, timeout: float = 120.0):
     assets_dir = os.path.join(root_dict, "game_core/assets")
     done = threading.Event()
     result_holder = [None]

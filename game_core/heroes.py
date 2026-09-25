@@ -1437,3 +1437,51 @@ class ShuWeng:
                                and getattr(e.event, "player", None) is s.owner),
                  (_shuweng_mingxin_replace,)),
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  36. 酒吞童子 (JiuTunTongZi) — 红莲派系
+#  基础能力：每当酒吞童子受到伤害时，获得1力量。
+#  觉醒·酒吞童子改为「每受1点伤害获得1力量」——觉醒牌置 is_awakened，成长监听器
+#  按 s.is_awakened 切换口径（卡牌实现见 game_core/cards/JiuTunTongZi.py，
+#  数据来源 cards.json 末尾条目 298-307）。
+# ═══════════════════════════════════════════════════════════════════════════════
+def _jiutun_gain_strength(e, s):
+    """受到伤害获得力量：基础每次+1，觉醒后每点+1。
+
+    理论伤害口径（用户裁决 2026-09-25）：监听 "deal damage" 结算前广播，value
+    为护甲/减免扣除前的理论伤害——百鬼夜行的 X 与觉醒「获得等量的力量」均按
+    理论值计。走 GiveBuff：随 check_death 的 atk 重置清零，不跨气绝保留
+    （用户裁决 2026-09-24）；气绝期间不触发（用户裁决：气绝式神不应受到伤害）。
+
+    同一事件顺带维护卡牌侧的本回合受伤追踪（同一「value>0 且目标含酒吞」
+    口径，供 JiuTunTongZi.py 的百鬼夜行/无尽愤怒读取）：
+    - jiutun_dmg_taken_turn：本回合所受理论伤害之和（百鬼夜行的 X）
+    - jiutun_friendly_dmg_turn：本回合受到过己方伤害的次数（无尽愤怒条件）
+
+    边界：免疫（immune_targets）与封顶类监听器同在结算前广播点，先后按实体
+    遍历顺序——被免疫拦截的伤害同样按理论值计入（理论口径的自然推论）；封顶
+    监听器若晚于本监听器遍历，计入的是封顶前值。
+    """
+    value = getattr(e.event, "value", 0)
+    amount = value if s.is_awakened else 1
+    s.counters.ensure("jiutun_dmg_taken_turn", initial=0, reset_per_turn=True)
+    s.counters.inc("jiutun_dmg_taken_turn", value)
+    if getattr(e.event.source, "owner", None) is s.owner:
+        s.counters.ensure("jiutun_friendly_dmg_turn", initial=0, reset_per_turn=True)
+        s.counters.inc("jiutun_friendly_dmg_turn", 1)
+    s.owner.game.handle_event(GiveBuff("atk", amount, s, [s]))
+
+
+class JiuTunTongZi:
+    id = 36
+    name = "酒吞童子"
+    atk = 2
+    hp = 5
+    type = "fire"
+    listeners = (
+        Listener("deal damage",
+                 lambda e, s: (s.is_alive and s in (e.event.target or [])
+                               and getattr(e.event, "value", 0) > 0),
+                 (_jiutun_gain_strength,)),
+    )
