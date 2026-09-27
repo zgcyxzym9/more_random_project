@@ -3399,5 +3399,100 @@
     "description": "不屈 对酒吞童子造成3点伤害，获得等量的护甲。羁绊：获得一张茨木童子当前等级的战斗牌。",
     "is_beginning_card": false,
     "level_req": 1
+  },
+  {
+    "id": 308,
+    "type": "attack",
+    "hero": "CiMuTongZi",
+    "name": "鬼之手",
+    "eng_name": "GuiZhiShou",
+    "description": "若敌方战斗区没有式神，将一个敌方式神移入战斗区。",
+    "is_beginning_card": true,
+    "level_req": 1
+  },
+  {
+    "id": 309,
+    "type": "spell",
+    "hero": "CiMuTongZi",
+    "name": "豪拳",
+    "eng_name": "HaoQuan",
+    "description": "获得3力量。",
+    "is_beginning_card": true,
+    "level_req": 1
+  },
+  {
+    "id": 310,
+    "type": "attack",
+    "hero": "CiMuTongZi",
+    "name": "黑焰之手",
+    "eng_name": "HeiYanZhiShou",
+    "description": "远程",
+    "is_beginning_card": true,
+    "level_req": 2
+  },
+  {
+    "id": 311,
+    "type": "morph",
+    "hero": "CiMuTongZi",
+    "name": "迁怒",
+    "eng_name": "QianNu",
+    "description": "当茨木童子消灭敌方战斗区式神时，对其准备区式神各造成2点伤害。",
+    "is_beginning_card": true,
+    "level_req": 2,
+    "atk": 3,
+    "hp": 7
+  },
+  {
+    "id": 312,
+    "type": "spell",
+    "hero": "CiMuTongZi",
+    "name": "断臂",
+    "eng_name": "DuanBi",
+    "description": "茨木童子的力量变为本局游戏的最大值。",
+    "is_beginning_card": true,
+    "level_req": 2
+  },
+  {
+    "id": 313,
+    "type": "morph",
+    "hero": "CiMuTongZi",
+    "name": "罗生门之鬼",
+    "eng_name": "LuoShengMenZhiGui",
+    "description": "增强：本局游戏中，当己方累计消灭敌方战斗区1/3/5个基础式神时此牌随机强化一次。",
+    "is_beginning_card": true,
+    "level_req": 2,
+    "atk": 4,
+    "hp": 6
+  },
+  {
+    "id": 314,
+    "type": "attack",
+    "hero": "CiMuTongZi",
+    "name": "地狱之手",
+    "eng_name": "DiYuZhiShou",
+    "description": "追猎 本次战斗中若消灭式神，再次随机攻击一个敌方生命最低的式神。",
+    "is_beginning_card": true,
+    "level_req": 3
+  },
+  {
+    "id": 315,
+    "type": "spell",
+    "hero": "CiMuTongZi",
+    "name": "觉醒·茨木童子",
+    "eng_name": "JueXingCiMuTongZi",
+    "description": "获得2力量和2护甲。觉醒：己方回合开始时茨木童子的力量翻倍。",
+    "is_beginning_card": true,
+    "level_req": 3,
+    "buff_hp": 1
+  },
+  {
+    "id": 316,
+    "type": "attack",
+    "hero": "CiMuTongZi",
+    "name": "地狱豪焰",
+    "eng_name": "DiYuHaoYan",
+    "description": "若本次战斗击杀敌方式神，则本局游戏茨木童子随机获得一个不重复的豪焰效果。羁绊：酒吞童子对自己造成1点伤害，使茨木童子获得2护甲。",
+    "is_beginning_card": false,
+    "level_req": 1
   }
 ]

@@ -1485,3 +1485,159 @@ class JiuTunTongZi:
                                and getattr(e.event, "value", 0) > 0),
                  (_jiutun_gain_strength,)),
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  37. 茨木童子 (CiMuTongZi) — 红莲派系
+#  基础能力：己方回合开始时，茨木童子获得1力量。
+#  觉醒后：己方回合开始时力量翻倍，上限 65535（用户裁决 2026-09-27）。
+#  其余被动（断臂最大值追踪 / 迁怒 / 罗生门之鬼计数 / 豪焰光环与结算）见下方
+#  监听器；卡牌打出侧逻辑在 cards/CiMuTongZi.py。
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _cimu_begin_turn(e, s):
+    """己方回合开始：未觉醒 +1 力量；觉醒后翻倍（上限 65535）。"""
+    if getattr(s, "is_awakened", False):
+        new_atk = min(s.atk * 2, 65535)
+        if new_atk > s.atk:
+            s.owner.game.handle_event(GiveBuff("atk", new_atk - s.atk, s, [s]))
+    else:
+        s.owner.game.handle_event(GiveBuff("atk", 1, s, [s]))
+
+
+def _cimu_track_max_atk(e, s):
+    """断臂用：追踪本局游戏茨木童子力量最大值（持久计数器，气绝不丢）。
+
+    give buff 广播 before 阶段先于数值生效，s.atk + value 即加成后面板。
+    get_permanent_buff 不走事件（觉醒牌 hp 部分等），由断臂 on_play 兜底
+    折算当前面板覆盖。
+    """
+    s.counters.ensure("cimu_max_atk", initial=s.original_atk, persistent=True)
+    newv = s.atk + e.event.value
+    if newv > s.counters.get("cimu_max_atk", 0):
+        s.counters.set("cimu_max_atk", newv)
+
+
+def _cimu_qn_snapshot(e, s):
+    """迁怒判定快照：本次攻击开始时的敌方战斗区占用者。
+
+    check_death 会在击杀事件前清空 attack_zone，击杀事件时刻无法直接读区。
+    地狱之手追猎再攻击准备区式神时敌方战斗区已为空 → 快照 None，
+    其击杀不会误触迁怒（符合牌面「消灭敌方战斗区式神」限定）。
+    """
+    s._cimu_qn_zone = s.owner.opponent.attack_zone
+
+
+def _cimu_qn_on_kill(e, s):
+    """迁怒（形态 311）：茨木童子消灭敌方战斗区式神时，对其准备区式神
+    各造成2点伤害。击杀事件在战斗结算内广播，天然先于地狱之手 after_play
+    的再攻击循环（用户裁决 2026-09-27 顺序）。"""
+    killed = e.event.killed
+    if (getattr(e.event, "killer", None) is not s
+            or s.morphed_id != 311
+            or killed is not getattr(s, "_cimu_qn_zone", None)):
+        return
+    # 准备区式神 = 存活且已升级的敌方式神（战斗区占用者已气绝离区；
+    # 引擎卡牌效果选目标惯例 level > 0，同 群鸦乱舞 等）
+    targets = [h for h in s.owner.opponent.heroes if h.is_alive and h.level > 0]
+    if targets:
+        s.owner.game.handle_event(DealDamage(2, s, targets))
+
+
+def _cimu_rsm_cond(e, s):
+    killed = e.event.killed
+    if getattr(killed, "owner", None) is not s.owner.opponent:
+        return False
+    if getattr(killed, "is_summoned", False):
+        return False
+    return getattr(getattr(e.event, "killer", None), "owner", None) is s.owner
+
+
+def _cimu_rsm_on_kill(e, s):
+    """罗生门之鬼增强计数（用户裁决：「基础式神」= 非召唤物）。
+
+    己方任意来源消灭敌方基础式神累计计数；1/3/5 时对仍手牌中的
+    罗生门之鬼随机强化一次（打出后不在手牌则跳过，计数照常累计）。
+    监听器挂茨木身上，茨木气绝期间计数暂停（死亡重置监听器，
+    持久计数器数值保留）。
+    """
+    s.counters.ensure("cimu_rsm_kills", initial=0, persistent=True)
+    s.counters.inc("cimu_rsm_kills")
+    if s.counters.get("cimu_rsm_kills", 0) in (1, 3, 5):
+        # 函数级导入避免模块级循环依赖（heroes ← cards）
+        from .cards.CiMuTongZi import _rsm_apply_random_enhance
+        _rsm_apply_random_enhance(s)
+
+
+def _cimu_haoyan_aura_cond(e, s):
+    card = getattr(e.event, "card", None)
+    return (card is not None and getattr(card, "type", "") == "attack"
+            and card.get_corresponding_hero() is s
+            and s.counters.get("cimu_haoyan_mask", 0) > 0)
+
+
+def _cimu_haoyan_aura(e, s):
+    """豪焰共享部分：茨木童子使用战斗牌时获得 +1力量/+1护甲 ×已获得个数。
+
+    before 阶段（结算前）广播，+1力量对本次战斗即生效。已获得的豪焰效果
+    永久有效（位掩存持久计数器 cimu_haoyan_mask，气绝不丢）。
+    """
+    n = bin(s.counters.get("cimu_haoyan_mask", 0)).count("1")
+    s.owner.game.handle_event(GiveBuff("atk", n, s, [s]))
+    s.owner.game.handle_event(GiveBuff("defense", n, s, [s]))
+
+
+def _cimu_haoyan_on_kill(e, s):
+    """豪焰击杀结算：对已获得的各豪焰效果执行「击杀式神后」部分。
+
+    地狱豪焰的获得发生在该牌 after_play（本次击杀之后），故获得当次的击杀
+    不结算新获效果的「击杀后」部分（效果自获得起向未来生效）。
+    """
+    if getattr(e.event, "killer", None) is not s:
+        return
+    mask = s.counters.get("cimu_haoyan_mask", 0)
+    if mask <= 0:
+        return
+    from .cards.CiMuTongZi import _HAOYAN_RIDERS
+    killed = e.event.killed
+    for i, rider in enumerate(_HAOYAN_RIDERS):
+        if (mask >> i) & 1:
+            rider(s, killed)
+
+
+class CiMuTongZi:
+    id = 37
+    name = "茨木童子"
+    atk = 3
+    hp = 4
+    type = "fire"
+    # 与山兔同款写法：监听 begin turn（默认 before 阶段，力量非清甲项，阶段无差）；
+    # is_alive 对应 FAQ「式神的基础效果在式神气绝期间无法发动」。
+    listeners = (
+        # 基础能力 / 觉醒倍增
+        Listener("begin turn",
+                 lambda e, s: s.is_alive and e.next_player == s.owner,
+                 (_cimu_begin_turn,)),
+        # 断臂：本局最大力量追踪（give buff before 阶段先于数值生效）
+        Listener("give buff",
+                 lambda e, s: (e.event.attr == "atk" and e.event.value > 0
+                               and s.is_alive and s in (e.event.target or [])),
+                 (_cimu_track_max_atk,)),
+        # 迁怒：攻击开始时的敌方战斗区快照
+        Listener("hero attack",
+                 lambda e, s: getattr(e.event, "hero", None) is s,
+                 (_cimu_qn_snapshot,)),
+        # 迁怒：击杀结算
+        Listener("hero kill",
+                 lambda e, s: getattr(e.event, "killer", None) is s,
+                 (_cimu_qn_on_kill,)),
+        # 罗生门之鬼：己方消灭敌方基础式神计数
+        Listener("hero kill", _cimu_rsm_cond, (_cimu_rsm_on_kill,)),
+        # 豪焰共享部分：使用战斗牌 +1/+1（before 阶段，本次战斗即生效）
+        Listener("play card", _cimu_haoyan_aura_cond, (_cimu_haoyan_aura,),
+                 phase="before"),
+        # 豪焰：击杀结算
+        Listener("hero kill",
+                 lambda e, s: getattr(e.event, "killer", None) is s,
+                 (_cimu_haoyan_on_kill,)),
+    )

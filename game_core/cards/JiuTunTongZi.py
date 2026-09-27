@@ -337,8 +337,10 @@ def _kuanggehaqing_on_play(s):
         _zuijiudangge_on_play(s)
         _zuijiudangge_after_play(s)
     elif hero.type_name == "CiMuTongZi":
-        # 茨木童子-地狱豪焰：茨木童子未实现，TODO（待茨木童子实现后完成）
-        pass
+        # 茨木童子-地狱豪焰：协战半卡按森佑灵矢先例只结算效果不发起攻击
+        # （羁绊部分：酒吞自损1→茨木+2护甲；「本次战斗击杀」成长无战斗不触发）
+        from game_core.cards.CiMuTongZi import _diyuhaoyan_bond_on_play
+        _diyuhaoyan_bond_on_play(s)
 
 
 class KuangGeHaoQing:
