@@ -1,6 +1,7 @@
 from .player import Player
 from .action import *
 from .hero import Hero
+from .heroes import rfh_awaken_free_available
 from .card import Card
 from .enums import *
 from .event import *
@@ -533,6 +534,7 @@ class Game:
                         print("trying to upgrade a hero whose current level is not lowest")
                         return
                 action.hero.Upgrade()
+                self.handle_event(HeroUpgradeEvent(action.hero))
                 if hasattr(action.hero, "on_upgrade"):
                     for event in action.hero.on_upgrade:
                         if isinstance(event(action.hero), Event):
@@ -958,7 +960,12 @@ class Game:
             case "energy gain":
                 pass
             case "energy spend":
-                pass
+                # 能量消耗由事件结算（发起方在 handle_event 前已判断能量足够；
+                # 免除已在 before 阶段置 revert+amount=0，不会到达此处）
+                if event.amount > 0:
+                    event.hero.counters.dec("energy", event.amount)
+            case "hero upgrade":
+                pass  # 仅广播：式神升级后（阳炎等「敌方式神升级时」响应监听）
             case "armor break applied":
                 pass
             case "inspire":
@@ -994,13 +1001,18 @@ class Game:
         # 挂起重放（select target → play_card）携带的是 False，不会二次爆能。──
         if use_blast and CardAttributes.BLAST in card.attributes:
             hero = card.get_corresponding_hero()
-            if hero is not None and hero.counters.get("energy", 0) >= card.energy_cost:
-                hero.counters.dec("energy", card.energy_cost)
+            # 爆能费用：handle_event 前先判断剩余能量是否足够（或日和坊觉醒
+            # 免耗可用），足够才发 EnergySpendEvent 扣费（免耗监听 before 置
+            # revert——不结算费用但爆能效果照常触发）
+            if hero is not None and (
+                    hero.counters.get("energy", 0) >= card.energy_cost
+                    or (hero.owner is not None
+                        and rfh_awaken_free_available(hero.owner))):
+                self.handle_event(EnergySpendEvent(hero, card.energy_cost, card))
                 for callback in getattr(card, "on_blast", ()):
                     result = callback(card)
                     if isinstance(result, Event):
                         self.handle_event(result)
-                self.handle_event(EnergySpendEvent(hero, card.energy_cost, card))
             use_blast = False   # 爆能选择已消费（无论是否成功），重放不再触发
         # ── 追猎选目标门：战斗牌攻击式神带追猎且未指定目标时，先任选一名敌方式神
         # （存活、等级>0，含准备区；帷幕只限制卡牌主动选目标，不影响追猎）──

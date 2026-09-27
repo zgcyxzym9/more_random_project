@@ -3008,25 +3008,25 @@
     },
     {
         "id": 272,
-        "type": "morph",
-        "hero": "RiHeFang",
-        "name": "祈晴",
-        "eng_name": "QiQing",
-        "description": "己方回合结束时，消耗3能量，抽一张牌。（效果文本为当前版本，经历多次平衡调整，见 sources.md）",
-        "is_beginning_card": true,
-        "level_req": 1,
-        "atk": 1,
-        "hp": 7
-    },
-    {
-        "id": 273,
         "type": "spell",
         "hero": "RiHeFang",
         "name": "沐浴阳光",
         "eng_name": "MuYuYangGuang",
-        "description": "恢复己方有充能的式神所有生命，并使他们各获得1点能量。",
+        "description": "瞬发 恢复己方有充能的式神所有生命，并使他们各获得1点能量。",
         "is_beginning_card": true,
         "level_req": 1
+    },
+    {
+        "id": 273,
+        "type": "morph",
+        "hero": "RiHeFang",
+        "name": "祈晴",
+        "eng_name": "QiQing",
+        "description": "进场和己方回合开始时，消耗3能量，抽一张牌。",
+        "is_beginning_card": true,
+        "level_req": 1,
+        "atk": 1,
+        "hp": 7
     },
     {
         "id": 274,
@@ -3034,9 +3034,9 @@
         "hero": "RiHeFang",
         "name": "阳炎",
         "eng_name": "YangYan",
-        "description": "对一个式神造成1点伤害并眩晕它。响应：当一个敌方式神升级时，额外消耗3能量，自动对该式神使用。",
+        "description": "对一个式神造成1点伤害并眩晕它。响应：当一个敌方式神升级时，自动对其使用。",
         "is_beginning_card": true,
-        "level_req": 1
+        "level_req": 2
     },
     {
         "id": 275,
@@ -3044,7 +3044,7 @@
         "hero": "RiHeFang",
         "name": "冬日暖阳",
         "eng_name": "DongRiNuanYang",
-        "description": "使所有己方有充能的式神获得1力量、1生命与2能量。（效果为多源一致的当前版本，另见 sources.md 中可能存在的追加效果）",
+        "description": "使所有己方有充能的式神获得1力量、1生命与2能量，然后再使所有能量大于等于7的己方式神获得1力量与1生命。",
         "is_beginning_card": true,
         "level_req": 2
     },
@@ -3054,7 +3054,7 @@
         "hero": "RiHeFang",
         "name": "滋养",
         "eng_name": "ZiYang",
-        "description": "己方回合开始时，消耗3能量，获得1点鬼火。（效果文本为当前版本，经历多次平衡调整，见 sources.md）",
+        "description": "进场和己方回合开始时，消耗2能量，随机使其他一名能量最低的己方充能式神获得2能量。",
         "is_beginning_card": true,
         "level_req": 2,
         "atk": 2,
@@ -3066,42 +3066,43 @@
         "hero": "RiHeFang",
         "name": "日出有曜",
         "eng_name": "RiChuYouYao",
-        "description": "瞬发：使一个式神的力量、生命变为基础值，清除他的护甲与破甲；或清除一个牌手的出击加成效果。",
+        "description": "瞬发 使一个式神的力量、生命变为基础值，清除他的护甲与破甲；或清除一个牌手的出击加成效果。",
         "is_beginning_card": true,
         "level_req": 2
     },
     {
         "id": 278,
+        "type": "spell",
+        "hero": "RiHeFang",
+        "name": "觉醒·日和坊",
+        "eng_name": "JueXingRiHeFang",
+        "description": "瞬发 觉醒：充能。日和坊能量不足时，可以消耗其生命代替。每回合一次己方式神消耗能量的效果不再消耗能量。",
+        "is_beginning_card": true,
+        "level_req": 3,
+        "buff_hp": 3
+    },
+    {
+        "id": 279,
         "type": "morph",
         "hero": "RiHeFang",
         "name": "晴雨",
         "eng_name": "QingYu",
-        "description": "当己方其他角色受到伤害时，日和坊恢复3点生命。进场和每个回合开始时，消耗3能量，恢复所有其他己方角色3点生命。（触发时机为2023-02-23调整后版本，见 sources.md）",
+        "description": "当己方其他角色受到伤害时，日和坊恢复3点生命。进场和每个回合开始时，消耗3能量，恢复所有其他己方角色3点生命。",
         "is_beginning_card": true,
         "level_req": 3,
         "atk": 3,
         "hp": 8
     },
     {
-        "id": 279,
-        "type": "spell",
-        "hero": "RiHeFang",
-        "name": "觉醒·日和坊",
-        "eng_name": "JueXingRiHeFang",
-        "description": "瞬发。觉醒：充能。日和坊能量不足时，可以消耗其生命代替（不能使生命降到0）；每回合1次，己方式神消耗能量的效果不再消耗能量。",
-        "is_beginning_card": true,
-        "level_req": 3
-    },
-    {
         "id": 280,
         "type": "coop",
         "hero": "RiHeFang",
+        "heroes": ["RiHeFang", "YanYanLuo"],
         "name": "日霭相织",
         "eng_name": "RiAiXiangZhi",
-        "description": "协战牌。打出时选择使用「煦日」（日和坊）或「烟影」（烟烟罗）。效果文本与勾玉待核实。",
+        "description": "选择使用一项：烟烟罗-烟影；日和坊-煦日",
         "is_beginning_card": true,
-        "level_req": null,
-        "heroes": ["RiHeFang", "YanYanLuo"]
+        "level_req": 1
     },
     {
         "id": 281,
@@ -3109,9 +3110,9 @@
         "hero": "RiHeFang",
         "name": "煦日",
         "eng_name": "XuRi",
-        "description": "协战牌「日霭相织」的日和坊选项牌（选择打出）。效果文本与勾玉待核实，类型按协战选项牌惯例暂记为法术。",
+        "description": "使一个其他己方式神获得2能量，结附「晴天娃娃」。羁绊：使该式神本回合免疫战斗伤害。",
         "is_beginning_card": false,
-        "level_req": null
+        "level_req": 1
     },
     {
         "id": 282,

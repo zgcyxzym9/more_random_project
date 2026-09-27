@@ -341,15 +341,27 @@ class EnergyGainEvent(Event):
 
 
 class EnergySpendEvent(Event):
-    """爆能消耗能量事件。"""
-    def __init__(self, hero, amount, card):
+    """能量消耗事件：消耗能量的技能直接发起，扣费由事件结算（handle_event）。
+
+    发起方：handle_event(EnergySpendEvent(hero, amount, source))，之后检查
+    event.revert 判断支付是否成功（失败则放弃后续效果）。
+    before 阶段（扣除前广播）供被动监听并改写本次消耗：
+    - 免除：置 amount = 0 并 revert（视为未发起，不结算、无 after 广播）
+    - 生命代偿：能量不足时把 amount 改写为现有能量，缺少部分以 DealDamage
+      直接结算（日和坊基础被动，自损为费的狂歌豪情先例）
+    - 支付失败：置 revert（能量不足且生命代偿会致死）
+    after 阶段（确定扣除后）供「能量消耗时」类触发。
+    source 为发起消耗的卡牌/式神效果（可为 None）。
+    """
+    def __init__(self, hero, amount, source):
         self.type = "energy spend"
         self.hero = hero
         self.amount = amount
-        self.card = card
+        self.source = source
 
     def __str__(self):
-        return f"{self.hero.name} spends {self.amount} energy for {self.card.name}"
+        source_name = self.source.name if self.source is not None else "None"
+        return f"{self.hero.name} spends {self.amount} energy for {source_name}"
 
 
 class ArmorBreakApplyEvent(Event):
@@ -391,6 +403,19 @@ class AboutToDieEvent(Event):
 
     def __str__(self):
         return f"{self.hero} is about to die"
+
+
+class HeroUpgradeEvent(Event):
+    """式神升级事件：在 "upgrade hero" 动作中 Upgrade() 完成后广播。
+
+    供「当一个敌方式神升级时」类响应（如阳炎）监听。
+    """
+    def __init__(self, hero):
+        self.type = "hero upgrade"
+        self.hero = hero
+
+    def __str__(self):
+        return f"{self.hero} upgrades to level {self.hero.level}"
 
 
 class SummonEvent(Event):

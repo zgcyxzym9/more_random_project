@@ -1130,16 +1130,13 @@ def _gsgb_switch_form(hero, to_form, via="active"):
         return
     game = hero.owner.game if hero.owner is not None else None
     if via == "death_intercept":
-        # 气绝触发切换：形态牌/眩晕/形态监听清除（主动/倒计时切换则保留）
+        # 气绝触发切换：形态牌/眩晕/形态监听清除（主动/倒计时切换则保留）。
+        # 切白费用已由 _gsgb_before_death 经 EnergySpendEvent 结算，此处不再扣。
         if hero.morphed_id != 0 and game is not None:
             game.handle_event(MorphLeaveEvent(hero, hero.morphed_id, "destroy"))
         hero.morphed_id = 0
         hero.listeners = list(hero.original_listeners)
         hero.stunned = False
-        cost = 1 if getattr(hero, "_awakened_hei", False) else 2
-        hero.counters.dec("energy", cost)                     # 共享能量池，持久保留
-        if game is not None:
-            game.handle_event(EnergySpendEvent(hero, cost, None))
     else:
         # 主动/倒计时切换：保留形态牌、保留眩晕，不计气绝
         hero.counters.ensure("gsgb_switch_count", initial=0, persistent=True)  # 供索命“每切换一次”增强
@@ -1152,12 +1149,17 @@ def _gsgb_before_death(hero):
     if not hero.is_alive or hero.form != "Hei":
         return False
     cost = 1 if getattr(hero, "_awakened_hei", False) else 2
-    if hero.counters.get("energy", 0) < cost:
-        return False                                          # 能量不足：黑普通气绝
+    # 支付可行 = 能量足够，或日和坊觉醒免耗可用（觉醒·日和坊免耗可监听
+    # 免除——置 revert，免费但切换照常）
+    free = (hero.owner is not None and rfh_awaken_free_available(hero.owner))
+    if hero.counters.get("energy", 0) < cost and not free:
+        return False                                          # 不可支付：黑普通气绝
     game = hero.owner.game if hero.owner is not None else None
     if game is not None:
+        # 切白费用：发 EnergySpendEvent 结算
+        game.handle_event(EnergySpendEvent(hero, cost, None))
         game.handle_event(AboutToDieEvent(hero))              # 补发：气绝类响应/触发仍生效
-    _gsgb_switch_form(hero, "Bai", via="death_intercept")     # 内部耗能+抬白满血+广播
+    _gsgb_switch_form(hero, "Bai", via="death_intercept")     # 抬白满血+广播（费用已结算）
     return True                                               # 拦截：check_death 提前 return
 
 
@@ -1246,9 +1248,45 @@ class LianYou:
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  33. 日和坊 (RiHeFang) — 红莲派系
-#  基础能力：充能。能量不足时可用生命代替能量消耗（不能使生命值降到0）。
-#  注：HP 代偿依赖引擎层 on_before_energy_spend 回调，尚未实现，暂只加充能词条。
+#  基础能力：充能。日和坊能量不足时以生命代偿（用户裁决 2026-09-27：自动判定，
+#  代偿不会使生命降到 0 才直接生效）。实现：代偿判定在卡牌侧支付 helper
+#  （RiHeFang.py _pay_energy，发起方契约：handle_event 前先判断能量是否足够，
+#  缺少部分以 DealDamage 自损结算——狂歌豪情自损先例）。
+#  觉醒后：每回合一次己方式神消耗能量的效果不再消耗能量——监听 "energy spend"
+#  before 阶段，置 amount=0 并 revert（视为未发起，不结算、无 after 广播）。
+#  觉醒加成标记 _rfh_awaken_buff（用户裁决 2026-09-27，鬼使黑白 _awakened_hei
+#  先例：觉醒牌 setattr）：供「判断能否支付能量」的调用点（爆能选项提供、
+#  爆能扣费、鬼使黑白切白）经 rfh_awaken_free_available(player) 查询，
+#  实际免除仍由 "energy spend" before 监听器统一执行。
+#  覆盖所有走 EnergySpendEvent 的消耗（日和坊卡牌效果、爆能、鬼使黑白切形态）。
 # ═══════════════════════════════════════════════════════════════════════════════
+def rfh_awaken_free_available(player) -> bool:
+    """日和坊觉醒免耗当前是否可用：己方存在带觉醒加成标记、存活、且本回合
+    尚未使用过的日和坊。
+
+    供爆能选项提供（player.py）、爆能扣费（game.py）、鬼使黑白切白等
+    「判断能否支付能量」的调用点查询；免耗的实际免除由 "energy spend"
+    before 监听器执行（置 amount=0 并 revert），此处只做可行性判断。
+    """
+    for h in player.heroes:
+        if (getattr(h, "_rfh_awaken_buff", False) and h.is_alive
+                and h.counters.get("rfh_awaken_free_used", 0) == 0):
+            return True
+    return False
+
+
+def _rihefang_free_cond(e, s):
+    return (e.event.hero.owner is s.owner
+            and rfh_awaken_free_available(s.owner))
+
+
+def _rihefang_free_effect(e, s):
+    s.counters.ensure("rfh_awaken_free_used", initial=0, reset_per_turn=True)
+    s.counters.set("rfh_awaken_free_used", 1)
+    e.event.amount = 0
+    e.event.revert = True          # 免除：视为未发起，不结算、无 after 广播
+
+
 class RiHeFang:
     id = 33
     name = "日和坊"
@@ -1256,6 +1294,10 @@ class RiHeFang:
     hp = 6
     type = "fire"
     base_attributes = (HeroAttributes.ENERGY_CHARGE,)
+    listeners = (
+        Listener("energy spend", _rihefang_free_cond, (_rihefang_free_effect,),
+                 phase="before"),
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

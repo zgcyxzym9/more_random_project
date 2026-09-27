@@ -4,6 +4,7 @@ from .action import *
 from .utils import CardList
 from .card import Card
 from .hero import Hero
+from .heroes import rfh_awaken_free_available
 from .entity import Entity
 from .enums import *
 from .damage_immunity import clear_combat_immune
@@ -264,14 +265,18 @@ class Player():
                 return []
 
     def _append_blast_action(self, actions, card, target):
-        """若卡牌有爆能属性且能量足够，追加爆能版 PlayCard。
+        """若卡牌有爆能属性且费用可支付，追加爆能版 PlayCard。
 
         让 agent/用户在普通版与爆能版之间选择，而非默认总是爆能。
+        可支付 = 能量足够，或觉醒·日和坊免耗可用（实际免除由 "energy spend"
+        before 监听器执行，见 heroes.rfh_awaken_free_available）。
         """
         if CardAttributes.BLAST not in card.attributes:
             return
         hero = card.get_corresponding_hero()
-        if hero is not None and hero.counters.get("energy", 0) >= card.energy_cost:
+        if hero is not None and (
+                hero.counters.get("energy", 0) >= card.energy_cost
+                or rfh_awaken_free_available(self)):
             actions.append(PlayCard(card, target, use_blast=True))
 
     def _append_charge_action(self, actions, card, target):
