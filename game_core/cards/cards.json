@@ -3495,5 +3495,101 @@
     "description": "若本次战斗击杀敌方式神，则本局游戏茨木童子随机获得一个不重复的豪焰效果。羁绊：酒吞童子对自己造成1点伤害，使茨木童子获得2护甲。",
     "is_beginning_card": false,
     "level_req": 1
+  },
+  {
+    "id": 317,
+    "type": "spell",
+    "hero": "YanYanLuo",
+    "name": "顽皮鬼",
+    "eng_name": "WanPiGui",
+    "description": "对一个敌方式神造成2点伤害。爆能X：额外造成X点伤害，X为全部能量。",
+    "is_beginning_card": true,
+    "level_req": 1
+  },
+  {
+    "id": 318,
+    "type": "spell",
+    "hero": "YanYanLuo",
+    "name": "扑朔迷离",
+    "eng_name": "PuShuoMiLi",
+    "description": "在战斗区召唤一个烟烟罗的分身。响应：当你被攻击时，自动使用。",
+    "is_beginning_card": true,
+    "level_req": 1
+  },
+  {
+    "id": 319,
+    "type": "spell",
+    "hero": "YanYanLuo",
+    "name": "烟雾升腾",
+    "eng_name": "YanWuShengTeng",
+    "description": "瞬发 获得3能量。",
+    "is_beginning_card": true,
+    "level_req": 1
+  },
+  {
+    "id": 320,
+    "type": "morph",
+    "hero": "YanYanLuo",
+    "name": "烟雾缭绕",
+    "eng_name": "YanWuLiaoRao",
+    "description": "进场时，在战斗区召唤一个烟烟罗的分身。烟烟罗的分身每有1能量便获得1力量。",
+    "is_beginning_card": true,
+    "level_req": 2,
+    "atk": 3,
+    "hp": 4
+  },
+  {
+    "id": 321,
+    "type": "spell",
+    "hero": "YanYanLuo",
+    "name": "贪食鬼",
+    "eng_name": "TanShiGui",
+    "description": "对敌方战斗区式神造成3点伤害，你恢复3点生命。爆能X：额外造成X点伤害，X为全部能量。",
+    "is_beginning_card": true,
+    "level_req": 2
+  },
+  {
+    "id": 322,
+    "type": "spell",
+    "hero": "YanYanLuo",
+    "name": "觉醒·烟烟罗",
+    "eng_name": "JueXingYanYanLuo",
+    "description": "获得2能量。觉醒：充能。当烟烟罗获得能量时，获得两倍的能量。",
+    "is_beginning_card": true,
+    "level_req": 3,
+    "buff_atk": 1,
+    "buff_hp": 1
+  },
+  {
+    "id": 323,
+    "type": "morph",
+    "hero": "YanYanLuo",
+    "name": "无孔不入",
+    "eng_name": "WuKongBuRu",
+    "description": "进场时，选择一张烟烟罗的爆能牌置入手牌。进场和己方回合开始时，在战斗区召唤一个烟烟罗的分身。烟烟罗的分身会复制她使用的法术牌。",
+    "is_beginning_card": true,
+    "level_req": 3,
+    "atk": 3,
+    "hp": 6
+  },
+  {
+    "id": 324,
+    "type": "spell",
+    "hero": "YanYanLuo",
+    "name": "暴躁鬼",
+    "eng_name": "BaoZaoGui",
+    "description": "投射：造成4点伤害。爆能X：额外造成X点伤害，X为全部能量。若击杀式神，获得4点能量。",
+    "is_beginning_card": true,
+    "level_req": 3
+  },
+  {
+    "id": 325,
+    "type": "spell",
+    "hero": "YanYanLuo",
+    "name": "烟影",
+    "eng_name": "YanYing",
+    "description": "召唤一个烟烟罗的分身并使其使用一张等同于烟烟罗当前等级的爆能法术。羁绊：日和坊为己方具有充能式神+1能量。",
+    "is_beginning_card": false,
+    "level_req": 1
   }
 ]

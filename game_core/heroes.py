@@ -1683,3 +1683,201 @@ class CiMuTongZi:
                  lambda e, s: getattr(e.event, "killer", None) is s,
                  (_cimu_haoyan_on_kill,)),
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  38. 烟烟罗 (YanYanLuo) — 青岚派系
+#  基础能力：充能。当烟烟罗获得能量时若能量为0点，额外多获得1点。
+#  卡牌口径（用户裁决 2026-09-29，卡牌打出侧在 cards/YanYanLuo.py）：
+#  - 爆能X（顽皮鬼/贪食鬼/暴躁鬼，energy_cost=1）：能量≥1 即提供爆能选项；
+#    发起消耗时 _yanyanluo_blast_x_effect 把本次消耗改写为「全部能量」并把 X
+#    记到卡牌临时标记上，on_blast/on_play 折算额外伤害。日和坊觉醒免耗叠加时
+#    免耗监听置 revert（消耗不结算），X 按免耗前能量全额附加（stash 与 revert
+#    先后无关，两顺序结果一致）。分身经打出流程使用爆能法术（烟影/日霭相织）
+#    时 X 同样为分身全部能量（用户裁决④a）。
+#  - 觉醒（322）替换基础能力（不叠加，用户裁决⑥）：is_awakened 门控二选一；
+#    倍增监听只静默 inc——补发事件会被自身再次倍增而无限递归。
+#  - 烟雾缭绕（320）：形态在场（morphed_id==320）时分身力量持续同步为
+#    「召唤时复制的力量 + 分身当前能量」（用户裁决②：持续同步，消耗回落；
+#    获得与消耗两个事件点各挂一个同步监听）。形态离场/气绝自动失效
+#    （morphed_id 门控 + 死亡重置监听器）。
+#  - 无孔不入（323）：形态在场时分身复制她使用的法术牌（用户裁决③）——
+#    "play card" before 暂存（卡、目标、爆能X 快照），after 派发给分身补放：
+#    同目标、是否爆能与原打出一致但复制的爆能不再消耗能量、不耗鬼火；响应
+#    打出与其他效果代打的法术同属「使用」（用户裁决③d/③e）。进场与己方
+#    回合开始召唤分身（回合开始监听用 after 阶段：before 广播点在 retract
+#    之前，召唤物会立刻被收回战斗区外）。
+#  - 分身（YanYanLuoFenShen，id 204）：召唤物直接进战斗区，替换机制保证至多
+#    一个在场（用户裁决⑧）；召唤时复制烟烟罗当前力量/生命并获得一半能量
+#    （cards 侧 _yyl_summon_clone 定制）。
+# ═══════════════════════════════════════════════════════════════════════════════
+def _yanyanluo_extra_cond(e, s):
+    """烟烟罗获得能量且获得前能量为 0（含 FAQ：气绝期间基础效果不发动）。
+
+    所有获得能量的路径（begin_turn 充能、晴天娃娃等）都是先 counters.inc
+    再广播 EnergyGainEvent，监听器（无论 before/after 阶段）看到的能量均已
+    含本次增量，故「获得前为 0」等价于当前值 == amount。上限截断使
+    post > amount（如 9+2 截为 10），不会误判为 0 起点。
+    觉醒后基础能力被倍增替换（用户裁决⑥），不再叠加。
+    """
+    return (e.event.hero is s and s.is_alive
+            and not getattr(s, "is_awakened", False)
+            and s.counters.get("energy") == e.event.amount)
+
+
+def _yanyanluo_extra_effect(e, s):
+    # 额外的 1 点同样是一次真实获得：按获得路径惯例 inc 后补发事件广播，
+    # 供其他「获得能量时」类效果观察（此处 2 != 1，自身 cond 不会递归触发）
+    s.counters.inc("energy")
+    s.owner.game.handle_event(EnergyGainEvent(s, 1))
+
+
+def _yanyanluo_double_cond(e, s):
+    """觉醒·烟烟罗（322）：获得能量时获得两倍的能量（替换基础能力）。"""
+    return (e.event.hero is s and s.is_alive
+            and getattr(s, "is_awakened", False))
+
+
+def _yanyanluo_double_effect(e, s):
+    # 两倍 = 实际增量之外再补同样一份。只 inc 不补发事件：倍增监听对自身
+    # is_awakened 恒真，补发会再次触发而无限递归。
+    s.counters.inc("energy", e.event.amount)
+
+
+# 爆能X 三牌（X = 全部能量）
+_YYL_BLAST_X_NAMES = ("WanPiGui", "TanShiGui", "BaoZaoGui")
+
+
+def _yanyanluo_blast_x_cond(e, s):
+    # 覆盖烟烟罗本人与其分身：分身经烟影/日霭相织以正常打出流程使用爆能法术
+    # 时（played_by=分身），X 同样为分身全部能量（用户裁决④a）。
+    src = getattr(e.event, "source", None)
+    h = e.event.hero
+    return (s.is_alive and src is not None
+            and getattr(src, "eng_name", "") in _YYL_BLAST_X_NAMES
+            and (h is s
+                 or (h is not None and h.owner is s.owner
+                     and h.type_name == "YanYanLuoFenShen")))
+
+
+def _yanyanluo_blast_x_effect(e, s):
+    # X = 全部能量（消耗在本事件 case 阶段才扣，当前值即「全部」口径）。
+    # 同时改写本次消耗金额并记录 X 供 on_blast/on_play 折算额外伤害；
+    # 日和坊免耗 revert 时消耗不结算，X 记录照常生效（免耗时爆能效果照常
+    # 触发且不再扣能量，见 game.py 爆能分支注释）。
+    x = e.event.hero.counters.get("energy", 0)
+    e.event.amount = x
+    e.event.source._yyl_blast_x = x
+    e.event.source._yyl_blast_active = True
+
+
+# ── 烟雾缭绕（320）：分身力量持续同步 ──────────────────────────────────────
+def _yyl_sync_cond(e, s):
+    h = e.event.hero
+    return (s.morphed_id == 320 and s.is_alive and h is not s
+            and getattr(h, "owner", None) is s.owner
+            and getattr(h, "type_name", "") == "YanYanLuoFenShen")
+
+
+def _yyl_sync_apply(clone):
+    # 力量 = 召唤时复制的力量 + 当前能量；_yyl_copy_atk 缺失时以面板基础值兜底
+    clone.atk = (getattr(clone, "_yyl_copy_atk", clone.original_atk)
+                 + clone.counters.get("energy", 0))
+
+
+def _yyl_sync_gain(e, s):
+    # 获得路径先 inc 后广播，此处看到的能量已含本次增量
+    _yyl_sync_apply(e.event.hero)
+
+
+def _yyl_sync_spend(e, s):
+    # after 阶段（消耗已扣除；revert 的消耗不广播 after）
+    _yyl_sync_apply(e.event.hero)
+
+
+# ── 无孔不入（323）：分身复制她使用的法术牌 ────────────────────────────────
+def _yyl_wkr_cond(e, s):
+    return (s.morphed_id == 323 and s.is_alive
+            and e.event.player is s.owner
+            and e.event.card.type == "spell")
+
+
+def _yyl_wkr_stash(e, s):
+    # before 阶段：目标已选定、爆能 X 已记录（原 on_play 折算仍要读，取快照
+    # 不动原标记）。栈式暂存：结算中嵌套的响应打出各自成对。X 以 on_blast
+    # 置位的 active 标记为准（引擎爆能结算先于本广播点），杜绝残留标记误判。
+    card = e.event.card
+    targets = tuple(getattr(s.owner, "selected_targets", None) or ())
+    x = (getattr(card, "_yyl_blast_x", None)
+         if getattr(card, "_yyl_blast_active", False) else None)
+    st = getattr(s, "_yyl_wkr_stack", None)
+    if st is None:
+        st = s._yyl_wkr_stack = []
+    st.append((card, targets, x))
+
+
+def _yyl_wkr_copy(e, s):
+    st = getattr(s, "_yyl_wkr_stack", None)
+    if not st:
+        return
+    card = e.event.card
+    idx = next((i for i in range(len(st) - 1, -1, -1) if st[i][0] is card), None)
+    if idx is None:
+        return
+    _, targets, x = st.pop(idx)
+    from .cards.YanYanLuo import _yyl_dispatch_copy
+    _yyl_dispatch_copy(s.owner, card, targets, x)
+
+
+def _yyl_wkr_turn_cond(e, s):
+    return (s.morphed_id == 323 and s.is_alive
+            and e.next_player is s.owner)
+
+
+def _yyl_wkr_turn(e, s):
+    from .cards.YanYanLuo import _yyl_summon_clone
+    _yyl_summon_clone(s.owner)
+
+
+class YanYanLuo:
+    id = 38
+    name = "烟烟罗"
+    atk = 2
+    hp = 4
+    type = "wind"
+    base_attributes = (HeroAttributes.ENERGY_CHARGE,)
+    listeners = (
+        # 基础能力（0 起点额外+1）/ 觉醒倍增（替换，二选一）
+        Listener("energy gain", _yanyanluo_extra_cond,
+                 (_yanyanluo_extra_effect,)),
+        Listener("energy gain", _yanyanluo_double_cond,
+                 (_yanyanluo_double_effect,)),
+        # 爆能X：把本次消耗改写为全部能量并记录 X（before，先于 case 扣费）
+        Listener("energy spend", _yanyanluo_blast_x_cond,
+                 (_yanyanluo_blast_x_effect,), phase="before"),
+        # 烟雾缭绕：分身力量持续同步（能量获得/消耗两点）
+        Listener("energy gain", _yyl_sync_cond, (_yyl_sync_gain,)),
+        Listener("energy spend", _yyl_sync_cond, (_yyl_sync_spend,),
+                 phase="after"),
+        # 无孔不入：分身复制她使用的法术牌（before 暂存 / after 派发）
+        Listener("play card", _yyl_wkr_cond, (_yyl_wkr_stash,), phase="before"),
+        Listener("play card", _yyl_wkr_cond, (_yyl_wkr_copy,), phase="after"),
+        # 无孔不入：己方回合开始召唤分身（after：before 广播点在 retract 之前）
+        Listener("begin turn", _yyl_wkr_turn_cond, (_yyl_wkr_turn,),
+                 phase="after"),
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  38.5 烟烟罗的分身 (YanYanLuoFenShen) — 烟烟罗的召唤物
+#  atk2 hp4 青岚派系（wind）充能。召唤时复制烟烟罗当前力量/生命并获得其一半
+#  能量（cards/YanYanLuo.py _yyl_summon_clone 定制面板）；召唤物直接进战斗区，
+#  新分身进场自动替换旧分身（move_to_battle 替换语义），至多一个在场。
+# ═══════════════════════════════════════════════════════════════════════════════
+class YanYanLuoFenShen:
+    id = 204
+    name = "烟烟罗的分身"
+    atk = 2
+    hp = 4
+    type = "wind"
+    base_attributes = (HeroAttributes.ENERGY_CHARGE,)
