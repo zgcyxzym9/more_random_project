@@ -21,6 +21,7 @@
 排列约定：全部效果函数定义在前、类定义在后（类体直接引用函数，
 BingYong/Xun listener 先例）。
 """
+import random
 import sys
 sys.path.insert(0, "E:/more_random_project_vibe")
 from game_core.action import *
@@ -125,10 +126,9 @@ def _sunny_play_cond(e, s):
         return False
     if s.counters.get(RFH_SUNNY_TURN_KEY, 0) != 0:
         return False
-    # 协战牌对应 heroes 列表中的所有式神（引擎 get_corresponding_hero 对协战
-    # 返回 played_by=受牌目标，煦日受牌目标不应被视作「使用卡牌」的结附式神）
-    if card.type == "coop":
-        return holder.type_name in getattr(card, "heroes", ())
+    # 协战牌的使用者是打出分支式神（played_by，2026-09-29 协战选择语义改为
+    # 「选分支式神」）；get_corresponding_hero 对协战优先返回 played_by，
+    # 未记录时（响应等特殊路径）回退任一列表式神，与旧行为一致。
     return card.get_corresponding_hero() is holder
 
 
@@ -384,13 +384,22 @@ def _xuri_apply(s, recipient):
 
 
 def _riai_on_play(s):
-    # selected_targets[0] 即受牌目标（引擎会把协战牌 played_by 设为它，
-    # 本卡分支不依赖 played_by——见 RiAiXiangZhi docstring）
-    recipient = s.owner.selected_targets[0] if s.owner.selected_targets else None
-    if recipient is None or not recipient.is_alive:
+    # 协战分支派发（森佑灵矢先例）：played_by 即选定的分支式神
+    # （play_card 在选目标完成后记录，见 RiAiXiangZhi docstring）。
+    hero = s.played_by if s.played_by is not None else s.get_corresponding_hero()
+    if hero is None:
         return
-    _xuri_apply(s, recipient)
-    # TODO（烟烟罗实装后）：烟烟罗-烟影 分支
+    if hero.type_name == "YanYanLuo":
+        # 烟烟罗-烟影：召唤分身后以正常打出流程使用当前等级的爆能法术
+        # （目标选择由 play_card 承担，用户裁决 2026-09-29）
+        from game_core.cards.YanYanLuo import _yyl_riai_yanying_effect
+        _yyl_riai_yanying_effect(s.owner)
+    elif hero.type_name == "RiHeFang":
+        # 日和坊-煦日：单次选目标已用于选分支式神，受牌者取「其他存活已升级
+        # 己方式神」中随机（用户裁决 2026-09-29）
+        targets = _xuri_targets(s.owner)
+        if targets:
+            _xuri_apply(s, random.choice(targets))
 
 
 # ── 1勾卡牌 ─────────────────────────────────────────────────────────────────
@@ -522,9 +531,13 @@ class QingYu:
 class RiAiXiangZhi:
     """日霭相织（协战 日和坊×烟烟罗）：选择使用一项：烟烟罗-烟影；日和坊-煦日。
 
-    引擎仅支持单次选目标（森佑灵矢式的「选打出式神」无法再选受牌目标），
-    故本卡直接选「煦日」的受牌目标（一个其他己方式神），分支固定为
-    日和坊-煦日。烟烟罗未实装，烟影分支 TODO（待烟烟罗实装后恢复两段结构）。
+    森佑灵矢先例（用户裁决 2026-09-29）：单次选目标 = 选分支式神，
+    play_card 把 played_by 记为选中者，on_play 按其派发：
+    - 烟烟罗-烟影：召唤分身后按烟烟罗当前等级以正常打出流程使用爆能法术
+      （免鬼火、爆能X为分身全部能量，目标选择由 play_card 挂起-重放承担；
+      羁绊同烟影）。
+    - 日和坊-煦日：受牌者为「其他存活已升级己方式神」中随机（单次选目标
+      已用于选分支，无法手选受牌者）。
     """
     id = 280
     type = "coop"
@@ -533,8 +546,11 @@ class RiAiXiangZhi:
     name = "日霭相织"
     level_req = 1
     is_beginning_card = True
-    require_target = (lambda s: _xuri_targets(s.owner),)
-    select_target = (lambda s: select_target(s.owner, _xuri_targets(s.owner), s),)
+    select_target = (lambda s: select_target(
+        s.owner,
+        [h for h in s.owner.heroes if h.type_name in s.heroes and h.is_alive
+         and h.level >= s.level_req and not h.stunned],
+        s),)
     on_play = (_riai_on_play,)
 
 
