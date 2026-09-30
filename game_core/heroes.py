@@ -1881,3 +1881,66 @@ class YanYanLuoFenShen:
     hp = 4
     type = "wind"
     base_attributes = (HeroAttributes.ENERGY_CHARGE,)
+
+
+# ══════════════════════════════════════════════════════════════════
+# 39. 青行灯
+# ══════════════════════════════════════════════════════════════════
+
+def _qingxingdeng_turn_cond(e, s):
+    # 敌方回合开始时（begin turn 广播默认 before 相位，此时 next_player
+    # 为敌方；自己一方的鬼火在敌方回合不被重置）且自己有剩余鬼火。
+    return (s.is_alive
+            and e.next_player is s.owner.opponent
+            and s.owner.fire_cnt > 0)
+
+
+def _qingxingdeng_gain(e, s):
+    # 「明灯」已实装（cards/QingXingDeng.py MingDeng）；hasattr 门保留为
+    # 加载顺序防御（card 模块未加载该类时静默跳过，庇羽先例）。
+    from . import card as _card_mod
+    if not hasattr(_card_mod, "MingDeng"):
+        return
+    s.owner.GiveCardToHand(["MingDeng"])
+
+
+def _qingxingdeng_fire_snap_cond(e, s):
+    # 觉醒·青行灯：己方回合开始 before 广播——鬼火重置尚未发生（引擎 2026-09-29
+    # 移位），快照结余鬼火供 after 广播恢复。觉醒永久生效（气绝不失效）。
+    return s.is_awakened and e.next_player is s.owner
+
+
+def _qingxingdeng_fire_snap(e, s):
+    s.counters.set("qxd_saved_fire", s.owner.fire_cnt)
+
+
+def _qingxingdeng_fire_restore_cond(e, s):
+    # after 广播：重置已执行。恢复为结余鬼火（不超过储存上限 4）；
+    # max 语义：不覆盖同一广播链中其他效果已加的鬼火（如蓬莱玉枝）。
+    return (s.is_awakened and e.next_player is s.owner
+            and s.owner.fire_cnt < 4)
+
+
+def _qingxingdeng_fire_restore(e, s):
+    saved = min(4, s.counters.get("qxd_saved_fire", 0))
+    if saved > s.owner.fire_cnt:
+        s.owner.fire_cnt = saved
+
+
+class QingXingDeng:
+    id = 39
+    name = "青行灯"
+    atk = 2
+    hp = 5
+    type = "wind"
+    listeners = (
+        # 基础被动：敌方回合开始时若你有剩余鬼火，获得一张「明灯」
+        Listener("begin turn", _qingxingdeng_turn_cond,
+                 (_qingxingdeng_gain,)),
+        # 觉醒·青行灯：「你的鬼火不会自动清除，最大可储存4点」——
+        # before 快照结余鬼火 → 引擎重置 → after 恢复 min(4, 快照)
+        Listener("begin turn", _qingxingdeng_fire_snap_cond,
+                 (_qingxingdeng_fire_snap,)),
+        Listener("begin turn", _qingxingdeng_fire_restore_cond,
+                 (_qingxingdeng_fire_restore,), phase="after"),
+    )

@@ -35,14 +35,16 @@ class Game:
     def begin_turn(self):
         # 薰：last_attacking_hero 需要区分"本回合最后攻击者"，故在回合开始复位
         self.current_player.last_attacking_hero = None
-        # 鬼火在广播 begin turn 之前重置：回合开始类效果（如辉夜姬·蓬莱玉枝）在
-        # begin-turn 广播中增加的鬼火需要保留，否则会被此处的无条件覆盖抹掉。
-        # 条件从 turn_count > 1 改为 >= 1：广播时 turn_count 尚未自增，二者等价。
-        self.current_player.fire_cnt = 2 if self.turn_count >= 1 else 1
         # 先清除上一回合临时加成，再广播 begin turn，让式神（如泷夜叉姬）按当前状态生成本回合加成
         self.player1.clear_round_effects()
         self.player2.clear_round_effects()
         self.broadcast("begin turn", next_player=self.current_player, phase="before")
+        # 鬼火在第一次广播之后重置（2026-09-29 移位，觉醒·青行灯）：before 广播
+        # 中监听器可见上一回合结余鬼火（青行灯「敌方回合开始时若你有剩余鬼火」
+        # 按结余判定）；回合开始类修改鬼火的效果（如辉夜姬·蓬莱玉枝）改在第二次
+        # 广播（phase="after"）中执行，避免被此处的重置覆盖。
+        # 条件从 turn_count > 1 改为 >= 1：此处 turn_count 尚未自增，与旧位置一致。
+        self.current_player.fire_cnt = 2 if self.turn_count >= 1 else 1
         self.current_player.state = PlayerState.PLAYING if self.current_player.initial_pick_reject_left == 0 else PlayerState.INITIAL_PICK
         self.current_player.opponent.state = PlayerState.WAITING
         if self.player1.state != PlayerState.INITIAL_PICK and self.player2.state != PlayerState.INITIAL_PICK:

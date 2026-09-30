@@ -355,7 +355,8 @@ class JueXingHuiYeJi:
 # ═══════════════════════════════════════════════════════════════════════════════
 #  120 蓬莱玉枝 (PengLaiYuZhi)
 #  每个回合开始前，抽一张牌并获得1点鬼火。若此牌耐久≥10，效果翻倍。
-#  （注意：鬼火在 begin_turn 广播之前已重置，本效果增加的鬼火不会被覆盖。）
+#  （注意：鬼火重置已移至 begin_turn 第一次广播之后（2026-09-29，觉醒·青行灯），
+#  本效果因此挂在第二次广播（phase="after"）中执行，+鬼火不会被重置覆盖。）
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _penglai_on_play(s):
@@ -363,7 +364,8 @@ def _penglai_on_play(s):
     card = s
     l = Listener("begin turn",
                  lambda e, s2: _hyj_active(s2, card),
-                 (lambda e, s2: _penglai_effect(e, s2, card),))
+                 (lambda e, s2: _penglai_effect(e, s2, card),),
+                 phase="after")
     l._tag = "penglai"
     player.listeners.append(l)
 

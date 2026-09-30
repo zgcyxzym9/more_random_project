@@ -8,7 +8,11 @@
 - 觉醒·凤凰火(159)：觉醒后己方式神使用法术牌时投射1点伤害；与基础能力投射用 get_corresponding_hero() is not h 去重。
 - 炎舞(160)：贯通+投射。引擎的 projectile 分支未处理贯通溢出，故改走 deal damage 分支（临时给凤凰火加 PENETRATE）。
 - 出云(161)：形态在场时凤凰火使用法术牌 → 将一张「凤火」置入手牌（morphed_id 守卫防止形态替换后陈旧监听）。
-- 涅槃明灯(162)/涅槃业火(163)：共享 _niepanyehuo_apply；青行灯选项卡未实现。
+- 涅槃明灯(162)/涅槃业火(163)：共享 _niepanyehuo_apply（羁绊「获得一张明灯」
+  按 faq 协战羁绊规则门控：青行灯存活且等级不为 0；随共享实现同时作用于协战
+  牌的凤凰火选项）；协战牌的青行灯选项为召唤烛火重燃幻境
+  （_zhuhuochongran_summon，实现见 QingXingDeng.py），可选中气绝的青行灯
+  （2026-09-30 用户裁决：选项烛火重燃「气绝时可用」）。
 """
 import sys
 sys.path.insert(0, "E:/more_random_project_vibe")
@@ -111,7 +115,13 @@ def _niepanyehuo_apply(s, hero):
     # 不可叠加：先移除旧实例再挂新实例
     hero.listeners = [l for l in hero.listeners if getattr(l, "_tag", "") != "fhh_niepan_buff"]
     hero.listeners += [l_trig, l_clr]
-    # 羁绊：获得一张「明灯」（TODO：项目中无「明灯」卡牌，待补充后实现）
+    # 羁绊：获得一张「明灯」（faq 协战羁绊规则：另一位协战式神——青行灯
+    # 存活且等级不为 0 时生效；协战牌涅槃明灯的凤凰火选项复用本函数）
+    partner = next((h for h in hero.owner.heroes
+                    if h.type_name == "QingXingDeng"
+                    and h.is_alive and h.level > 0), None)
+    if partner is not None:
+        hero.owner.GiveCardToHand(["MingDeng"])
 
 
 # ── 1勾 法术 ──────────────────────────────────────────────────────────────
@@ -332,8 +342,12 @@ class NiePanMingDeng:
     is_beginning_card = True
     select_target = (lambda s: select_target(
         s.owner,
-        [h for h in s.owner.heroes if h.type_name in s.heroes and h.is_alive
-         and h.level >= s.level_req and not h.stunned],
+        # 凤凰火选项常规门槛；青行灯选项因烛火重燃「气绝时可用」放宽：
+        # 气绝的青行灯亦可被选中（2026-09-30 用户裁决），等级门槛保留
+        [h for h in s.owner.heroes
+         if h.type_name in s.heroes and h.level >= s.level_req
+         and ((h.is_alive and not h.stunned)
+              or (h.type_name == "QingXingDeng" and h.state == "dead"))],
         s),)
     on_play = (lambda s: _niepanmingdeng_on_play(s),)
 
@@ -346,8 +360,9 @@ def _niepanmingdeng_on_play(s):
         # 凤凰火-涅槃业火
         _niepanyehuo_apply(s, hero)
     elif hero.type_name == "QingXingDeng":
-        # 青行灯-烛火重燃：青行灯未实现，TODO（待青行灯实现后完成）
-        pass
+        # 青行灯-烛火重燃：召唤烛火重燃幻境（唯一/羁绊/持续效果随进场生效）
+        from game_core.cards.QingXingDeng import _zhuhuochongran_summon
+        _zhuhuochongran_summon(s.owner)
 
 
 class NiePanYeHuo:

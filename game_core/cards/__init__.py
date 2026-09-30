@@ -36,4 +36,5 @@ from .ShuWeng import *
 from .JiuTunTongZi import *
 from .CiMuTongZi import *
 from .YanYanLuo import *
+from .QingXingDeng import *
 from ._ingredients import *
