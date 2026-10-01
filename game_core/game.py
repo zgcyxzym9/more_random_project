@@ -1787,41 +1787,11 @@ class Game:
         opponent = player.opponent
 
         from env.actions import OBS_DIM, TOTAL_CARD_NUM, HERO_BLOCK, NUM_HEROES
-        from env.actions import ObsIdx as o, HeroField as hf
+        from env.actions import ObsIdx as o
+        # 式神块 / 幻境区的写入与 env.env.get_obs 共用同一实现
+        from env.encoders import encode_hero_block, encode_illusion_zone
 
         buf = np.zeros(OBS_DIM, dtype=np.float32)
-
-        def _fill_hero(buf, base, h):
-            """写入 29 维式神块"""
-            buf[base + hf.ID]                = h.id
-            buf[base + hf.MORPHED_ID]        = h.morphed_id
-            buf[base + hf.CURRENT_MAX_HP]    = h.current_max_hp
-            buf[base + hf.HP]                = h.hp
-            buf[base + hf.ATK]               = h.atk
-            buf[base + hf.ROUND_BUFF_ATK]    = h.round_buff_atk
-            buf[base + hf.DEFENSE]           = h.defense
-            buf[base + hf.LEVEL]             = h.level
-            buf[base + hf.ROUND_UNTIL_ALIVE] = h.round_until_alive
-            # position_state
-            state = h.state
-            if state == "attacking":
-                buf[base + hf.POSITION_STATE] = 1.0
-            elif state == "dead":
-                buf[base + hf.POSITION_STATE] = 2.0
-            else:
-                buf[base + hf.POSITION_STATE] = 0.0
-            buf[base + hf.IS_STUNNED]  = 1.0 if h.stunned else 0.0
-            buf[base + hf.IS_AWAKENED] = 1.0 if h.is_awakened else 0.0
-            # countdown_ratio
-            if h.countdown_max > 0:
-                buf[base + hf.COUNTDOWN_RATIO] = h.countdown / h.countdown_max
-            else:
-                buf[base + hf.COUNTDOWN_RATIO] = 0.0
-            # 16 HeroAttributes
-            for attr in h.attributes:
-                attr_val = int(attr)
-                if 1 <= attr_val <= 16:
-                    buf[base + hf.ATTR_START + attr_val - 1] = 1.0
 
         # ── 基础标量 ─────────────────────────────────────────────────
         buf[o.PLAYER_STATE] = player.state
@@ -1832,11 +1802,15 @@ class Game:
         # ── 己方英雄 (4 × 29) ────────────────────────────────────────
         # 召唤物会作为额外式神加入 heroes，obs 槽位固定为 NUM_HEROES，截断避免越界写入
         for i, h in enumerate(player.heroes[:NUM_HEROES]):
-            _fill_hero(buf, o.PLAYER_HERO_START + i * HERO_BLOCK, h)
+            encode_hero_block(buf, o.PLAYER_HERO_START + i * HERO_BLOCK, h)
 
         # ── 对手英雄 (4 × 29) ────────────────────────────────────────
         for i, h in enumerate(opponent.heroes[:NUM_HEROES]):
-            _fill_hero(buf, o.OPP_HERO_START + i * HERO_BLOCK, h)
+            encode_hero_block(buf, o.OPP_HERO_START + i * HERO_BLOCK, h)
+
+        # ── 幻境区 (2 × MAX_ILLUSIONS × ILLUSION_BLOCK) ───────────────
+        encode_illusion_zone(buf, o.PLAYER_ILLUSION_START, player)
+        encode_illusion_zone(buf, o.OPP_ILLUSION_START, opponent)
 
         # ── 牌手标量 ─────────────────────────────────────────────────
         buf[o.PLAYER_DECK]        = len(player.deck)
@@ -1892,13 +1866,13 @@ class Game:
         # ── 正在攻击的己方英雄 ──────────────────────────────────────
         for h in player.heroes:
             if h.state == "attacking":
-                _fill_hero(buf, o.PLAYER_ATTACKING_START, h)
+                encode_hero_block(buf, o.PLAYER_ATTACKING_START, h)
                 break
 
         # ── 正在攻击的对手英雄 ──────────────────────────────────────
         for h in opponent.heroes:
             if h.state == "attacking":
-                _fill_hero(buf, o.OPP_ATTACKING_START, h)
+                encode_hero_block(buf, o.OPP_ATTACKING_START, h)
                 break
 
         return torch.from_numpy(buf).to(device)

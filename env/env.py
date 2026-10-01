@@ -9,6 +9,7 @@ from game_core import heroes as hero_defs
 from rl.actor_critic import ActorCritic
 from rl_dqn.agent import DoubleDQNAgent
 from .actions import *
+from .encoders import encode_hero_block, encode_illusion_zone
 from game_core.action import *
 import itertools
 import torch
@@ -25,47 +26,7 @@ _DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 _UNIMPLEMENTED_HEROES = {"LongYeChaJi", "XiaoLuNan", "LianYou"}
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  模块级 helper — 式神块写入 numpy buffer
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def _fill_hero_block_np(buf: np.ndarray, base: int, hero) -> None:
-    """将一个式神的状态写入 numpy buffer[base : base+HERO_BLOCK] (29 维)。"""
-    hf = HeroField
-
-    buf[base + hf.ID]                = hero.id
-    buf[base + hf.MORPHED_ID]        = hero.morphed_id
-    buf[base + hf.CURRENT_MAX_HP]    = hero.current_max_hp
-    buf[base + hf.HP]                = hero.hp
-    buf[base + hf.ATK]               = hero.atk
-    buf[base + hf.ROUND_BUFF_ATK]    = hero.round_buff_atk
-    buf[base + hf.DEFENSE]           = hero.defense
-    buf[base + hf.LEVEL]             = hero.level
-    buf[base + hf.ROUND_UNTIL_ALIVE] = hero.round_until_alive
-
-    # position_state: 0=准备区 1=战斗区 2=气绝
-    state = hero.state
-    if state == "attacking":
-        buf[base + hf.POSITION_STATE] = 1.0
-    elif state == "dead":
-        buf[base + hf.POSITION_STATE] = 2.0
-    else:
-        buf[base + hf.POSITION_STATE] = 0.0
-
-    buf[base + hf.IS_STUNNED]  = 1.0 if hero.stunned else 0.0
-    buf[base + hf.IS_AWAKENED] = 1.0 if hero.is_awakened else 0.0
-
-    # countdown_ratio
-    if hero.countdown_max > 0:
-        buf[base + hf.COUNTDOWN_RATIO] = hero.countdown / hero.countdown_max
-    else:
-        buf[base + hf.COUNTDOWN_RATIO] = 0.0
-
-    # 全部 16 个 HeroAttributes — 枚举值 1~16 → ATTR_START + (val-1)
-    for attr in hero.attributes:
-        attr_val = int(attr)
-        if 1 <= attr_val <= 16:
-            buf[base + hf.ATTR_START + attr_val - 1] = 1.0
+# 式神块 / 幻境区的写入实现在 env/encoders.py，与 game_core.game.get_obs_tensor 共用
 
 
 class Env:
@@ -204,11 +165,15 @@ class Env:
         # ── 己方式神 (4 × 29) ─────────────────────────────────────────
         # 召唤物会作为额外式神加入 heroes，obs 槽位固定为 NUM_HEROES，截断避免越界写入
         for i, h in enumerate(player.heroes[:NUM_HEROES]):
-            _fill_hero_block_np(buf, o.PLAYER_HERO_START + i * HERO_BLOCK, h)
+            encode_hero_block(buf, o.PLAYER_HERO_START + i * HERO_BLOCK, h)
 
         # ── 对手式神 (4 × 29) ─────────────────────────────────────────
         for i, h in enumerate(opponent.heroes[:NUM_HEROES]):
-            _fill_hero_block_np(buf, o.OPP_HERO_START + i * HERO_BLOCK, h)
+            encode_hero_block(buf, o.OPP_HERO_START + i * HERO_BLOCK, h)
+
+        # ── 幻境区 (2 × MAX_ILLUSIONS × ILLUSION_BLOCK) ───────────────
+        encode_illusion_zone(buf, o.PLAYER_ILLUSION_START, player)
+        encode_illusion_zone(buf, o.OPP_ILLUSION_START, opponent)
 
         # ── 牌手标量 (14) ─────────────────────────────────────────────
         buf[o.PLAYER_DECK]        = len(player.deck)
@@ -264,13 +229,13 @@ class Env:
         # ── 正在攻击的己方式神 (29) ───────────────────────────────────
         for h in player.heroes:
             if h.state == "attacking":
-                _fill_hero_block_np(buf, o.PLAYER_ATTACKING_START, h)
+                encode_hero_block(buf, o.PLAYER_ATTACKING_START, h)
                 break
 
         # ── 正在攻击的对手式神 (29) ───────────────────────────────────
         for h in opponent.heroes:
             if h.state == "attacking":
-                _fill_hero_block_np(buf, o.OPP_ATTACKING_START, h)
+                encode_hero_block(buf, o.OPP_ATTACKING_START, h)
                 break
 
         return torch.from_numpy(buf).to(device=_DEVICE, dtype=torch.float32)

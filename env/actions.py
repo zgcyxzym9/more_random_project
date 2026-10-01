@@ -46,51 +46,83 @@ _CARDS_JSON = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fil
                            "game_core", "cards", "cards.json")
 
 
-def _load_max_card_id() -> int:
-    """cards.json 中正式卡的最大 id。新增卡牌时自动跟随，无手工同步。"""
+def _load_cards_json() -> list:
+    """读 cards.json，并校验 id 唯一（重复 id 会让卡牌下标空间撞车）。"""
     with open(_CARDS_JSON, "r", encoding="utf-8") as f:
         card_data = json.load(f)
     ids = [c["id"] for c in card_data]
     if len(set(ids)) != len(ids):
         dupes = sorted({i for i in ids if ids.count(i) > 1})
         raise ValueError(f"cards.json 存在重复 id: {dupes}")
-    return max(ids)
+    return card_data
 
 
-MAX_CARD_ID     = _load_max_card_id()   # 正式卡最大 id
+_CARD_DATA      = _load_cards_json()
+MAX_CARD_ID     = max(c["id"] for c in _CARD_DATA)   # 正式卡最大 id
 TOKEN_NUM       = 32                    # token 卡总数（食材/佳肴 10 + 胡桃物品 22）
 TOTAL_CARD_NUM  = MAX_CARD_ID + TOKEN_NUM   # 卡牌 id 空间总长 = obs/动作下标上界
 
+#: 幻境卡密集编号（按 cards.json 顺序，写入 obs 时用 编号 本身；0 保留给空槽）。
+#: 直接写卡牌 id（0..366）当标量范围太大、噪声高，密集编号更利于网络分卡学效果。
+ILLUSION_IDS     = {c["eng_name"]: i + 1
+                    for i, c in enumerate(c for c in _CARD_DATA if c["type"] == "illusion")}
+#: 表外幻境卡（正常情况下不会出现；写非 0 值，避免被误读成空槽）
+ILLUSION_UNKNOWN = len(ILLUSION_IDS) + 1
+
+# ── 式神槽位 ─────────────────────────────────────────────────────────────────
+
+HERO_BLOCK     = 29   # 单个式神块宽度
+NUM_HEROES     = 4    # 阵容式神数（= obs 的式神块数）
+# 召唤物会作为额外式神追加到 player.heroes 末尾，同时至多 1 个、且必定是战斗区
+# 占用者（player.advance_hero 顶替时 dismiss_summon 离场 / 换人时被顶到准备区），
+# 所以 player.heroes 里可出击的下标最多到 NUM_HEROES（第 5 个）。
+# 升级/移动仍只对 4 个阵容式神开放——引擎从不为召唤物提供这两类动作。
+NUM_HERO_SLOTS = NUM_HEROES + 1
+
 # ── 动作空间 ─────────────────────────────────────────────────────────────────
-
-END_TURN                = 0
-UPGRADE_HERO_START      = 1                                    # +4（式神下标）
-HERO_ATTACK_START       = 5                                    # +4（式神下标）
-PLAY_CARD_START         = 9                                    # +TOTAL_CARD_NUM（按卡牌ID）
-SELECT_TARGET_START     = PLAY_CARD_START + TOTAL_CARD_NUM     # +10（候选目标下标）
-REJECT_START            = SELECT_TARGET_START + 10             # +TOTAL_CARD_NUM（按卡牌ID）
-MOVE_HERO_START         = REJECT_START + TOTAL_CARD_NUM        # +4×2（式神 × 战斗区/准备区）
-ACTION_DIM              = MOVE_HERO_START + 8
-
-REJECT_INITIAL_PICK_START = REJECT_START   # 旧名兼容别名（防外部 import 断裂）
 
 MAX_SELECT_TARGETS      = 10   # 候选目标槽位上限（超出部分丢弃）
 HAND_LIMIT              = 12   # 手牌上限（get_reward 超量惩罚用）
 
-# ── 观测空间 ─────────────────────────────────────────────────────────────────
+END_TURN                = 0
+UPGRADE_HERO_START      = 1                                       # +NUM_HEROES（式神下标）
+HERO_ATTACK_START       = UPGRADE_HERO_START + NUM_HEROES         # +NUM_HERO_SLOTS（含召唤物）
+PLAY_CARD_START         = HERO_ATTACK_START + NUM_HERO_SLOTS      # +TOTAL_CARD_NUM（按卡牌ID）
+SELECT_TARGET_START     = PLAY_CARD_START + TOTAL_CARD_NUM        # +MAX_SELECT_TARGETS
+REJECT_START            = SELECT_TARGET_START + MAX_SELECT_TARGETS
+MOVE_HERO_START         = REJECT_START + TOTAL_CARD_NUM           # +NUM_HEROES×2
+ACTION_DIM              = MOVE_HERO_START + NUM_HEROES * 2
 
-HERO_BLOCK   = 29
-NUM_HEROES   = 4
+REJECT_INITIAL_PICK_START = REJECT_START   # 旧名兼容别名（防外部 import 断裂）
+
+# ── 观测空间 ─────────────────────────────────────────────────────────────────
+# 召唤物不需要额外的 obs 块：它是战斗区占用者（state == "attacking"），已由
+# PLAYER/OPP_ATTACKING 块表示（那两个循环遍历 player.heroes 全部元素、不做
+# NUM_HEROES 截断，见 env.get_obs 与 game.get_obs_tensor）。
+
+# ── 幻境区 ───────────────────────────────────────────────────────────────────
+# 幻境区里所有幻境的效果同时生效；牌手受伤时「最早进入的」那个同步扣等量耐久
+# ——**并行不减免**，伤害照样全额扣牌手血（见 player.receive_damage），耐久 ≤0
+# 才离场。所以耐久表示「这个效果还能持续多久」+「≥10 / ≥15 这类阈值是否成立」，
+# 不是护盾。据此两条编码约束：
+#   ① 同名幻境可重复叠加（实测 300 局中 2507 个快照的幻境区有同名条目）→ 必须按
+#      「条目」编码，不能只给「哪些卡在场」的 multi-hot（那样会丢掉各自耐久）；
+#   ② 只有 index 0 承伤 → 槽位次序本身有语义，槽 0 = 当前承伤位。
+# 实测幻境区长度最大 8（分布 0..8 递减）；理论上限受 32 张卡组约束达不到。
+MAX_ILLUSIONS     = 8
+ILLUSION_BLOCK    = 2   # ID（密集编号，0=空槽）+ 当前耐久
+ILLUSION_ZONE_DIM = MAX_ILLUSIONS * ILLUSION_BLOCK
 
 # OBS_DIM 计算
 # ============
 #   基础标量          = 5
-#   8 式神块          = 8 * HERO_BLOCK      = 232
+#   8 式神块          = 8 * HERO_BLOCK         = 232
+#   幻境区 ×2         = 2 * ILLUSION_ZONE_DIM  = 32
 #   牌手标量          = 14
-#   卡牌多热 ×4       = 4 * TOTAL_CARD_NUM  = 1464
-#   攻击式神 ×2       = 2 * HERO_BLOCK      = 58
-#   ─────────────────────────────────────────────
-#   TOTAL                                   = 1773
+#   卡牌多热 ×4       = 4 * TOTAL_CARD_NUM     = 1464
+#   攻击式神 ×2       = 2 * HERO_BLOCK         = 58
+#   ────────────────────────────────────────────────
+#   TOTAL                                      = 1805
 
 BASE_SCALARS     = 5
 PLAYER_SCALARS   = 14
@@ -99,13 +131,14 @@ ATTACKING_HEROES = 2
 OBS_DIM = (
     BASE_SCALARS
     + 2 * NUM_HEROES * HERO_BLOCK
+    + 2 * ILLUSION_ZONE_DIM
     + PLAYER_SCALARS
     + 4 * TOTAL_CARD_NUM
     + ATTACKING_HEROES * HERO_BLOCK
 )
 
-assert OBS_DIM == 1773, f"OBS_DIM expected 1773, got {OBS_DIM}"
-assert ACTION_DIM == 759, f"ACTION_DIM expected 759, got {ACTION_DIM}"
+assert OBS_DIM == 1805, f"OBS_DIM expected 1805, got {OBS_DIM}"
+assert ACTION_DIM == 760, f"ACTION_DIM expected 760, got {ACTION_DIM}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -167,8 +200,13 @@ class ObsIdx:
     # ── 对手式神 (4 × 29) ─────────────────────────────────────────────
     OPP_HERO_START     = PLAYER_HERO_START + NUM_HEROES * HERO_BLOCK   # 121 ~  236
 
+    # ── 幻境区 (2 × MAX_ILLUSIONS × ILLUSION_BLOCK) ───────────────────
+    # 槽 i 对应 illusion_zone[i]，槽 0 = 当前承伤位；无幻境时全 0
+    PLAYER_ILLUSION_START = OPP_HERO_START + NUM_HEROES * HERO_BLOCK   # 237 ~  252
+    OPP_ILLUSION_START    = PLAYER_ILLUSION_START + ILLUSION_ZONE_DIM  # 253 ~  268
+
     # ── 牌手标量 (14) ─────────────────────────────────────────────────
-    PLAYER_DECK        = OPP_HERO_START + NUM_HEROES * HERO_BLOCK      # 237
+    PLAYER_DECK        = OPP_ILLUSION_START + ILLUSION_ZONE_DIM       # 269
     OPPONENT_DECK      = PLAYER_DECK + 1
     OPPONENT_HAND_SIZE = PLAYER_DECK + 2
     FIRE_REMAINING     = PLAYER_DECK + 3
@@ -184,14 +222,14 @@ class ObsIdx:
     OPPONENT_FIRE      = PLAYER_DECK + 13     # 对手剩余鬼火
 
     # ── 卡牌多热编码 (4 × TOTAL_CARD_NUM) ─────────────────────────────
-    PLAYER_HAND_START   = OPPONENT_FIRE + 1                          #  251 ~  616
-    STARTING_DECK_START = PLAYER_HAND_START + TOTAL_CARD_NUM         #  617 ~  982
-    PLAYER_USED_START   = STARTING_DECK_START + TOTAL_CARD_NUM       #  983 ~ 1348
-    OPP_USED_START      = PLAYER_USED_START + TOTAL_CARD_NUM         # 1349 ~ 1714
+    PLAYER_HAND_START   = OPPONENT_FIRE + 1                          #  283 ~  648
+    STARTING_DECK_START = PLAYER_HAND_START + TOTAL_CARD_NUM         #  649 ~ 1014
+    PLAYER_USED_START   = STARTING_DECK_START + TOTAL_CARD_NUM       # 1015 ~ 1380
+    OPP_USED_START      = PLAYER_USED_START + TOTAL_CARD_NUM         # 1381 ~ 1746
 
     # ── 正在攻击的式神 (2 × 29) ──────────────────────────────────────
-    PLAYER_ATTACKING_START = OPP_USED_START + TOTAL_CARD_NUM         # 1715 ~ 1743
-    OPP_ATTACKING_START    = PLAYER_ATTACKING_START + HERO_BLOCK     # 1744 ~ 1772
+    PLAYER_ATTACKING_START = OPP_USED_START + TOTAL_CARD_NUM         # 1747 ~ 1775
+    OPP_ATTACKING_START    = PLAYER_ATTACKING_START + HERO_BLOCK     # 1776 ~ 1804
 
 
 # ObsIdx 必须正好铺满 OBS_DIM：改任何一段的宽度都会在这里报错
@@ -231,8 +269,9 @@ def _action_to_id(player, action):
         idx = player.heroes.index(action.hero)
         return UPGRADE_HERO_START + idx if idx < NUM_HEROES else None
     if t == "hero attack":
+        # 召唤物在 heroes 末尾（下标 NUM_HEROES），故上界用 NUM_HERO_SLOTS
         idx = player.heroes.index(action.hero)
-        return HERO_ATTACK_START + idx if idx < NUM_HEROES else None
+        return HERO_ATTACK_START + idx if idx < NUM_HERO_SLOTS else None
     if t == "play card action":
         cid = action.card.id
         if not (1 <= cid <= TOTAL_CARD_NUM):
