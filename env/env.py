@@ -18,6 +18,12 @@ import random as r
 
 _DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+#: 专属卡尚未实装的式神（cards.json 有条目但无对应卡牌类），不可上场。
+#: 龙夜叉姬缺 8 张、小鹿男缺 6 张、镰鼬缺 7 张 —— 补全后从本集合删名即可。
+#: 不用写死的 id 上界（旧版 `hid != 16 and hid < 31`）：那样既看不出排除理由，
+#: 新增式神时还得手工抬高上界。
+_UNIMPLEMENTED_HEROES = {"LongYeChaJi", "XiaoLuNan", "LianYou"}
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  模块级 helper — 式神块写入 numpy buffer
@@ -87,9 +93,11 @@ class Env:
         selectable = {}
         for name in self.hero_names:
             cls = getattr(hero_defs, name, None)
-            hid = getattr(cls, "id", None)
-            if hid is not None and hid != 16 and hid < 31:
-                selectable[name] = getattr(cls, "type", None)
+            if getattr(cls, "id", None) is None:
+                continue
+            if name in _UNIMPLEMENTED_HEROES:
+                continue
+            selectable[name] = getattr(cls, "type", None)
 
         def _is_deck_card(c):
             return (c.get("is_beginning_card") and c["type"] != "PLACEHOLDER"
@@ -180,7 +188,7 @@ class Env:
 
 
     def get_obs(self, player) -> torch.Tensor:
-        """构建 709 维 observation tensor (numpy CPU → 最后一次性转 GPU)。"""
+        """构建 OBS_DIM 维 observation tensor (numpy CPU → 最后一次性转 GPU)。"""
         o = ObsIdx
         opponent = player.opponent
         game = self.game
@@ -218,15 +226,15 @@ class Env:
         buf[o.INSTANT_USED]       = 1.0 if player.instant_used else 0.0
         buf[o.OPPONENT_FIRE]      = opponent.fire_cnt
 
-        # ── 手牌 multi-hot (100) ──────────────────────────────────────
+        # ── 手牌 multi-hot (TOTAL_CARD_NUM) ───────────────────────────────────
         for c in player.hand.cards:
             cid = Card.get_id_by_name(c.eng_name) if hasattr(c, 'eng_name') else c.id
             if cid == 0:
                 cid = c.id
-            if 1 <= cid <= MAX_CARD_ID:
+            if 1 <= cid <= TOTAL_CARD_NUM:
                 buf[o.PLAYER_HAND_START + cid - 1] += 1.0
 
-        # ── 起始牌组 multi-hot (100) ──────────────────────────────────
+        # ── 起始牌组 multi-hot (TOTAL_CARD_NUM) ─────────────────────────────────
         for name in player.starting_deck:
             cid = Card.get_id_by_name(name)
             if cid == 0:
@@ -234,23 +242,23 @@ class Env:
                     cid = Card.GetCard(name).id
                 except Exception:
                     cid = 0
-            if 1 <= cid <= MAX_CARD_ID:
+            if 1 <= cid <= TOTAL_CARD_NUM:
                 buf[o.STARTING_DECK_START + cid - 1] += 1.0
 
-        # ── 己方已用牌 multi-hot (100) ────────────────────────────────
+        # ── 己方已用牌 multi-hot (TOTAL_CARD_NUM) ────────────────────────────────
         for c in player.used_card:
             cid = Card.get_id_by_name(c.eng_name) if hasattr(c, 'eng_name') else c.id
             if cid == 0:
                 cid = c.id
-            if 1 <= cid <= MAX_CARD_ID:
+            if 1 <= cid <= TOTAL_CARD_NUM:
                 buf[o.PLAYER_USED_START + cid - 1] += 1.0
 
-        # ── 对手已用牌 multi-hot (100) ────────────────────────────────
+        # ── 对手已用牌 multi-hot (TOTAL_CARD_NUM) ────────────────────────────────
         for c in opponent.used_card:
             cid = Card.get_id_by_name(c.eng_name) if hasattr(c, 'eng_name') else c.id
             if cid == 0:
                 cid = c.id
-            if 1 <= cid <= MAX_CARD_ID:
+            if 1 <= cid <= TOTAL_CARD_NUM:
                 buf[o.OPP_USED_START + cid - 1] += 1.0
 
         # ── 正在攻击的己方式神 (29) ───────────────────────────────────
@@ -304,7 +312,7 @@ class Env:
                     (obs_before[def_idx] - obs_after[def_idx])
                 )
 
-        hand_after = obs_after[o.PLAYER_HAND_START : o.PLAYER_HAND_START + MAX_CARD_ID]
+        hand_after = obs_after[o.PLAYER_HAND_START : o.PLAYER_HAND_START + TOTAL_CARD_NUM]
         hand_size  = int(hand_after.sum())
         if hand_size > HAND_LIMIT:
             reward -= 2.5 * (hand_size - HAND_LIMIT)

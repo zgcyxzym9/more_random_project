@@ -2,9 +2,20 @@
 # 动作/观测空间 — 卡牌ID 编码版（移植自 experiments/deck_strength/spaces.py）
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# 相对旧版（709 维 / 48 动作）的三处修复：
-#   1. MAX_CARD_ID 100 → 282：cards.json 全量（1..282 连续）。旧 100 维 multi-hot
-#      使 id > 100 的手牌/牌库/弃牌在 obs 中完全不可见。
+# 卡牌 ID 编码约定（token 侧的 id 声明见 game_core/cards/_ingredients.py 与
+# game_core/cards/TuYuMenHuTao.py）：
+#   正式卡 id = cards.json 中的 id（1..MAX_CARD_ID，连续无空洞）
+#   token 卡 id = MAX_CARD_ID + 偏移（食材/佳肴 +1..+10，胡桃物品 +11..+32）
+#   ⇒ 全空间 1..TOTAL_CARD_NUM 连续，index = id - 1 数到每一张可打出/可观测的卡
+#
+# MAX_CARD_ID 由 cards.json 推导（见下方 _load_max_card_id），token 相对它偏移，
+# 因此新增正式卡时 token 自动后移，不需要手工同步。旧版把 token 写死在 300-331
+# 且 MAX_CARD_ID 停在 282：cards.json 长到 334 后 token 与鬼王/好拳等正式卡撞车，
+# 而 id > 282 的卡在 obs 的 multi-hot 与 PLAY_CARD/REJECT 动作里被静默丢弃
+# （食灵烹饪产出的食材/佳肴因此看不见也打不出）。
+#
+# 相对旧版（709 维 / 48 动作）的三处修复（保留）：
+#   1. 卡牌 multi-hot 覆盖全 id 空间。旧 100 维版本使 id > 100 的卡完全不可见。
 #   2. PLAY_CARD / REJECT 按卡牌ID 编码（动作ID = START + card.id - 1）：旧版按
 #      手牌位置编码，而 obs 的手牌是（式神顺序, 等级, 到手顺序）排序后的
 #      multi-hot 集合，两套索引互相错位。手牌中同 id 的多张副本折叠为一个
@@ -12,49 +23,74 @@
 #   3. SELECT_TARGET 按 candidate_targets 列表下标编码：旧版固定类别槽
 #      （0=对手牌手, 1-4 对手式神, 5-8 己方式神, 9=自己），与真实候选顺序无关。
 #
-# 卡牌 id 直接取 card.id（卡牌类文件声明的 id）。spaces.py（deck_strength 实验）
-# 版本优先走 Card.get_id_by_name（cards.json），二者仅在 4 张旧编号卡牌类上
-# 不同（LuJiaoChongZhuang / JueXingXiaoLuNan / JueXingLianYou / JueXingRiHeFang），
+# 卡牌 id 直接取 card.id。spaces.py（deck_strength 实验）版本优先走
+# Card.get_id_by_name（cards.json），二者仅在 3 张旧编号卡牌类上不同
+# （LuJiaoChongZhuang / JueXingXiaoLuNan / JueXingLianYou，id 仍停留在 197/200/206），
 # 待这些卡牌类文件的 id 修正后自动与 cards.json 对齐。
 #
-# 注意：旧 709 维 / 48 动作的 checkpoint 与本空间不兼容（size mismatch）。
+# 注意 A：旧 709 维 / 48 动作的 checkpoint 与本空间不兼容（size mismatch）。
+# 注意 B：本模块模块级 import torch，而 game_core/cards/*.py 需要 MAX_CARD_ID，
+#         故引擎侧导入会连带引入 torch。
+
+import json
+import os
 
 import torch
 
 from game_core.action import (EndTurn, UpgradeHero, HeroAttack, PlayCard,
                               SelectTarget, RejectInitialPick, MoveHero)
 
-# ── 动作空间（591 维）─────────────────────────────────────────────────────────
+# ── 卡牌 id 空间 ─────────────────────────────────────────────────────────────
+
+_CARDS_JSON = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "game_core", "cards", "cards.json")
+
+
+def _load_max_card_id() -> int:
+    """cards.json 中正式卡的最大 id。新增卡牌时自动跟随，无手工同步。"""
+    with open(_CARDS_JSON, "r", encoding="utf-8") as f:
+        card_data = json.load(f)
+    ids = [c["id"] for c in card_data]
+    if len(set(ids)) != len(ids):
+        dupes = sorted({i for i in ids if ids.count(i) > 1})
+        raise ValueError(f"cards.json 存在重复 id: {dupes}")
+    return max(ids)
+
+
+MAX_CARD_ID     = _load_max_card_id()   # 正式卡最大 id
+TOKEN_NUM       = 32                    # token 卡总数（食材/佳肴 10 + 胡桃物品 22）
+TOTAL_CARD_NUM  = MAX_CARD_ID + TOKEN_NUM   # 卡牌 id 空间总长 = obs/动作下标上界
+
+# ── 动作空间 ─────────────────────────────────────────────────────────────────
 
 END_TURN                = 0
 UPGRADE_HERO_START      = 1                                    # +4（式神下标）
 HERO_ATTACK_START       = 5                                    # +4（式神下标）
-PLAY_CARD_START         = 9                                    # +282（按卡牌ID）
-SELECT_TARGET_START     = 291                                  # +10（候选目标下标）
-REJECT_START            = 301                                  # +282（按卡牌ID）
-MOVE_HERO_START         = 583                                  # +4×2（式神 × 战斗区/准备区）
-ACTION_DIM              = 591
+PLAY_CARD_START         = 9                                    # +TOTAL_CARD_NUM（按卡牌ID）
+SELECT_TARGET_START     = PLAY_CARD_START + TOTAL_CARD_NUM     # +10（候选目标下标）
+REJECT_START            = SELECT_TARGET_START + 10             # +TOTAL_CARD_NUM（按卡牌ID）
+MOVE_HERO_START         = REJECT_START + TOTAL_CARD_NUM        # +4×2（式神 × 战斗区/准备区）
+ACTION_DIM              = MOVE_HERO_START + 8
 
 REJECT_INITIAL_PICK_START = REJECT_START   # 旧名兼容别名（防外部 import 断裂）
 
 MAX_SELECT_TARGETS      = 10   # 候选目标槽位上限（超出部分丢弃）
 HAND_LIMIT              = 12   # 手牌上限（get_reward 超量惩罚用）
 
-# ── 观测空间 — 1437 维 ────────────────────────────────────────────────────────
+# ── 观测空间 ─────────────────────────────────────────────────────────────────
 
 HERO_BLOCK   = 29
 NUM_HEROES   = 4
-MAX_CARD_ID  = 282
 
 # OBS_DIM 计算
 # ============
 #   基础标量          = 5
-#   8 式神块          = 8 * HERO_BLOCK  = 232
+#   8 式神块          = 8 * HERO_BLOCK      = 232
 #   牌手标量          = 14
-#   卡牌多热 ×4       = 4 * MAX_CARD_ID = 1128
-#   攻击式神 ×2       = 2 * HERO_BLOCK  = 58
-#   ─────────────────────────────────────────
-#   TOTAL                               = 1437
+#   卡牌多热 ×4       = 4 * TOTAL_CARD_NUM  = 1464
+#   攻击式神 ×2       = 2 * HERO_BLOCK      = 58
+#   ─────────────────────────────────────────────
+#   TOTAL                                   = 1773
 
 BASE_SCALARS     = 5
 PLAYER_SCALARS   = 14
@@ -64,11 +100,12 @@ OBS_DIM = (
     BASE_SCALARS
     + 2 * NUM_HEROES * HERO_BLOCK
     + PLAYER_SCALARS
-    + 4 * MAX_CARD_ID
+    + 4 * TOTAL_CARD_NUM
     + ATTACKING_HEROES * HERO_BLOCK
 )
 
-assert OBS_DIM == 1437, f"OBS_DIM expected 1437, got {OBS_DIM}"
+assert OBS_DIM == 1773, f"OBS_DIM expected 1773, got {OBS_DIM}"
+assert ACTION_DIM == 759, f"ACTION_DIM expected 759, got {ACTION_DIM}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -125,36 +162,41 @@ class ObsIdx:
     GAME_STATE         = 4    # 从不写入（恒 0）
 
     # ── 己方式神 (4 × 29) ─────────────────────────────────────────────
-    PLAYER_HERO_START  = 5       #   5 ~ 120
+    PLAYER_HERO_START  = BASE_SCALARS                        #   5 ~  120
 
     # ── 对手式神 (4 × 29) ─────────────────────────────────────────────
-    OPP_HERO_START     = 121     # 121 ~ 236
+    OPP_HERO_START     = PLAYER_HERO_START + NUM_HEROES * HERO_BLOCK   # 121 ~  236
 
     # ── 牌手标量 (14) ─────────────────────────────────────────────────
-    PLAYER_DECK        = 237
-    OPPONENT_DECK      = 238
-    OPPONENT_HAND_SIZE = 239
-    FIRE_REMAINING     = 240
-    ATTACK_AVAILABLE   = 241
-    IS_FIRST_PLAYER    = 242
-    PENDING_CARD       = 243
-    PLAYER_INSP_ATK    = 244
-    PLAYER_INSP_DEF    = 245
-    PLAYER_DEFENSE     = 246     # 牌手护甲
-    OPPONENT_DEFENSE   = 247     # 对手护甲
-    UPGRADE_REMAINING  = 248     # 当前回合剩余升级次数
-    INSTANT_USED       = 249     # 是否已用掉本回合免费瞬发
-    OPPONENT_FIRE      = 250     # 对手剩余鬼火
+    PLAYER_DECK        = OPP_HERO_START + NUM_HEROES * HERO_BLOCK      # 237
+    OPPONENT_DECK      = PLAYER_DECK + 1
+    OPPONENT_HAND_SIZE = PLAYER_DECK + 2
+    FIRE_REMAINING     = PLAYER_DECK + 3
+    ATTACK_AVAILABLE   = PLAYER_DECK + 4
+    IS_FIRST_PLAYER    = PLAYER_DECK + 5
+    PENDING_CARD       = PLAYER_DECK + 6
+    PLAYER_INSP_ATK    = PLAYER_DECK + 7
+    PLAYER_INSP_DEF    = PLAYER_DECK + 8
+    PLAYER_DEFENSE     = PLAYER_DECK + 9      # 牌手护甲
+    OPPONENT_DEFENSE   = PLAYER_DECK + 10     # 对手护甲
+    UPGRADE_REMAINING  = PLAYER_DECK + 11     # 当前回合剩余升级次数
+    INSTANT_USED       = PLAYER_DECK + 12     # 是否已用掉本回合免费瞬发
+    OPPONENT_FIRE      = PLAYER_DECK + 13     # 对手剩余鬼火
 
-    # ── 卡牌多热编码 (4 × 282) ────────────────────────────────────────
-    PLAYER_HAND_START   = 251    #  251 ~  532
-    STARTING_DECK_START = 533    #  533 ~  814
-    PLAYER_USED_START   = 815    #  815 ~ 1096
-    OPP_USED_START      = 1097   # 1097 ~ 1378
+    # ── 卡牌多热编码 (4 × TOTAL_CARD_NUM) ─────────────────────────────
+    PLAYER_HAND_START   = OPPONENT_FIRE + 1                          #  251 ~  616
+    STARTING_DECK_START = PLAYER_HAND_START + TOTAL_CARD_NUM         #  617 ~  982
+    PLAYER_USED_START   = STARTING_DECK_START + TOTAL_CARD_NUM       #  983 ~ 1348
+    OPP_USED_START      = PLAYER_USED_START + TOTAL_CARD_NUM         # 1349 ~ 1714
 
     # ── 正在攻击的式神 (2 × 29) ──────────────────────────────────────
-    PLAYER_ATTACKING_START = 1379  # 1379 ~ 1407
-    OPP_ATTACKING_START    = 1408  # 1408 ~ 1436
+    PLAYER_ATTACKING_START = OPP_USED_START + TOTAL_CARD_NUM         # 1715 ~ 1743
+    OPP_ATTACKING_START    = PLAYER_ATTACKING_START + HERO_BLOCK     # 1744 ~ 1772
+
+
+# ObsIdx 必须正好铺满 OBS_DIM：改任何一段的宽度都会在这里报错
+assert ObsIdx.OPP_ATTACKING_START + HERO_BLOCK == OBS_DIM, (
+    f"ObsIdx layout ends at {ObsIdx.OPP_ATTACKING_START + HERO_BLOCK}, OBS_DIM={OBS_DIM}")
 
 
 # ── reward 函数便捷索引 ──────────────────────────────────────────────────
@@ -193,7 +235,7 @@ def _action_to_id(player, action):
         return HERO_ATTACK_START + idx if idx < NUM_HEROES else None
     if t == "play card action":
         cid = action.card.id
-        if not (1 <= cid <= MAX_CARD_ID):
+        if not (1 <= cid <= TOTAL_CARD_NUM):
             return None
         return PLAY_CARD_START + cid - 1
     if t == "select target":
@@ -205,7 +247,7 @@ def _action_to_id(player, action):
         return SELECT_TARGET_START + idx if idx < MAX_SELECT_TARGETS else None
     if t == "reject initial pick":
         cid = action.card.id
-        if not (1 <= cid <= MAX_CARD_ID):
+        if not (1 <= cid <= TOTAL_CARD_NUM):
             return None
         return REJECT_START + cid - 1
     if t == "move hero":

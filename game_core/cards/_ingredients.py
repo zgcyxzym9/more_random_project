@@ -3,8 +3,14 @@
 # 食材分三品：良（1勾/+1）、优（2勾/+2）、极（3勾/+3）
 # 类型三种：山珍→攻击，海味→生命，时蔬→攻击+生命
 # 佳肴：烹饪合成产物，效果 = 消耗的 3 食材之和（由 Game.cook 动态配置 on_play）
+#
+# id 约定：token 不是 cards.json 条目，id 一律写成 MAX_CARD_ID + 偏移，保证排在
+# 所有正式卡之后；MAX_CARD_ID 由 cards.json 推导，新增正式卡时这里自动后移。
+# 偏移分配：本文件 +1..+10，TuYuMenHuTao.py 的物品 +11..+32（不可重叠）。
+# id 同时是 RL 下标（index = id - 1），见 env/actions.py。
 import sys
 sys.path.insert(0, "E:/more_random_project_vibe")
+from env.actions import MAX_CARD_ID
 from game_core.action import *
 from game_core.event import *
 from game_core.enums import *
@@ -64,24 +70,24 @@ def _make_ingredient(cls_name, id_, name, ing_type, tier, buff_atk, buff_hp):
 
 
 # ── 山珍：攻击食材 ───────────────────────────────────────────────────────
-ShanZhenLiang = _make_ingredient("ShanZhenLiang", 300, "山珍·良", "atk", 1, 1, 0)
-ShanZhenYou = _make_ingredient("ShanZhenYou", 301, "山珍·优", "atk", 2, 2, 0)
-ShanZhenJi = _make_ingredient("ShanZhenJi", 302, "山珍·极", "atk", 3, 3, 0)
+ShanZhenLiang = _make_ingredient("ShanZhenLiang", MAX_CARD_ID + 1, "山珍·良", "atk", 1, 1, 0)
+ShanZhenYou = _make_ingredient("ShanZhenYou", MAX_CARD_ID + 2, "山珍·优", "atk", 2, 2, 0)
+ShanZhenJi = _make_ingredient("ShanZhenJi", MAX_CARD_ID + 3, "山珍·极", "atk", 3, 3, 0)
 
 # ── 海味：生命食材 ───────────────────────────────────────────────────────
-HaiWeiLiang = _make_ingredient("HaiWeiLiang", 303, "海味·良", "hp", 1, 0, 1)
-HaiWeiYou = _make_ingredient("HaiWeiYou", 304, "海味·优", "hp", 2, 0, 2)
-HaiWeiJi = _make_ingredient("HaiWeiJi", 305, "海味·极", "hp", 3, 0, 3)
+HaiWeiLiang = _make_ingredient("HaiWeiLiang", MAX_CARD_ID + 4, "海味·良", "hp", 1, 0, 1)
+HaiWeiYou = _make_ingredient("HaiWeiYou", MAX_CARD_ID + 5, "海味·优", "hp", 2, 0, 2)
+HaiWeiJi = _make_ingredient("HaiWeiJi", MAX_CARD_ID + 6, "海味·极", "hp", 3, 0, 3)
 
 # ── 时蔬：攻击+生命食材 ──────────────────────────────────────────────────
-ShiShuLiang = _make_ingredient("ShiShuLiang", 306, "时蔬·良", "keyword", 1, 1, 1)
-ShiShuYou = _make_ingredient("ShiShuYou", 307, "时蔬·优", "keyword", 2, 2, 2)
-ShiShuJi = _make_ingredient("ShiShuJi", 308, "时蔬·极", "keyword", 3, 3, 3)
+ShiShuLiang = _make_ingredient("ShiShuLiang", MAX_CARD_ID + 7, "时蔬·良", "keyword", 1, 1, 1)
+ShiShuYou = _make_ingredient("ShiShuYou", MAX_CARD_ID + 8, "时蔬·优", "keyword", 2, 2, 2)
+ShiShuJi = _make_ingredient("ShiShuJi", MAX_CARD_ID + 9, "时蔬·极", "keyword", 3, 3, 3)
 
 
 class JiaYao:
     """佳肴：烹饪合成产物。效果由 Game.cook 动态填充 on_play。"""
-    id = 309
+    id = MAX_CARD_ID + 10
     type = "spell"
     hero = ""
     name = "佳肴"

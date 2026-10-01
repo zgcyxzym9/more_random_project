@@ -1780,13 +1780,13 @@ class Game:
     def get_obs_tensor(self, player: Player, device) -> "torch.Tensor":
         """
         用 numpy 数组在 CPU 上完成所有赋值，最后一次 .to(device)。
-        布局与 env/actions.py::ObsIdx 保持一致 (709 维, HERO_BLOCK=29)。
+        布局与 env/actions.py::ObsIdx 保持一致 (OBS_DIM 维, HERO_BLOCK=29)。
         """
         import torch
         import numpy as np
         opponent = player.opponent
 
-        from env.actions import OBS_DIM, MAX_CARD_ID, HERO_BLOCK, NUM_HEROES
+        from env.actions import OBS_DIM, TOTAL_CARD_NUM, HERO_BLOCK, NUM_HEROES
         from env.actions import ObsIdx as o, HeroField as hf
 
         buf = np.zeros(OBS_DIM, dtype=np.float32)
@@ -1859,7 +1859,7 @@ class Game:
             cid = Card.get_id_by_name(c.eng_name) if hasattr(c, 'eng_name') else c.id
             if cid == 0:
                 cid = c.id
-            if 1 <= cid <= MAX_CARD_ID:
+            if 1 <= cid <= TOTAL_CARD_NUM:
                 buf[o.PLAYER_HAND_START + cid - 1] += 1.0
 
         # ── 起始牌组 multi-hot ───────────────────────────────────────
@@ -1870,7 +1870,7 @@ class Game:
                     cid = Card.GetCard(name).id
                 except Exception:
                     cid = 0
-            if 1 <= cid <= MAX_CARD_ID:
+            if 1 <= cid <= TOTAL_CARD_NUM:
                 buf[o.STARTING_DECK_START + cid - 1] += 1.0
 
         # ── 己方已用牌 multi-hot ─────────────────────────────────────
@@ -1878,7 +1878,7 @@ class Game:
             cid = Card.get_id_by_name(c.eng_name) if hasattr(c, 'eng_name') else c.id
             if cid == 0:
                 cid = c.id
-            if 1 <= cid <= MAX_CARD_ID:
+            if 1 <= cid <= TOTAL_CARD_NUM:
                 buf[o.PLAYER_USED_START + cid - 1] += 1.0
 
         # ── 对手已用牌 multi-hot ─────────────────────────────────────
@@ -1886,7 +1886,7 @@ class Game:
             cid = Card.get_id_by_name(c.eng_name) if hasattr(c, 'eng_name') else c.id
             if cid == 0:
                 cid = c.id
-            if 1 <= cid <= MAX_CARD_ID:
+            if 1 <= cid <= TOTAL_CARD_NUM:
                 buf[o.OPP_USED_START + cid - 1] += 1.0
 
         # ── 正在攻击的己方英雄 ──────────────────────────────────────

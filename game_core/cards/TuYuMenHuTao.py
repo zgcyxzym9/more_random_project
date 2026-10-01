@@ -5,14 +5,18 @@
 
 实现说明：
 - 土御门胡桃基础能力（出击时若有气绝式神，倒计时-1 且本次攻击不造成战斗伤害）在 heroes.py 中实现。
-- 「落物堆物品」（10 种，id 310-319）/「飓风客物品」（12 种，id 320-331）明细由用户提供，
+- 「落物堆物品」（10 种，偏移 +11..+20）/「飓风客物品」（12 种，偏移 +21..+32）明细由用户提供，
   见文件末物品 Token 区块。「效果翻倍」实现为档位切换（回合不足只随机低档物品）；
   「随机三选一」暂以均匀随机选一近似（等 env「选择卡牌」操作后接入，见 LuoWuDui/JuFengKe 的 TODO）。
+- 物品 id 约定：token 不是 cards.json 条目，id 写成 MAX_CARD_ID + 偏移，保证排在所有正式卡
+  之后，且随 cards.json 增长自动后移。本文件用 +11..+32，_ingredients.py 用 +1..+10
+  （不可重叠）。id 同时是 RL 下标（index = id - 1），见 env/actions.py。
 - 「蓄力」引擎机制已实现（CardAttributes.CHARGE + hero.charging_card + player.charging_order），
   身势·振刀的蓄力→消灭分支据此判定；当前卡池尚无带蓄力的卡牌，蓄力状态需测试/未来卡牌构造。
 """
 import sys
 sys.path.insert(0, "E:/more_random_project_vibe")
+from env.actions import MAX_CARD_ID
 from game_core.action import *
 from game_core.event import *
 from game_core.enums import *
@@ -541,30 +545,30 @@ def _make_item(cls_name, id_, name, effects):
 
 
 # ── 落物堆物品（低档=普通 / 高档=良品） ─────────────────────────────────────
-WuQiPuTong = _make_item("WuQiPuTong", 310, "武器·普通", _buff_random_hero("atk", 1))
-WuQiLiangPin = _make_item("WuQiLiangPin", 311, "武器·良品", _buff_random_hero("atk", 2))
-HuJiaPuTong = _make_item("HuJiaPuTong", 312, "护甲·普通", _buff_random_hero("hp", 1))
-HuJiaLiangPin = _make_item("HuJiaLiangPin", 313, "护甲·良品", _buff_random_hero("hp", 2))
-NingXueWan = _make_item("NingXueWan", 314, "凝血丸", _heal_player(2))
-DaBaoNingXueWan = _make_item("DaBaoNingXueWan", 315, "大包凝血丸", _heal_player(4))
-HuJiaFenMo = _make_item("HuJiaFenMo", 316, "护甲粉末", _defense_all(1))
-GaoJiHuJiaFenMo = _make_item("GaoJiHuJiaFenMo", 317, "高级护甲粉末", _defense_all(2))
-WuBeiXia = _make_item("WuBeiXia", 318, "武备匣", _divination(1))
-FeiSuoXianZhou = _make_item("FeiSuoXianZhou", 319, "飞索线轴", _divination(2))
+WuQiPuTong = _make_item("WuQiPuTong", MAX_CARD_ID + 11, "武器·普通", _buff_random_hero("atk", 1))
+WuQiLiangPin = _make_item("WuQiLiangPin", MAX_CARD_ID + 12, "武器·良品", _buff_random_hero("atk", 2))
+HuJiaPuTong = _make_item("HuJiaPuTong", MAX_CARD_ID + 13, "护甲·普通", _buff_random_hero("hp", 1))
+HuJiaLiangPin = _make_item("HuJiaLiangPin", MAX_CARD_ID + 14, "护甲·良品", _buff_random_hero("hp", 2))
+NingXueWan = _make_item("NingXueWan", MAX_CARD_ID + 15, "凝血丸", _heal_player(2))
+DaBaoNingXueWan = _make_item("DaBaoNingXueWan", MAX_CARD_ID + 16, "大包凝血丸", _heal_player(4))
+HuJiaFenMo = _make_item("HuJiaFenMo", MAX_CARD_ID + 17, "护甲粉末", _defense_all(1))
+GaoJiHuJiaFenMo = _make_item("GaoJiHuJiaFenMo", MAX_CARD_ID + 18, "高级护甲粉末", _defense_all(2))
+WuBeiXia = _make_item("WuBeiXia", MAX_CARD_ID + 19, "武备匣", _divination(1))
+FeiSuoXianZhou = _make_item("FeiSuoXianZhou", MAX_CARD_ID + 20, "飞索线轴", _divination(2))
 
 # ── 飓风客物品（低档=优品 / 高档=极品） ─────────────────────────────────────
-PenHuoTongYouPin = _make_item("PenHuoTongYouPin", 320, "喷火筒·优品", _damage_all_enemies(2))
-PenHuoTongJiPin = _make_item("PenHuoTongJiPin", 321, "喷火筒·极品", _damage_all_enemies(4))
-YiWoFengYouPin = _make_item("YiWoFengYouPin", 322, "一窝蜂·优品", _projectile_repeat(5))
-YiWoFengJiPin = _make_item("YiWoFengJiPin", 323, "一窝蜂·极品", _projectile_repeat(10))
-WanRenLunYouPin = _make_item("WanRenLunYouPin", 324, "万刃轮·优品", _tuyu_attack(3))
-WanRenLunJiPin = _make_item("WanRenLunJiPin", 325, "万刃轮·极品", _tuyu_attack(6))
-HuJiaYouPin = _make_item("HuJiaYouPin", 326, "护甲·优品", _perm_all("hp", 3))
-HuJiaJiPin = _make_item("HuJiaJiPin", 327, "护甲·极品", _perm_all("hp", 6))
-WuQiYouPin = _make_item("WuQiYouPin", 328, "武器·优品", _perm_all("atk", 2))
-WuQiJiPin = _make_item("WuQiJiPin", 329, "武器·极品", _perm_all("atk", 4))
-FanHunFu = _make_item("FanHunFu", 330, "返魂符", _heal_player(6))
-FanHunFuZengQiang = _make_item("FanHunFuZengQiang", 331, "返魂符（已增强）", _heal_player(12))
+PenHuoTongYouPin = _make_item("PenHuoTongYouPin", MAX_CARD_ID + 21, "喷火筒·优品", _damage_all_enemies(2))
+PenHuoTongJiPin = _make_item("PenHuoTongJiPin", MAX_CARD_ID + 22, "喷火筒·极品", _damage_all_enemies(4))
+YiWoFengYouPin = _make_item("YiWoFengYouPin", MAX_CARD_ID + 23, "一窝蜂·优品", _projectile_repeat(5))
+YiWoFengJiPin = _make_item("YiWoFengJiPin", MAX_CARD_ID + 24, "一窝蜂·极品", _projectile_repeat(10))
+WanRenLunYouPin = _make_item("WanRenLunYouPin", MAX_CARD_ID + 25, "万刃轮·优品", _tuyu_attack(3))
+WanRenLunJiPin = _make_item("WanRenLunJiPin", MAX_CARD_ID + 26, "万刃轮·极品", _tuyu_attack(6))
+HuJiaYouPin = _make_item("HuJiaYouPin", MAX_CARD_ID + 27, "护甲·优品", _perm_all("hp", 3))
+HuJiaJiPin = _make_item("HuJiaJiPin", MAX_CARD_ID + 28, "护甲·极品", _perm_all("hp", 6))
+WuQiYouPin = _make_item("WuQiYouPin", MAX_CARD_ID + 29, "武器·优品", _perm_all("atk", 2))
+WuQiJiPin = _make_item("WuQiJiPin", MAX_CARD_ID + 30, "武器·极品", _perm_all("atk", 4))
+FanHunFu = _make_item("FanHunFu", MAX_CARD_ID + 31, "返魂符", _heal_player(6))
+FanHunFuZengQiang = _make_item("FanHunFuZengQiang", MAX_CARD_ID + 32, "返魂符（已增强）", _heal_player(12))
 
 
 # 物品配对池：[低档, 高档]，下标 = 翻倍条件是否满足（1 为真）。
