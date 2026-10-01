@@ -534,6 +534,11 @@ class Game:
                     print(f"hero to upgrade does not belong to player, hero belongs to {action.hero.owner} but player is {player}")
                     return
                 for hero in player.heroes:
+                    # 召唤物不可升级、等级恒为 1，不参与「最低等级」判定。此处必须与
+                    # Player.get_legal_actions 的升级动作筛选用同一套规则，否则会出现
+                    # 「动作表给了这张牌、step 却拒绝」的不一致（动作空转 + 刷屏告警）。
+                    if getattr(hero, 'is_summoned', False):
+                        continue
                     if hero.level < action.hero.level:
                         print("trying to upgrade a hero whose current level is not lowest")
                         return
