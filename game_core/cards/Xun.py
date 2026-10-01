@@ -163,7 +163,11 @@ def _ganrao_cond(e, s):
         target = s.owner.attack_zone
     if target is None:
         return False
-    return target.owner is s.owner and target.counters.get("hawk_protection", 0) > 0
+    # 直击牌手时 e.event.target 是 Player（game.py 解析后挂到事件上），Player 没有
+    # owner/counters。鸮之守护只结附在式神上，非式神目标一律不成立；直接取
+    # target.owner 会在直击时 AttributeError。
+    return (getattr(target, "owner", None) is s.owner
+            and target.counters.get("hawk_protection", 0) > 0)
 
 
 def _ganrao_response(e, s):
@@ -226,7 +230,9 @@ def _ganrao_block_cond(e, p):
         target = p.attack_zone
     if target is None:
         return False
-    return target.owner is p and target.counters.get("hawk_protection", 0) > 0
+    # 同上：被标记的敌方式神直击牌手时 target 是 Player，需跳过 owner/counters。
+    return (getattr(target, "owner", None) is p
+            and target.counters.get("hawk_protection", 0) > 0)
 
 
 def _ganrao_block_trigger(e, p):
