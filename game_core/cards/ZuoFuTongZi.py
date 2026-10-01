@@ -379,6 +379,28 @@ def _random_morph_for_all(owner, card):
         morph = Card.GetCard(chosen)
         morph.assign_owner(owner)
         morph.played_by = h  # get_corresponding_hero 返回该式神（非协战牌亦生效）
+
+        # ── 自动打出的目标处理 ──────────────────────────────────────────
+        # 自动打出没有选择流程，若不清掉残留的 selected_targets，形态牌的 on_play
+        # 会吃到上一步无关的选择（无孔不入曾把上一步选中的式神当牌塞进手牌，导致
+        # get_legal_actions 遍历手牌时对 Hero 取 require_target 而崩）。
+        # 改走该形态牌自己的候选列表 + random_choice 的「自动打出取目标」惯例：
+        # 推理模式弹给玩家手选，训练模式用 game.rng。
+        # 快照/还原牌手选择状态，避免污染（同 can_play_card 的空目标探测写法）。
+        prev_selected = owner.selected_targets
+        prev_state    = owner.state
+        owner.selected_targets = None
+        if morph.select_target is not None:
+            for cb in morph.select_target:
+                cb(morph)                      # 写入 owner.candidate_targets
+            if owner.candidate_targets:
+                picked = random_choice(owner, list(owner.candidate_targets),
+                                       context=f"鸿运当头: {morph.name} 选择目标")
+                owner.selected_targets = [picked] if picked is not None else None
+        owner.candidate_targets = []
+        owner.pending_card = None
+        owner.state = prev_state
+
         if hasattr(morph, "on_play"):
             for cb in morph.on_play:
                 result = cb(morph)
@@ -395,6 +417,7 @@ def _random_morph_for_all(owner, card):
                 result = cb(morph)
                 if isinstance(result, Event):
                     game.handle_event(result)
+        owner.selected_targets = prev_selected   # 还原（候选/挂起/state 已在上面复位）
 
 
 def _draw_card_from_deck(player, eng_name):
