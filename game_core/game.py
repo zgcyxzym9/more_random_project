@@ -69,6 +69,8 @@ class Game:
             self.current_player.upgrade_remaining += 1
         avail_upgrades = 0
         for hero in self.current_player.heroes:
+            if getattr(hero, 'is_summoned', False):
+                continue  # 召唤物不可升级，也不该给升级次数「充值」（其 level 恒为 1）
             avail_upgrades += 3 - hero.level
         self.current_player.upgrade_remaining = min(self.current_player.upgrade_remaining, avail_upgrades)
         # 牌手护甲/破甲在己方回合开始时清除（后手初始 5 护甲在其首个回合清除）

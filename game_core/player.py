@@ -221,11 +221,20 @@ class Player():
                             continue  # 召唤物不可升级
                         is_min_level = True
                         for hero_tmp in self.heroes:
+                            # 召唤物等级恒为 1，若参与比较会让所有 ≥2 级的正式式神
+                            # 都不满足「最低等级」，于是一个升级动作都攒不出来
+                            if getattr(hero_tmp, 'is_summoned', False):
+                                continue
                             if hero_tmp.level < hero.level:
                                 is_min_level = False
                         if hero.level < 3 and is_min_level:
                             actions.append(UpgradeHero(hero))
-                    return actions
+                    # 有升级机会时仍只给升级动作（既有语义）；但「无处可升」时绝不能
+                    # 交空表——牌手会被自己的升级阶段锁死，RL 侧 r.choice([]) 直接崩。
+                    if actions:
+                        return actions
+                    else:
+                        print("Trying to upgrade hero when there's no one to upgrade, check code!")
                 actions.append(EndTurn())
                 for card in self.hand:
                     if card.require_target is not None and any(len(req(card)) == 0 for req in card.require_target):
@@ -390,13 +399,22 @@ class InferenceOpponent(Player):
                 actions = []
                 if self.upgrade_remaining > 0:
                     for hero in self.heroes:
+                        if getattr(hero, 'is_summoned', False):
+                            continue  # 召唤物不可升级
                         is_min_level = True
                         for hero_tmp in self.heroes:
+                            # 同 Player.get_legal_actions：召唤物等级恒为 1，参与比较
+                            # 会让所有 ≥2 级的正式式神都攒不出升级动作
+                            if getattr(hero_tmp, 'is_summoned', False):
+                                continue
                             if hero_tmp.level < hero.level:
                                 is_min_level = False
                         if hero.level < 3 and is_min_level:
                             actions.append(UpgradeHero(hero))
-                    return actions
+                    if actions:
+                        return actions
+                    else:
+                        print("Trying to upgrade hero when there's no one to upgrade, check code!")
                 actions.append(EndTurn())
                 for hero in self.heroes:
                     # 激怒限制：己方有可出击的激怒式神时，只能让激怒式神出击
