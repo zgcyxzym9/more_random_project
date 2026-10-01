@@ -221,10 +221,12 @@ class WuDaoNanTi:
                           lambda e, s: getattr(s, "owner", None) is not None and e.next_player == s.owner,
                           (lambda e, s: _wudao_refresh_instant(s),)),)
     require_target = (lambda s: _distinct_deck_illusions(s.owner),)
-
-    @staticmethod
-    def select_target(card):
-        return _distinct_deck_illusions(card.owner)
+    # 候选是牌库里那些幻境卡实例本身（on_play 取 selected_targets[0] 当卡用）。
+    # 必须包成 1 元 callable 元组交给 selector.select_target：引擎在
+    # can_play_card 的空目标探测（game.py:435）与 play_card 的进选择流程
+    # （game.py:1049）都会 `for f in card.select_target: f(card)`，
+    # 直接把 Card 列表当返回值会 TypeError: 'Card' object is not callable。
+    select_target = (lambda s: select_target(s.owner, _distinct_deck_illusions(s.owner), s),)
 
     on_play = (lambda s: _wudao_on_play(s),)
 
@@ -344,10 +346,15 @@ class JueXingHuiYeJi:
 
     @staticmethod
     def select_target(card):
-        # 增强时跳过选择，直接召唤全部五种
+        """增强时返回 None 跳过选择（直接召唤全部五种）；否则进选择流程。
+
+        解析函数形态必须保留（要按运行时状态返回 None），但返回值同样得满足
+        「None 或 callable 元组」契约——引擎会 `for f in card.select_target: f(card)`，
+        返回 Card 列表会 TypeError: 'Card' object is not callable。
+        """
         if _hyj_summoned_count(card.owner) >= 5:
             return None
-        return _fresh_hyj_illusions(card.owner)
+        return (lambda s: select_target(s.owner, _fresh_hyj_illusions(s.owner), s),)
 
     on_play = (lambda s: _juexing_on_play(s),)
 
