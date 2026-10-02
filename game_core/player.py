@@ -107,7 +107,16 @@ class Player():
 
     def advance_hero(self, hero: Hero) -> bool:
         """进入战斗区（替换已有占位者）。尘缚之阵替换锁拦截需替换的进入：
-        返回 False 且不改变战斗区（空位进入/占位者本人/远程不受限）。"""
+        返回 False 且不改变战斗区（空位进入/占位者本人/远程不受限）。
+
+        出击路径专用（唯一调用者是 handle_event 的 hero attack 分支）。此前这里
+        **什么都不广播**——主动移动（Hero.move_to_battle）会广播 MoveEvent，出击却
+        不会，导致「要等攻击者站到战斗区之后」的效果既够不到 hero attack 的 before
+        相位（人还没进），也够不到 after 相位（伤害已结算）。这里补上同一个 MoveEvent。
+        注意不调用 on_move 回调：出击不算「移动」（引擎语义，觉醒·鸦天狗的移动攻击
+        只认主动移动）。
+        """
+        from .event import MoveEvent
         if self.attack_zone is not None and self.attack_zone is not hero:
             if self.game._replace_blocked(self, hero):
                 print(f"battle zone is locked: {hero.type_name} cannot "
@@ -120,6 +129,7 @@ class Player():
                 self.attack_zone.state = "pending"
         self.attack_zone = hero
         hero.state = "attacking"
+        self.game.handle_event(MoveEvent(hero, "standby", "battle"))
         return True
 
     def dismiss_summon(self, summon: Hero):

@@ -134,14 +134,17 @@ def _juexingtaohuayao_on_play(s):
     hero = s.get_corresponding_hero()
     # 移除旧被动（治疗/复活 +1 攻击力，临时加成），替换为觉醒被动（永久 +2 攻击力/+2 生命值）
     hero.listeners = [l for l in hero.listeners if getattr(l, '_tag', '') != 'taohuayao_passive']
-    hero.listeners.append(Listener("heal", _taohuayao_heal_condition, (
+    heal_l = Listener("heal", _taohuayao_heal_condition, (
         lambda e, s2: [t.get_permanent_buff("atk", 2) for t in e.event.target if t in s2.owner.heroes],
         lambda e, s2: [t.get_permanent_buff("hp", 2) for t in e.event.target if t in s2.owner.heroes],
-    )))
-    hero.listeners.append(Listener("after revive", _taohuayao_heal_condition, (
+    ))
+    revive_l = Listener("after revive", _taohuayao_heal_condition, (
         lambda e, s2: [t.get_permanent_buff("atk", 2) for t in e.event.target if t in s2.owner.heroes],
         lambda e, s2: [t.get_permanent_buff("hp", 2) for t in e.event.target if t in s2.owner.heroes],
-    )))
+    ))
+    hero.listeners += [heal_l, revive_l]
+    # 觉醒是永久效果：同时写进原始通道，使其跨气绝保留
+    hero.original_listeners += [heal_l, revive_l]
     return Heal(5, s, s.owner.selected_targets)
 
 

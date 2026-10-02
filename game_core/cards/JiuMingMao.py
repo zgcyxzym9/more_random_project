@@ -251,6 +251,8 @@ def _xiangsiersheng_on_play(s):
     hero = s.get_corresponding_hero()
     # 1. 移除「不能复活能力」：九命猫之后不再因九命≥5而永久气绝（替换而非叠加）
     hero.on_death = (_on_death_jmm_immortal,)
+    # 卡面「移除不能复活能力」是永久改写：写进原始通道，跨气绝保留
+    hero.original_callbacks["on_death"] = hero.on_death
     # 2. 复活（revive 同时清除永久气绝状态 round_until_alive=999）
     hero.revive()
     # 3. 结附2个九命（覆盖旧计数）
@@ -302,3 +304,5 @@ def _juexing_jmm_on_play(s):
 
     # 替换而非叠加：觉醒自带完整的九命结算，避免与基础能力重复计九命
     hero.on_death = (_on_death_jmm,)
+    # 觉醒是永久效果：同时写进原始通道，使其跨气绝保留
+    hero.original_callbacks["on_death"] = hero.on_death

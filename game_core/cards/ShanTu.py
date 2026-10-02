@@ -258,10 +258,8 @@ class ZheBaSuanWoYing:
 
 # ── 110 戏谑套索 ─────────────────────────────────────────────────────────────
 
-# 纸人/小纸人变形期间被置空的式神状态字段
-_XIXUE_SNAP_FIELDS = ("atk", "current_max_hp", "hp", "defense", "penetration",
-                      "round_buff_atk", "round_buff_spell_damage", "round_buff_player_damage")
-# 式神自身效果回调（与 listeners 一起被压制）
+# 纸人/小纸人变形期间被置空的式神自身效果回调。
+# 必须与 game_core/hero.py 的 CALLBACK_FIELDS 一致（tests/mechanisms/test_xixue_reset.py 校验）。
 _XIXUE_CALLBACK_FIELDS = ("on_before_death", "on_death", "on_countdown", "on_move",
                           "on_before_damage", "on_after_damage", "on_stun", "on_unstun",
                           "on_upgrade", "on_revive")
@@ -274,27 +272,82 @@ def _xixue_response_cond(card, src, target):
 
 
 def _xixue_restore_cond(e, p):
-    return True  # 下一个 begin turn（本回合结束）即恢复
+    """纸人持续到「对方的回合结束」——即施放者（p 的对手）的下一个回合开始。
+
+    监听器挂在纸人所属牌手 p 上（＝施放者的对手），故判 `e.next_player is p.opponent`：
+      · 己方回合内主动打出：对方要走完一整个回合，纸人覆盖对方整回合；
+      · 对方回合内作为响应打出：紧接着的己方回合开始＝对方本回合结束时到期。
+    """
+    return e.next_player is p.opponent
+
+
+def _xixue_reset_to_original(h):
+    """把纸人重置为「空白原始式神」（用户裁决：类似气绝之后的重置）。
+
+    · attributes / listeners / 回调字段一律回到式神**构造时**的原值——纸人期间
+      写入的一切（形态挂的 on_move、心剑乱舞挂的 on_death……）随之作废；
+    · 面板 = original + perm_buff（同气绝后口径）、形态清空、眩晕清除、
+      counters 归位、蓄力中断；
+    · 位置不动：留在和纸人相同的位置（用户裁决），故不碰 state / attack_zone；
+    · 已气绝的纸人只还本身份字段，不动 is_alive 与气绝倒计时——倒计时由
+      check_death 设为 3，且纸人的 on_death 早已被压制，气绝后效果不会触发。
+    """
+    h.attributes = list(h.original_attributes)
+    h.listeners = list(h.original_listeners)
+    for f, v in h.original_callbacks.items():
+        setattr(h, f, v)
+    h.morphed_id = 0
+    h.stunned = False
+    h.charging_card = None
+    if h.owner is not None and h in getattr(h.owner, "charging_order", ()):
+        h.owner.charging_order.remove(h)
+    h.round_buff_atk = 0
+    h.combat_buff_atk = 0
+    h.round_buff_spell_damage = 0
+    h.round_buff_player_damage = 0
+    h.defense = 0
+    h.penetration = 0
+    if h.is_alive:
+        h.counters.reset_all()
+        h.hp = h.original_hp + h.perm_buff_hp
+        h.current_max_hp = h.original_hp + h.perm_buff_hp
+        h.atk = h.original_atk + h.perm_buff_atk
 
 
 def _xixue_restore(e, p):
-    """本回合结束后变回原式神：还原快照。已气绝的纸人随死亡结束，仅清标记。"""
+    """纸人到期：一律变回原式神（存活则按原始面板归位，气绝则保持气绝态与倒计时）。"""
     for h in p.heroes:
         if not getattr(h, "_xixue_paper", False):
             continue
-        snap = getattr(h, "_xixue_snapshot", None)
-        if h.is_alive and snap is not None:
-            for f in _XIXUE_SNAP_FIELDS:
-                setattr(h, f, snap[f])
-            h.attributes = list(snap["attributes"])
-            h.listeners = list(snap["listeners"])
-            for f in _XIXUE_CALLBACK_FIELDS:
-                setattr(h, f, snap[f])
-            for k, v in snap["counters"].items():
-                h.counters.set(k, v)
+        _xixue_reset_to_original(h)
         h._xixue_paper = False
-        h._xixue_snapshot = None
     p.listeners = [l for l in p.listeners if getattr(l, "_tag", "") != "_xixue_restore"]
+
+
+_XIXUE_WAIT_TAG = "_xixue_wait_advance"
+
+
+def _xixue_wait_advance(player):
+    """响应打出时攻击者还没进战斗区：挂一个**一次性**监听器，等它进场立刻纸人化。
+
+    引擎的响应窗口（hero attack 的 before 相位）早于 advance_hero，而 after 相位
+    又晚于伤害结算——只有「进战斗区」这个时点既拿得到目标、又赶在结算之前。
+    Player.advance_hero 现在会广播 MoveEvent，这里就听它。
+    """
+    def _cond(e, p):
+        h = getattr(e.event, "hero", None)
+        return (getattr(e.event, "to_zone", None) == "battle"
+                and h is not None and h.owner is p.opponent
+                and not getattr(h, "_xixue_paper", False))
+
+    def _effect(e, p):
+        p.listeners = [l for l in p.listeners if getattr(l, "_tag", "") != _XIXUE_WAIT_TAG]
+        _xixue_paperify(p.opponent, e.event.hero)
+
+    l = Listener("move", _cond, (_effect,))
+    l._tag = _XIXUE_WAIT_TAG
+    player.listeners = [l for l in player.listeners if getattr(l, "_tag", "") != _XIXUE_WAIT_TAG]
+    player.listeners.append(l)
 
 
 def _xixuetaosuo_on_play(s):
@@ -303,23 +356,27 @@ def _xixuetaosuo_on_play(s):
     响应：当山兔被攻击时，自动使用。
 
     纸人（3/3）/小纸人（0/1）期间，式神自身效果与所有增益、减益、护盾、
-    破甲全部失效（attributes/listeners/回调/counters 全部置空），本回合结束后
-    变回原式神。恢复监听器挂在目标所属牌手（式神监听器已被清空）。
+    破甲全部失效（attributes/listeners/回调/counters 全部置空）；**对方回合结束时**
+    变回一个「空白原始式神」（见 _xixue_reset_to_original），而不是还原成纸人化
+    之前的模样——所以这里不存快照。恢复监听器挂在目标所属牌手（式神监听器已被清空）。
     """
-    s.owner.game.handle_event(DrawEvent(s.owner, 1))  # 抽一张牌（无论是否成功变成纸人）
-    target = s.owner.opponent.attack_zone
-    if target is None or not target.is_alive:
+    player = s.owner
+    player.game.handle_event(DrawEvent(player, 1))   # 抽一张牌（无论是否成功变成纸人）
+    target = player.opponent.attack_zone
+    if target is not None and target.is_alive:
+        _xixue_paperify(player, target)
         return
-    small = _sixes(s.owner) >= 3
+    # 对方战斗区为空：只在**响应**打出时延迟生效（响应只会在敌方回合由非当前回合方
+    # 自动打出）。主动打出时对方战斗区为空说明这张牌没有目标，不做延迟——否则会把
+    # 监听器挂到之后某个无关的进场式神上。
+    if player is not player.game.current_player:
+        _xixue_wait_advance(player)
+
+
+def _xixue_paperify(player, target):
+    """把 target 变成纸人，并挂上到期重置的监听器。"""
+    small = _sixes(player) >= 3
     paper_atk, paper_hp = (0, 1) if small else (3, 3)
-    snap = {"attributes": list(target.attributes),
-            "listeners": list(target.listeners),
-            "counters": dict(target.counters._values)}
-    for f in _XIXUE_SNAP_FIELDS:
-        snap[f] = getattr(target, f)
-    for f in _XIXUE_CALLBACK_FIELDS:
-        snap[f] = getattr(target, f)
-    target._xixue_snapshot = snap
     target._xixue_paper = True
     target.atk = paper_atk
     target.current_max_hp = paper_hp

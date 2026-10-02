@@ -252,6 +252,8 @@ def _juexingzhen_on_play(s):
     # 觉醒：倒计时2：使敌方牌手获得2点破甲。
     # 本局游戏每触发过一次鸩的基础能力，此效果额外+1。
     hero.on_countdown = (_zhen_awakened_countdown,)
+    # 觉醒是永久效果：同时写进原始通道，使其跨气绝保留
+    hero.original_callbacks["on_countdown"] = hero.on_countdown
 
 
 def _zhen_awakened_countdown(hero):

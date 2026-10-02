@@ -138,6 +138,8 @@ def _awaken_on_play(s, buff_atk=0, buff_hp=0, effect=None):
     hero.is_awakened = True
     if effect is not None:
         hero.on_countdown = (effect,)
+        # 觉醒是永久效果：同时写进原始通道，使其跨气绝保留
+        hero.original_callbacks["on_countdown"] = hero.on_countdown
 
 
 # ── 非觉醒卡牌 ──────────────────────────────────────────────────────────────

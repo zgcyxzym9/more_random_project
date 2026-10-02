@@ -173,8 +173,9 @@ class JueXingQuanShen:
     hero = "QuanShen"
     name = "觉醒·犬神"
     level_req = 3
-    on_play = (lambda s: setattr(s.get_corresponding_hero(), "on_upgrade", None),
-               lambda s: s.get_corresponding_hero().listeners.append(
+    # 卡面只写了「复活犬神并永久获得+1攻击力和+1生命值」，并未移除升级能力；
+    # 原先那行 setattr(hero, "on_upgrade", None) 与卡面不符，已删除。
+    on_play = (lambda s: s.get_corresponding_hero().listeners.append(
                    Listener("begin turn",
                             lambda e, s: e.next_player != s.owner,
                             (lambda e, s: s.get_permanent_buff("hp", 1),

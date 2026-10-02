@@ -3,6 +3,15 @@ from .entity import Entity
 from .enums import HeroAttributes
 from .counters import CounterManager
 
+#: 构造时从式神类拷贝下来、运行时可被追加/替换的回调字段。
+#: 「重置为原始式神」类效果（如戏谑套索的纸人到期）需要它们的原值，
+#: 与 original_listeners / original_attributes 同款。
+#: 注意：game_core/cards/ShanTu.py 的 _XIXUE_CALLBACK_FIELDS 必须与本表一致
+#: （tests/mechanisms/test_xixue_reset.py 会校验）。
+CALLBACK_FIELDS = ("on_before_death", "on_death", "on_countdown", "on_move",
+                   "on_before_damage", "on_after_damage", "on_stun", "on_unstun",
+                   "on_upgrade", "on_revive")
+
 
 class Hero(Entity):
     original_hp: int = 0
@@ -102,6 +111,13 @@ class Hero(Entity):
 
         # ── 充能：能量计数（上限 10，持久）────────────────────────────────
         self.counters.ensure("energy", initial=0, persistent=True, max_val=10)
+
+        # ── 构造时的原始值快照（供「重置为原始式神」类效果还原）──────────────
+        # 与 original_listeners 同款：纸人化（戏谑套索）会把 attributes / 回调
+        # 清空，到期重置时需要能回到式神类的原值。注意取名 original_* 只表示
+        # 「构造时」的值，运行时的永久改写（如觉醒牌）不在此列。
+        self.original_attributes = list(self.attributes)
+        self.original_callbacks = {f: getattr(self, f) for f in CALLBACK_FIELDS}
 
     def __str__(self):
         return f"{self.name}"
@@ -266,6 +282,18 @@ class Hero(Entity):
             self.hp = self.original_hp + self.perm_buff_hp
             self.current_max_hp = self.original_hp + self.perm_buff_hp
             self.atk = self.original_atk + self.perm_buff_atk
+
+            # 属性与回调同样回到构造时原值：形态等**非永久**加成一概不跨气绝。
+            # 永久效果（觉醒牌、卡面明写「永久」的牌）走 original_attributes /
+            # original_callbacks 通道，见各牌实现；只写运行时的会被这里清掉。
+            # 必须放在 on_death 循环之后——否则会先清掉本流程正要调用的回调。
+            self.attributes = list(self.original_attributes)
+            # 迅捷被式神死亡消耗（faq）：气绝时移除、复活不恢复——即便它被写进了
+            # original_attributes（如觉醒·镰鼬）也不保留，故在属性还原之后再清一次
+            if HeroAttributes.AGILE in self.attributes:
+                self.attributes.remove(HeroAttributes.AGILE)
+            for f in CALLBACK_FIELDS:
+                setattr(self, f, self.original_callbacks[f])
 
     def assign_owner(self, player):
         self.owner = player

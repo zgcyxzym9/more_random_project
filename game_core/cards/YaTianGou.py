@@ -267,3 +267,6 @@ def _juexing_ytg_on_play(s):
                 attrs.remove(HeroAttributes.RANGED)
 
     hero.on_move = (_on_move_attack,) + hero.on_move
+    # 觉醒是永久效果：同时写进原始通道，使其跨气绝保留（非永久的运行时写入
+    # 会被 check_death 清回类定义）
+    hero.original_callbacks["on_move"] = hero.on_move

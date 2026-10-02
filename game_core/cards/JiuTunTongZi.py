@@ -273,8 +273,8 @@ class ShenZi:
 def _juexingjiutun_on_play(s):
     # +1/+3 为永久加成（JSON buff_atk 1 / buff_hp 3），法术牌不走自动读取，
     # 按觉醒·书翁先例经 get_permanent_buff 实装；「获得等量力量」由 heroes.py
-    # 成长监听器的 is_awakened 分支完成。贯通挂在 hero.attributes：check_death
-    # 只移除迅捷，跨气绝保留，与觉醒同为全局永久效果。
+    # 成长监听器的 is_awakened 分支完成。贯通是全局永久效果，跨气绝保留——
+    # check_death 会把属性清回 original_attributes，故两处都要写。
     hero = s.get_corresponding_hero()
     if hero is None or not hero.is_alive:
         return
@@ -283,6 +283,7 @@ def _juexingjiutun_on_play(s):
     hero.is_awakened = True
     if HeroAttributes.PENETRATE not in hero.attributes:
         hero.attributes.append(HeroAttributes.PENETRATE)
+        hero.original_attributes.append(HeroAttributes.PENETRATE)
 
 
 class JueXingJiuTunTongZi:

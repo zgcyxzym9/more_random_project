@@ -370,6 +370,7 @@ def _juexingwuwan_on_play(s):
     # 持有方也先额外击中一次，五丸按文本保持仅攻击侧生效，引擎防御侧跳过）
     if HeroAttributes.DOUBLE_STRIKE not in hero.attributes:
         hero.attributes.append(HeroAttributes.DOUBLE_STRIKE)
+        hero.original_attributes.append(HeroAttributes.DOUBLE_STRIKE)   # 觉醒永久：跨气绝
     hero._combo_attack_only = True
     # 当五丸造成战斗伤害时，烹饪。
     # 牌手目标由五丸基础能力（heroes.py）触发烹饪，此处只补式神目标，避免一次攻击重复烹饪。
@@ -385,3 +386,4 @@ def _juexingwuwan_on_play(s):
                  (lambda e, h: h.owner.game.cook(h.owner, h),))
     l._tag = tag
     hero.listeners.append(l)
+    hero.original_listeners.append(l)      # 觉醒永久：跨气绝保留

@@ -220,6 +220,7 @@ def _juexinghuang_on_play(s):
                  (lambda e, h: _juexinghuang_agi(e, h),))
     l._tag = tag
     hero.listeners.append(l)
+    hero.original_listeners.append(l)      # 觉醒永久：跨气绝保留
 
 
 def _juexinghuang_agi(e, h):

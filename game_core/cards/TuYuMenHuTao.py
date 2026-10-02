@@ -364,6 +364,7 @@ def _juexingtyht_on_play(s):
                      (lambda e, h: h.attributes.append(HeroAttributes.AGILE),))
     l_agi._tag = tag_agi
     hero.listeners.append(l_agi)
+    hero.original_listeners.append(l_agi)   # 觉醒永久：跨气绝保留
     # 胡桃攻击时，若己方有气绝式神，复活所有己方气绝式神
     tag_rev = "juexingtyht_revive"
     hero.listeners = [l for l in hero.listeners if getattr(l, "_tag", "") != tag_rev]
@@ -373,6 +374,7 @@ def _juexingtyht_on_play(s):
                          Revive(h, [x for x in h.owner.heroes if not x.is_alive])),))
     l_rev._tag = tag_rev
     hero.listeners.append(l_rev)
+    hero.original_listeners.append(l_rev)   # 觉醒永久：跨气绝保留
 
 
 class JuFengKe:
