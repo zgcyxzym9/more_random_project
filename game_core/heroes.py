@@ -1797,8 +1797,14 @@ def _yyl_sync_spend(e, s):
 
 # ── 无孔不入（323）：分身复制她使用的法术牌 ────────────────────────────────
 def _yyl_wkr_cond(e, s):
+    # 「她使用的法术牌」= 烟烟罗自己的牌。不加式神判定会把**队友**的法术也复制走：
+    # 复制路径把 card.played_by 指向分身（YanYanLuo.py _yyl_run_cast），而
+    # Card.get_corresponding_hero() 优先返回 played_by —— 队友牌的 on_play 里
+    # get_corresponding_hero() 于是拿到分身，读该式神自定义字段（犬神 counter
+    # "xin_shen_lian_mo" 等）就 KeyError。烟烟罗无协战牌，用 card.hero 判定即可。
     return (s.morphed_id == 323 and s.is_alive
             and e.event.player is s.owner
+            and e.event.card.hero == "YanYanLuo"
             and e.event.card.type == "spell")
 
 
