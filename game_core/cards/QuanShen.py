@@ -126,20 +126,36 @@ def _shouhu_on_response(s, event, target):
     if HeroAttributes.HUNTING in event.hero.attributes:
         event.player.selected_targets = [hero]
 
+_XINJIANLUANWU_DEATH_TAG = "xinjianluanwu_death"
+
+
 def _xinjianluanwu_on_play(s):
+    """心剑乱舞：犬神的牌获得瞬发，犬神气绝时失效。
+
+    只给「本来没有瞬发」的犬神牌补瞬发，并记下这一批，气绝时也只撤销这一批：
+      · 心即归处 卡面自带瞬发；
+      · 心身炼磨 在犬神 2 级时由 _xinshenlianmo_on_upgrade 授予瞬发。
+    这两类既不该被重复添加，也不该在犬神气绝时被一并抹掉。
+    """
     hero = s.get_corresponding_hero()
     if hero.morphed_id == s.id:
         return
-    cards = s.owner.hand.cards + s.owner.deck.cards
-    for card in cards:
-        if card.hero == "QuanShen":
-            card.attributes.append(CardAttributes.INSTANT)
+    granted = [c for c in s.owner.hand.cards + s.owner.deck.cards
+               if c.hero == "QuanShen" and CardAttributes.INSTANT not in c.attributes]
+    for card in granted:
+        card.attributes.append(CardAttributes.INSTANT)
+
     def _on_death(h):
-        for card in cards:
-            if card.hero == "QuanShen" and CardAttributes.INSTANT in card.attributes:
+        for card in granted:
+            if CardAttributes.INSTANT in card.attributes:
                 card.attributes.remove(CardAttributes.INSTANT)
-        h.on_death = [e for e in h.on_death if e is not _on_death]
-    hero.on_death.append(_on_death)
+        h.on_death = [e for e in h.on_death
+                      if getattr(e, "_tag", "") != _XINJIANLUANWU_DEATH_TAG]
+
+    _on_death._tag = _XINJIANLUANWU_DEATH_TAG
+    # on_death 通常来自式神类定义的 tuple（Hero.__init__ 直接取 hero_obj.on_death），
+    # 必须先转 list 再追加，否则 .append 会抛 AttributeError（桃花妖先例）。
+    hero.on_death = list(hero.on_death) + [_on_death]
 
 class XinJianLuanWu:
     id = 15
