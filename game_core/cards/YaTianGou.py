@@ -255,9 +255,15 @@ def _juexing_ytg_on_play(s):
 
     def _on_move_attack(h, from_zone, to_zone):
         if to_zone == "battle" and HeroAttributes.RANGED not in h.attributes:
-            h.attributes.append(HeroAttributes.RANGED)
+            attrs = h.attributes
+            attrs.append(HeroAttributes.RANGED)
             # 走标准攻击路径：广播 hero attack 让敌方响应牌可触发
             h.owner.game.handle_event(HeroAttackEvent(h.owner, h))
-            h.attributes.remove(HeroAttributes.RANGED)
+            # 广播期间任意副作用都可能动 attributes——典型如敌方「戏谑套索」把
+            # 鸦天狗纸人化，会整体替换 attributes 列表（ShanTu.py 纸人化/还原）。
+            # 只撤销自己那一次 append：列表已被换掉时这次临时加成随之作废，
+            # 不能再对新列表 remove（那样要么 ValueError，要么误删别人的 RANGED）。
+            if h.attributes is attrs and HeroAttributes.RANGED in attrs:
+                attrs.remove(HeroAttributes.RANGED)
 
     hero.on_move = (_on_move_attack,) + hero.on_move
