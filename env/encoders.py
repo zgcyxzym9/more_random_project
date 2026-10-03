@@ -14,8 +14,8 @@
   · 起始下标由调用方从 ObsIdx 取，本模块不认识「己方/对方」的语义。
 """
 
-from .actions import (HeroField, HERO_BLOCK, ILLUSION_BLOCK, ILLUSION_IDS,
-                      ILLUSION_UNKNOWN, MAX_ILLUSIONS)
+from .actions import (ATK_OBS_MAX, HeroField, HERO_BLOCK, ILLUSION_BLOCK,
+                      ILLUSION_IDS, ILLUSION_UNKNOWN, MAX_ILLUSIONS)
 
 
 def encode_hero_block(buf, base: int, hero) -> None:
@@ -26,7 +26,7 @@ def encode_hero_block(buf, base: int, hero) -> None:
     buf[base + hf.MORPHED_ID]        = hero.morphed_id
     buf[base + hf.CURRENT_MAX_HP]    = hero.current_max_hp
     buf[base + hf.HP]                = hero.hp
-    buf[base + hf.ATK]               = hero.atk
+    buf[base + hf.ATK]               = min(hero.atk, ATK_OBS_MAX)
     buf[base + hf.ROUND_BUFF_ATK]    = hero.round_buff_atk
     buf[base + hf.DEFENSE]           = hero.defense
     buf[base + hf.LEVEL]             = hero.level

@@ -100,6 +100,12 @@ REJECT_INITIAL_PICK_START = REJECT_START   # 旧名兼容别名（防外部 impo
 # PLAYER/OPP_ATTACKING 块表示（那两个循环遍历 player.heroes 全部元素、不做
 # NUM_HEROES 截断，见 env.get_obs 与 game.get_obs_tensor）。
 
+#: obs 中 ATK 字段的裁剪上限。写入 obs 时把 hero.atk 截到该值（引擎内不截）。
+#: 茨木童子觉醒后每回合力量翻倍（上限 65535，heroes.py::_cimu_begin_turn），
+#: 原值直接进 obs 会让无输入归一化的 Q 网络输出放大到 1e10 量级并导致自举发散；
+#: 实战中力量超过 40 后胜负已定，截断几乎不损失决策信息。
+ATK_OBS_MAX = 40
+
 # ── 幻境区 ───────────────────────────────────────────────────────────────────
 # 幻境区里所有幻境的效果同时生效；牌手受伤时「最早进入的」那个同步扣等量耐久
 # ——**并行不减免**，伤害照样全额扣牌手血（见 player.receive_damage），耐久 ≤0
