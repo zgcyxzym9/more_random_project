@@ -223,6 +223,18 @@ class Hero(Entity):
             if prevented:
                 return
 
+            # ── 重入保护 ──────────────────────────────────────────────────
+            # 本函数在「置死亡态之前」广播 MorphLeaveEvent（见下方注释：要让一目连
+            # 等被动在真正气绝前结算倒计时）。但形态离场效果可能造成伤害、把对面
+            # 打死、对面再打回来——此时本式神仍看起来 is_alive / 还带形态 / 监听器
+            # 未清，于是 check_death 会再走一遍完整流程，无限递归（两个觉醒一目连
+            # 各带倒计时形态时必现）。用标记挡掉：我已经在自己的死亡流程里了。
+            # 必须放在 prevented 判断之后——不死保护提前 return 时不能留下标记，
+            # 否则该式神此后永远死不了。
+            if getattr(self, "_death_in_progress", False):
+                return
+            self._death_in_progress = True
+
             # 「将气绝」事件：在置死亡态之前广播，供响应牌（如「射怪鸟事」）触发。
             # 响应牌打出后死亡仍照常发生。局部导入避免循环依赖（同 199 行模式）。
             from .event import AboutToDieEvent, MorphLeaveEvent
@@ -294,6 +306,9 @@ class Hero(Entity):
                 self.attributes.remove(HeroAttributes.AGILE)
             for f in CALLBACK_FIELDS:
                 setattr(self, f, self.original_callbacks[f])
+
+            # 死亡流程结束，解除重入保护（复活后可再次正常气绝）
+            self._death_in_progress = False
 
     def assign_owner(self, player):
         self.owner = player
