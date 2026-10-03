@@ -28,21 +28,33 @@ from game_core.damage_immunity import make_combat_immune_listener, clear_combat_
 # ── 通用工具 ────────────────────────────────────────────────────────────────
 
 def _yaodaoji_grant_no_fire(e, s):
-    """觉醒·妖刀姬：对敌方牌手造成伤害 → 她的手牌中妖刀姬战斗牌本回合不消耗鬼火。"""
+    """觉醒·妖刀姬：对敌方牌手造成伤害 → 她的手牌中妖刀姬战斗牌本回合不消耗鬼火。
+
+    只标记**本次授予**的牌（_ydj_granted_no_fire），供清除侧区分「本回合授予的」
+    与「卡牌自带的」——一闪自带 NO_FIRE_CONSUMPTION（见本文件 YiShan），无条件
+    清除会把它的自带属性一起剥掉。已在属性表中的牌（一闪）本来就不需要授予，
+    因此不会被标记，清除侧也就不会碰它。
+    """
     if not _yaodaoji_hit_player(e.event.target):
         return
     for c in s.owner.hand.cards:
         if c.hero == "YaoDaoJi" and c.card_type == CardType.ATTACK \
                 and CardAttributes.NO_FIRE_CONSUMPTION not in c.attributes:
             c.attributes.append(CardAttributes.NO_FIRE_CONSUMPTION)
+            c._ydj_granted_no_fire = True
 
 
 def _yaodaoji_clear_no_fire(e, s):
-    """下一回合开始清除战斗牌的「不消耗鬼火」。"""
+    """下一回合开始清除本回合授予的「不消耗鬼火」（卡牌自带的不动）。
+
+    与刃影叠岚的清除同口径：只回退自己授予的那一份。
+    """
     for c in s.owner.hand.cards:
         if c.hero == "YaoDaoJi" and c.card_type == CardType.ATTACK \
-                and CardAttributes.NO_FIRE_CONSUMPTION in c.attributes:
-            c.attributes.remove(CardAttributes.NO_FIRE_CONSUMPTION)
+                and getattr(c, "_ydj_granted_no_fire", False):
+            c._ydj_granted_no_fire = False
+            if CardAttributes.NO_FIRE_CONSUMPTION in c.attributes:
+                c.attributes.remove(CardAttributes.NO_FIRE_CONSUMPTION)
 
 
 def _yaodaoji_grant_instant_plus(e, s):
