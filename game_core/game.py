@@ -39,6 +39,18 @@ class Game:
         self.player1.clear_round_effects()
         self.player2.clear_round_effects()
         self.broadcast("begin turn", next_player=self.current_player, phase="before")
+        # ── 终局守卫（2026-10-06）─────────────────────────────────────────
+        # 牌手 hp<=0 即败北（tests/README 气绝判定）。但 state 是可被改写的可变
+        # 字段：回合交替点有两条致死路径——① step("end turn") 的 on_self_round_end
+        # （回合结束效果：中毒/灼烧等）；② 上面这条 "begin turn" before 广播（回合
+        # 开始效果）——若此时继续往下走，对 state 的改写会把 check_death 刚置上的
+        # LOST 抹成 PLAYING/WAITING，check_end_condition 随之恒为 False，游戏带着
+        # hp<=0 的牌手继续打（500 局随机对局实测约 3 局）。守卫必须放在此处：
+        # 广播之前则漏掉②，state 改写之后则两者都被抹掉。
+        self.player1.check_death()
+        self.player2.check_death()
+        if self.check_end_condition():
+            return
         # 鬼火在第一次广播之后重置（2026-09-29 移位，觉醒·青行灯）：before 广播
         # 中监听器可见上一回合结余鬼火（青行灯「敌方回合开始时若你有剩余鬼火」
         # 按结余判定）；回合开始类修改鬼火的效果（如辉夜姬·蓬莱玉枝）改在第二次
@@ -154,7 +166,15 @@ class Game:
 
 
     def check_end_condition(self):
-        if self.player1.state == PlayerState.LOST or self.player2.state == PlayerState.LOST:
+        """对局是否结束：任一方败北（LOST）或获胜（WON）即结束。
+
+        WON 与 LOST 同为终局态：山兔「这把算我赢」会同时置 owner WON /
+        对手 LOST，但「整局胜利」类效果今后可能只置 WON——不以 WON 为判据
+        会让对局在已分胜负后继续。begin_turn 的终局守卫也以此为准，
+        从而不再改写已分胜负双方的 state。
+        """
+        end_states = (PlayerState.LOST, PlayerState.WON)
+        if self.player1.state in end_states or self.player2.state in end_states:
             return True
         return False
 
