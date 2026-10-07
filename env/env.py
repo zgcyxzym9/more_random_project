@@ -265,20 +265,62 @@ class Env:
         if obs_after[o.OPPONENT_HP] <= 0 or obs_after[o.OPPONENT_DECK] <= 0:
             reward += 50.0
 
-        reward += float(obs_after[o.PLAYER_HP]  - obs_before[o.PLAYER_HP])  * 0.8
-        reward += float(obs_before[o.OPPONENT_HP] - obs_after[o.OPPONENT_HP]) * 1.5
+        reward += float(max(obs_after[o.PLAYER_HP], 0)  - obs_before[o.PLAYER_HP])  * 0.8
+        reward += float(obs_before[o.OPPONENT_HP] - max(obs_after[o.OPPONENT_HP], 0)) * 1.5
 
         reward += float(obs_before[o.FIRE_REMAINING] - obs_after[o.FIRE_REMAINING]) * 0.6
 
         if obs_before[o.PLAYER_STATE] == 2:
-            for hp_idx, def_idx in zip(OPP_HERO_HP, OPP_HERO_DEF):
+            for hp_idx, def_idx, pos_idx in zip(OPP_HERO_HP, OPP_HERO_DEF, OPP_HERO_POS):
+                # 式神气绝时 check_death 会把 hp 复位成基础值（hero.py:294），obs 里读到
+                # 的不是 0，于是：
+                #   ① 本步气绝的：after 必须按 0 计，否则 hp_before - 复位值 为负——击杀
+                #      越彻底惩罚越大；
+                #   ② 本步之前就已气绝的：两侧都是复位值（4~10），而本步它不可能再受伤，
+                #      必须整槽跳过，否则①的「按 0 计」会每步凭空 +hp（150 局随机对局实测
+                #      2025 个槽次）。存活的 0~1 槽位不会错位：召唤物 append 在列表尾部
+                #      （game.py:871），槽 0~3 恒为四个正式式神。
+                if obs_before[pos_idx] == 2.0:
+                    continue
+                hp_after = 0.0 if obs_after[pos_idx] == 2.0 else max(float(obs_after[hp_idx]), 0.0)
                 reward += 1.0 * float(
-                    (obs_before[hp_idx]  - obs_after[hp_idx]) +
+                    (max(obs_before[hp_idx], 0.0) - hp_after) +      # 扣到 0 以下的部分不计
                     (obs_before[def_idx] - obs_after[def_idx])
                 )
 
-        hand_after = obs_after[o.PLAYER_HAND_START : o.PLAYER_HAND_START + TOTAL_CARD_NUM]
-        hand_size  = int(hand_after.sum())
+        # ── 式神气绝：对手气绝 +2.5 / 己方气绝 −2.5（2026-10-07 新增）───────
+        # 口径：obs 的 POSITION_STATE 由 0/1 → 2 的转移。**不能**放进上面的
+        # PLAYER_STATE == 2 门里——气绝在任何 state 都可能发生（对手回合的效果、
+        # 回合结束的中毒/灼烧等），那扇门只对「选目标结算后的伤害」开。
+        # 已知盲区（用户裁决：不处理）：obs 只编码 heroes[:4]，召唤物气绝看不到；
+        # 同一步内气绝后又复活（如九命猫 on_death 自复活）首尾快照也看不到——
+        # 120 局随机对局实测漏 1.8%（己方）/ 4.9%（对手）。
+        for pos_idx in PLAYER_HERO_POS:
+            if obs_before[pos_idx] != 2.0 and obs_after[pos_idx] == 2.0:
+                reward -= 2.5
+        for pos_idx in OPP_HERO_POS:
+            if obs_before[pos_idx] != 2.0 and obs_after[pos_idx] == 2.0:
+                reward += 2.5
+
+        # ── 觉醒：己方式神觉醒 +3.0/次（2026-10-07 新增）────────────────────
+        # 只统计 0 → 1 的第一次：is_awakened 在整个 game_core 里只有 = True 赋值
+        # （30 张觉醒牌 + game.py:1176），没有任何地方置回 False，气绝也不清
+        # （check_death 复位的是 attributes，不含该字段）→ 天然每局每式神至多一次，
+        # 不需要额外记账（120 局实测「觉醒被复位」0 次）。
+        for awk_idx in PLAYER_HERO_AWK:
+            if obs_before[awk_idx] == 0.0 and obs_after[awk_idx] == 1.0:
+                reward += 3.0
+
+        # ── 过牌：每次获得手牌 +0.5/张（2026-10-07 新增）────────────────────
+        # 数手牌而不是牌库减少量：有的效果直接把牌置入手牌，不走牌库抽取，牌库口径
+        # 会漏（用户裁决）。只计增加量，打牌/弃牌造成的减少不转成负 reward；
+        # 口径是**净增**——同一步里既得牌又打牌会互相抵消，obs 里没有逐步的抽牌
+        # 计数可用，要精确只能去引擎侧挂钩子。
+        hand_before = obs_before[o.PLAYER_HAND_START : o.PLAYER_HAND_START + TOTAL_CARD_NUM]
+        hand_after  = obs_after[o.PLAYER_HAND_START : o.PLAYER_HAND_START + TOTAL_CARD_NUM]
+        reward += 0.5 * max(int(hand_after.sum()) - int(hand_before.sum()), 0)
+
+        hand_size = int(hand_after.sum())
         if hand_size > HAND_LIMIT:
             reward -= 2.5 * (hand_size - HAND_LIMIT)
 

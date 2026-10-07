@@ -249,8 +249,14 @@ OPP_HERO_HP  = [ObsIdx.OPP_HERO_START + i * HERO_BLOCK + HeroField.HP
                 for i in range(NUM_HEROES)]
 OPP_HERO_DEF = [ObsIdx.OPP_HERO_START + i * HERO_BLOCK + HeroField.DEFENSE
                 for i in range(NUM_HEROES)]
+OPP_HERO_POS = [ObsIdx.OPP_HERO_START + i * HERO_BLOCK + HeroField.POSITION_STATE
+                for i in range(NUM_HEROES)]
 PLAYER_HERO_HP = [ObsIdx.PLAYER_HERO_START + i * HERO_BLOCK + HeroField.HP
                   for i in range(NUM_HEROES)]
+PLAYER_HERO_POS = [ObsIdx.PLAYER_HERO_START + i * HERO_BLOCK + HeroField.POSITION_STATE
+                   for i in range(NUM_HEROES)]
+PLAYER_HERO_AWK = [ObsIdx.PLAYER_HERO_START + i * HERO_BLOCK + HeroField.IS_AWAKENED
+                   for i in range(NUM_HEROES)]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
