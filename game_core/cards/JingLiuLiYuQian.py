@@ -177,7 +177,7 @@ def _qishi_on_play(s):
             source.attributes.append(HeroAttributes.PENETRATE)
             penetrated = True
     s.owner.game.handle_event(DealDamage(dmg, source, s.owner.selected_targets))
-    if penetrated:
+    if penetrated and HeroAttributes.PENETRATE in source.attributes:
         source.attributes.remove(HeroAttributes.PENETRATE)
 
 

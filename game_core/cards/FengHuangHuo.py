@@ -291,7 +291,7 @@ def _yanwu_on_play(s):
     target = opp.attack_zone if opp.attack_zone is not None and opp.attack_zone.is_alive else opp
     _fhh_note_player_damage(hero, [target])  # 战斗区为空时直接命中牌手
     game.handle_event(DealDamage(dmg, hero, [target]))
-    if penetrated:
+    if penetrated and HeroAttributes.PENETRATE in hero.attributes:
         hero.attributes.remove(HeroAttributes.PENETRATE)
 
 
