@@ -10,8 +10,9 @@
 实现要点：
 - 白狼的法术强化（起弓/离/无我：+力量 与/或 关键字，直到下一次攻击后）统一写入
   hero.bailang_spell_buffs 注册表，并直接体现在 hero.atk / hero.attributes 上（Design A：
-  强化对所有伤害生效；灵矢贯虹的「力量加成」因此自动满足）。攻击后由 on_after_damage
-  清理（残心形态不清理）。迅捷(AGILE) 由引擎在出击结算时消耗，清理时只清追踪不删属性。
+  强化对所有伤害生效；灵矢贯虹的「力量加成」因此自动满足）。攻击后的清理由挂在
+  hero.listeners 上的「hero attack」after 监听器负责（残心形态不清理，并在气绝时清空
+  注册表）。迅捷(AGILE) 由引擎在出击结算时消耗，清理时只清追踪不删属性。
 - 觉醒·白狼(180)：heroes.py 基础能力已加 not s.is_awakened 抑制；觉醒在己方回合白狼对
   敌方式神造成伤害时打敌方牌手 4 点（战斗 + 非战斗，含援护）。
 - 会(178)：延迟 8 点伤害，监听「begin turn」在己方下个回合开始结算（目标已死则空过）；
@@ -74,34 +75,28 @@ def _bailang_clear_spell_buffs(hero):
         if a != HeroAttributes.AGILE and a in hero.attributes:
             hero.attributes.remove(a)
     reg["attrs"] = []
-    hero._bailang_attacked_combat = False
-
-
-def _bailang_clear_spell_buffs_after_attack(hero):
-    """攻击后清理法术强化：残心形态下不因攻击而消失。"""
-    if hero.morphed_id == CanXin.id:
-        return
-    _bailang_clear_spell_buffs(hero)
 
 
 def _bailang_arm_spell_cleanup(hero):
-    """确保『法术强化在攻击后清理（残心除外）』机制已挂载（幂等）。"""
-    # 出击标记监听器：白狼发起攻击时标记（用于 after-damage 区分攻/守）。
-    # 死亡后 listeners 重置为 original_listeners，需重新挂载 → 先按 tag 移除再挂。
-    hero.listeners = [l for l in hero.listeners if getattr(l, "_tag", "") != "bailang_spell_cleanup_flag"]
-    flag = Listener("hero attack",
-                    lambda e, h: getattr(e.event, "hero", None) is h,
-                    (lambda e, h: setattr(h, "_bailang_attacked_combat", True),))
-    flag._tag = "bailang_spell_cleanup_flag"
-    hero.listeners.append(flag)
-    # 战后清理回调（on_after_damage 不随死亡重置，只挂载一次）
-    if not getattr(hero, "_bailang_after_damage_hooked", False):
-        def _after_combat(_other, _dmg, h=hero):
-            if getattr(h, "_bailang_attacked_combat", False):
-                h._bailang_attacked_combat = False
-                _bailang_clear_spell_buffs_after_attack(h)
-        hero.on_after_damage = hero.on_after_damage + (_after_combat,)
-        hero._bailang_after_damage_hooked = True
+    """确保『法术强化在攻击后清理（残心除外）』的监听器已挂载（幂等）。
+
+    挂在「hero attack」的 after 广播上，且条件限定 isinstance(e.event, HeroAttackEvent)：
+    「hero attack」这一事件类型有两个广播点都带 .hero —— step 对出击**动作**的广播
+    （校验失败/挂起选目标等拒绝路径不会到达）与 handle_event 对 HeroAttackEvent 的广播
+    （攻击主体完整结算后才发出，进战斗区失败等提前 return 的路径不会到达）。
+    取后者，「广播到了」才等价于「这次攻击真的发生了」，且每次攻击只触发一次。
+    condition 取事件上的 hero（攻击者），白狼作为防御方挨打不会误清。
+    死亡时 listeners 重置为 original_listeners，本监听器随之脱落，下次加强化时按
+    tag 先摘后挂；original_listeners 未被改写，故不会随死亡重复累积。
+    """
+    hero.listeners = [l for l in hero.listeners if getattr(l, "_tag", "") != "bailang_spell_cleanup_attack"]
+    attack = Listener("hero attack",
+                      lambda e, h: (isinstance(e.event, HeroAttackEvent)
+                                    and e.event.hero is h
+                                    and h.morphed_id != CanXin.id),
+                      (lambda e, h: _bailang_clear_spell_buffs(h),), phase="after")
+    attack._tag = "bailang_spell_cleanup_attack"
+    hero.listeners.append(attack)
     # 气绝时清空法术强化（挂 original_listeners 以在死亡后保留）
     if not getattr(hero, "_bailang_death_clear_hooked", False):
         death = Listener("hero kill",
