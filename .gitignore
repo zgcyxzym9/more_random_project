@@ -65,6 +65,7 @@ experiments/
 debug_frames/
 tmp_cards_json/
 tests/
+tmp_prof/
 
 # LLM files
 AGENTS.md

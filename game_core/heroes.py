@@ -1950,3 +1950,138 @@ class QingXingDeng:
         Listener("begin turn", _qingxingdeng_fire_restore_cond,
                  (_qingxingdeng_fire_restore,), phase="after"),
     )
+
+
+# ══════════════════════════════════════════════════════════════════
+# 40. 青坊主 (QingFangZhu) — 紫岩
+#  基础能力：每回合一次，每当你恢复生命时，随机对两个敌方角色造成1点伤害。
+#  觉醒：当你恢复生命时，对所有敌人造成1点伤害（wiki 关键字-觉醒：觉醒替换
+#  基础能力）。卡牌实现见 game_core/cards/QingFangZhu.py（id 335-342）。
+#  口径（用户裁决 2026-10-10）：
+#  - 「你恢复生命」= 仅己方牌手实际恢复生命（满血/被生命上限截断不触发）；
+#  - 「随机对两个敌方角色」目标互不重复，「敌方角色」含敌方牌手；
+#  - 觉醒触发源与基础能力相同，但卡面无「每回合一次」→ 不限次数；
+#  - 轮回（#342）增强计数「你每被对手攻击过一次」：仅战斗伤害打到己方牌手
+#    计 1（damage_type "combat"=攻击命中段——含无式神可挡时对牌手的直接攻击，
+#    连击各段各计一次；"penetrate"=贯通溢出转移段），法术/投射不计；从开局
+#    起累计（引擎 0 级例外，见 game.broadcast），故基础/觉醒监听器以
+#    level/is_awakened 条件自控生效时机。
+# ══════════════════════════════════════════════════════════════════
+
+def _qingfangzhu_heal_snap_cond(e, s):
+    # heal before：只要 heal 事件目标含己方牌手就快照其回血前生命，供基础/
+    # 觉醒/禅心的「实际回血」判定（满血不触发，用户裁决）。
+    return s.owner in getattr(e.event, "target", ())
+
+
+def _qingfangzhu_heal_snap(e, s):
+    # before 相位：记录牌手回血前的生命值。引擎的 case "heal"（game.py:772）只做
+    # e.hp += value 并截断到生命上限，不记录实际回复量，故「是否真的回了血」
+    # 由 after 相位比较回血前后生命值判定。快照用无定义的计数器承载：
+    # 不参与 reset_all/reset_per_turn。
+    s.counters.set("qfz_hp_before", s.owner.hp)
+
+
+def _qingfangzhu_heal_cond(e, s):
+    # 基础能力条件：存活、已升级（0 级例外后由本条件自控，见 game.broadcast）、
+    # 未觉醒（觉醒替换基础能力，wiki 关键字-觉醒）、heal 目标含己方牌手。
+    # 气绝期间基础效果不发动（faq：式神气绝时基础效果无法发动）。
+    return (s.is_alive and s.level > 0 and not s.is_awakened
+            and s.owner in getattr(e.event, "target", ()))
+
+
+def _qingfangzhu_heal_effect(e, s):
+    hp_before = s.counters.get("qfz_hp_before", None)
+    if hp_before is None or s.owner.hp <= hp_before:
+        return None       # 满血 / 回复量被生命上限截断 → 未实际恢复生命，不触发
+    # 每回合一次：reset_per_turn 在 begin_turn 对双方统一重置（与火取魔
+    # 「每回合」同一语义）；persistent 使气绝不清零计数。
+    s.counters.ensure("qfz_heal_used", initial=0,
+                      persistent=True, reset_per_turn=True)
+    if s.counters.get("qfz_heal_used") >= 1:
+        return None
+    s.counters.inc("qfz_heal_used", 1)
+    _qingfangzhu_punish(s)
+
+
+def _qingfangzhu_punish(hero):
+    """随机对两个敌方角色各造成1点伤害（用户裁决：两个目标互不重复）。
+
+    目标口径与烬染不夜（_jinranbuye_special_attack）一致：存活且已升级的敌方
+    式神 + 未落败的敌方牌手；random_sample 无放回（game.rng.sample），
+    敌方角色不足两个时按实际数量。
+    """
+    player = hero.owner
+    opp = player.opponent
+    targets = [h for h in opp.heroes if h.is_alive and h.level > 0]
+    if opp.state != PlayerState.LOST:
+        targets.append(opp)
+    from game_core.selector import random_sample
+    chosen = random_sample(player, targets, min(2, len(targets)),
+                           context="青坊主: 随机选择两个敌方角色")
+    if chosen:
+        player.game.handle_event(DealDamage(1, hero, chosen))
+
+
+def _qingfangzhu_awakened_cond(e, s):
+    # 觉醒：触发源与基础能力相同（己方牌手实际回血），卡面无「每回合一次」
+    # → 不限次数（用户裁决）。觉醒状态跨气绝保留，基础能力已被替换。
+    return (s.is_alive and s.is_awakened
+            and s.owner in getattr(e.event, "target", ()))
+
+
+def _qingfangzhu_awakened_effect(e, s):
+    hp_before = s.counters.get("qfz_hp_before", None)
+    if hp_before is None or s.owner.hp <= hp_before:
+        return None       # 满血 / 回复量被生命上限截断 → 未实际恢复生命，不触发
+    # 「对所有敌人」= 全部存活已升级敌方式神 + 未落败敌方牌手（含牌手，
+    # 用户裁决）。不限次数，不做随机抽取。
+    opp = s.owner.opponent
+    targets = [h for h in opp.heroes if h.is_alive and h.level > 0]
+    if opp.state != PlayerState.LOST:
+        targets.append(opp)
+    if targets:
+        s.owner.game.handle_event(DealDamage(1, s, targets))
+
+
+def _qingfangzhu_attacked_cond(e, s):
+    # 轮回增强计数（用户裁决：仅打到牌手才算）：对手的战斗伤害打到己方牌手。
+    # damage_type "combat"=攻击命中段（无式神可挡时对牌手的直接攻击；连击
+    # 各段各广播一次），"penetrate"=贯通溢出转移段；法术/投射不计。
+    # 来源操控者判定兼容式神/牌手来源（避免导入 Player 造成循环依赖）。
+    ev = e.event
+    if getattr(ev, "damage_type", "") not in ("combat", "penetrate"):
+        return False
+    if s.owner not in getattr(ev, "target", ()):
+        return False
+    src = getattr(ev, "source", None)
+    controller = (src if getattr(src, "entity_type", "") == "player"
+                  else getattr(src, "owner", None))
+    return controller is s.owner.opponent
+
+
+def _qingfangzhu_attacked_effect(e, s):
+    # persistent：本局累计，不随气绝（reset_all）或回合（reset_per_turn）清零。
+    s.counters.ensure("qfz_attacked_count", initial=0, persistent=True)
+    s.counters.inc("qfz_attacked_count", 1)
+
+
+class QingFangZhu:
+    id = 40
+    name = "青坊主"
+    atk = 1
+    hp = 6
+    type = "earth"
+    listeners = (
+        # heal before：快照牌手回血前生命（基础/觉醒/禅心共用的「实际回血」判定）
+        Listener("heal", _qingfangzhu_heal_snap_cond, (_qingfangzhu_heal_snap,)),
+        # heal after：基础能力（每回合一次，随机两个敌方角色1点；觉醒后停用）
+        Listener("heal", _qingfangzhu_heal_cond, (_qingfangzhu_heal_effect,),
+                 phase="after"),
+        # heal after：觉醒（对所有敌人1点，不限次数）
+        Listener("heal", _qingfangzhu_awakened_cond, (_qingfangzhu_awakened_effect,),
+                 phase="after"),
+        # deal damage before：轮回增强计数（对手战斗伤害打到己方牌手 +1，开局起）
+        Listener("deal damage", _qingfangzhu_attacked_cond,
+                 (_qingfangzhu_attacked_effect,)),
+    )

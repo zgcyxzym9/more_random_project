@@ -30,9 +30,11 @@ def _fortune_both(card, threshold: int, on_success):
             on_success(p)
 
 
-def _heal_player(p, value: int):
-    """牌手恢复生命（不超过当前生命上限）。"""
-    p.hp = min(p.current_max_hp, p.hp + value)
+def _heal_player(p, value: int, src=None):
+    """牌手恢复生命（不超过当前生命上限）。经 Heal 事件广播（用户原则：回血行为
+    都应走事件广播），供「恢复生命」类监听（青坊主基础能力/禅心/觉醒、法界唯心
+    改写等）感知；上限截断语义与引擎 case "heal" 一致。src 为效果来源（卡牌）。"""
+    p.game.handle_event(Heal(value, src, [p]))
 
 
 # ── 1勾卡牌 ───────────────────────────────────────────────────────────────
@@ -78,13 +80,13 @@ def _wugufengrang_on_play(s):
     hero = s.get_corresponding_hero()
     if hero is None:
         return
-    # 进场：双方牌手运势4 → 恢复3生命
-    _fortune_both(s, 4, lambda p: _heal_player(p, 3))
+    # 进场：双方牌手运势4 → 恢复3生命（src=s： Heal 事件来源为五谷丰壤）
+    _fortune_both(s, 4, lambda p: _heal_player(p, 3, s))
     # 己方回合开始时：双方牌手运势4 → 恢复3生命（形态离场后失效）
     hero.listeners = [l for l in hero.listeners if getattr(l, "_tag", "") != "wugufengrang_begin"]
     l = Listener("begin turn",
                  lambda e, h: e.next_player == h.owner and h.morphed_id == 80,
-                 (lambda e, h: _fortune_both(s, 4, lambda p: _heal_player(p, 3)),))
+                 (lambda e, h: _fortune_both(s, 4, lambda p: _heal_player(p, 3, s)),))
     l._tag = "wugufengrang_begin"
     hero.listeners.append(l)
 

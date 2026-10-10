@@ -185,8 +185,11 @@ class Game:
         for entity in self.iter_entities():
             # 0 级式神的被动技能不生效。书翁例外：「起始手牌+1」是开局即生效的
             # 能力，不随等级解锁，须在书翁尚未升级的首个回合前触发。
+            # 青坊主例外：轮回（#342）增强计数「本局你每被对手攻击过一次」从开局
+            # 起累计（用户裁决 2026-10-10），其基础/觉醒监听器各自以 level/is_awakened
+            # 条件自控生效时机。
             if (isinstance(entity, Hero) and entity.level == 0
-                    and entity.type_name != "ShuWeng"):
+                    and entity.type_name not in ("ShuWeng", "QingFangZhu")):
                 continue
             for listener in entity.listeners:
                 if listener.matches(event, entity):
@@ -318,6 +321,15 @@ class Game:
                            event=PlayCardEvent(player, card, response=True),
                            phase="after", check_response=False)
         else:
+            # 法术响应回调 on_response
+            # 在回调中把牌手加入触发事件的 immune_targets，使触发响应的那记伤害
+            # 本身被免疫（回调先于 play_card 执行）。既有法术响应牌均未定义
+            # on_response，行为不变。
+            resp = card.on_response
+            for cb in (resp if isinstance(resp, tuple) else (resp,) if resp else ()):
+                result = cb(card, event, target)
+                if isinstance(result, Event):
+                    self.handle_event(result)
             self.play_card(player, card, via_response=True)
 
     def _consume_fire(self, player, card):
@@ -798,13 +810,15 @@ class Game:
                     if e not in getattr(event, "immune_targets", ()):
                         e.receive_damage(dmg)
                     e.check_death()
-                    # 贯通（法术/幻境等非战斗伤害）：理论过量转移给受击式神所属牌手
+                    # 贯通（法术/幻境等非战斗伤害）：理论过量转移给受击式神所属牌手。
+                    # 溢出转移段 damage_type="penetrate"：源自攻击但非直接命中段；
+                    # 不改变既有 == "combat" 监听行为。
                     if isinstance(e, Hero) and HeroAttributes.PENETRATE in getattr(event.source, "attributes", []):
                         excess = dmg - hp_before
                         if excess > 0:
                             owner_player = e.owner
                             if owner_player is not None:
-                                self.handle_event(DealDamage(excess, event.source, [owner_player]))
+                                self.handle_event(DealDamage(excess, event.source, [owner_player], damage_type="penetrate"))
                 # 结算后广播 DamageDealt（纯通知）：非战斗伤害通道的统一点，供
                 # 「造成伤害」类监听（五丸/镰鼬/妖狐计数/妖刀姬等）统一接收。
                 self.broadcast("damage dealt",
@@ -1629,7 +1643,9 @@ class Game:
         if excess > 0:
             owner_player = target.owner
             if owner_player:
-                self.handle_event(DealDamage(excess, source, [owner_player]))
+                # 溢出转移段 damage_type="penetrate"：源自攻击但非直接命中段，
+                # 独立于 "combat"（命中段），供轮回等计数精确识别
+                self.handle_event(DealDamage(excess, source, [owner_player], damage_type="penetrate"))
 
     def apply_penetration(self, source, target, amount):
         """破甲结附：施加破甲并广播通知（供寂寥心象等「获得破甲」类监听）。

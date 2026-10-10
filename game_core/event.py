@@ -30,7 +30,8 @@ class DealDamage(Event):
         self.value = value
         self.source = source
         self.target = target
-        self.damage_type = damage_type  # "spell" | "combat" | "projectile"
+        # "spell" | "combat" | "projectile" | "penetrate"
+        self.damage_type = damage_type
 
     def __str__(self):
         return f"Dealing {self.value} damage to {self.target} from {self.source}"
@@ -124,7 +125,7 @@ class DamageDealt(Event):
 
     value 为本次造成伤害的数值（战斗取实际 damage_dealt，法术/投射取名义值）；
     target 恒为列表（多目标同时结算视为一次 atomic 操作，监听方用 in 判断）；
-    damage_type 为 "spell" | "combat" | "projectile"。
+    damage_type 为 "spell" | "combat" | "projectile" | "penetrate"（贯通溢出转移段）。
     """
     def __init__(self, value, source, target, damage_type):
         self.type = "damage dealt"
