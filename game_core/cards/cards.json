@@ -3775,5 +3775,92 @@
     "description": "你的生命变为10。增强：本局游戏你每被对手攻击过一次，此牌效果+1。",
     "is_beginning_card": true,
     "level_req": 3
+  },
+  {
+    "id": 343,
+    "type": "attack",
+    "hero": "YuanJiuLangHu",
+    "name": "狐手",
+    "eng_name": "HuShou",
+    "description": "为源九郎狐恢复2生命，此牌造成的过量治疗会转化为力量。",
+    "is_beginning_card": true,
+    "level_req": 1
+  },
+  {
+    "id": 344,
+    "type": "spell",
+    "hero": "YuanJiuLangHu",
+    "name": "狐辞",
+    "eng_name": "HuCi",
+    "description": "瞬发，选择一项：为一个角色恢复3生命，过量治疗会转化为护甲；使一个幻境获得3耐久。",
+    "is_beginning_card": true,
+    "level_req": 1
+  },
+  {
+    "id": 345,
+    "type": "spell",
+    "hero": "YuanJiuLangHu",
+    "name": "觉醒·源九郎狐",
+    "eng_name": "JueXingYuanJiuLangHu",
+    "description": "觉醒：己方所有其他紫岩式神获得1力量和1生命。当你使用其他紫岩式神的牌时，源九郎狐获得1生命。",
+    "is_beginning_card": true,
+    "level_req": 2,
+    "buff_atk": 1,
+    "buff_hp": 1
+  },
+  {
+    "id": 346,
+    "type": "morph",
+    "hero": "YuanJiuLangHu",
+    "name": "御先狐",
+    "eng_name": "YuXianHu",
+    "description": "己方回合当源九郎狐对敌方角色造成战斗伤害时，使该角色获得3破甲，自己获得3护甲。",
+    "is_beginning_card": true,
+    "level_req": 2,
+    "atk": 3,
+    "hp": 7
+  },
+  {
+    "id": 347,
+    "type": "spell",
+    "hero": "YuanJiuLangHu",
+    "name": "初音鼓",
+    "eng_name": "ChuYinGu",
+    "description": "复活一个己方式神，并使该式神获得1力量，1生命和1护甲。增强：若己方式神都为紫岩派系，再将该式神移入战斗区。",
+    "is_beginning_card": true,
+    "level_req": 2
+  },
+  {
+    "id": 348,
+    "type": "illusion",
+    "hero": "YuanJiuLangHu",
+    "name": "狐狸六法",
+    "eng_name": "HuLiLiuFa",
+    "description": "进场时使一个己方式神获得+1生命和+2护甲。进场和己方回合开始时，若己方任一式神的生命为场上最大或同为最大，抽一张牌。",
+    "is_beginning_card": true,
+    "level_req": 2,
+    "duration": 6
+  },
+  {
+    "id": 349,
+    "type": "morph",
+    "hero": "YuanJiuLangHu",
+    "name": "灵狐之嗣",
+    "eng_name": "LingHuZhiSi",
+    "description": "不屈。增强：你每有一个其他未气绝的紫岩式神，此牌便获得3力量和3生命。",
+    "is_beginning_card": true,
+    "level_req": 3,
+    "atk": 4,
+    "hp": 4
+  },
+  {
+    "id": 350,
+    "type": "spell",
+    "hero": "YuanJiuLangHu",
+    "name": "道行初音旅",
+    "eng_name": "DaoXingChuYinLv",
+    "description": "复活己方所有紫岩式神。本局游戏每个己方回合结束时，己方所有紫岩式神永久获得+1力量和+1生命。（此效果可以叠加，对气绝式神有效）",
+    "is_beginning_card": true,
+    "level_req": 3
   }
 ]

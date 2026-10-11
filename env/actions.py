@@ -63,7 +63,7 @@ TOKEN_NUM       = 32                    # token 卡总数（食材/佳肴 10 + �
 TOTAL_CARD_NUM  = MAX_CARD_ID + TOKEN_NUM   # 卡牌 id 空间总长 = obs/动作下标上界
 
 #: 幻境卡密集编号（按 cards.json 顺序，写入 obs 时用 编号 本身；0 保留给空槽）。
-#: 直接写卡牌 id（0..366）当标量范围太大、噪声高，密集编号更利于网络分卡学效果。
+#: 直接写卡牌 id（0..TOTAL_CARD_NUM）当标量范围太大、噪声高，密集编号更利于网络分卡学效果。
 ILLUSION_IDS     = {c["eng_name"]: i + 1
                     for i, c in enumerate(c for c in _CARD_DATA if c["type"] == "illusion")}
 #: 表外幻境卡（正常情况下不会出现；写非 0 值，避免被误读成空槽）
@@ -125,10 +125,10 @@ ILLUSION_ZONE_DIM = MAX_ILLUSIONS * ILLUSION_BLOCK
 #   8 式神块          = 8 * HERO_BLOCK         = 232
 #   幻境区 ×2         = 2 * ILLUSION_ZONE_DIM  = 32
 #   牌手标量          = 14
-#   卡牌多热 ×4       = 4 * TOTAL_CARD_NUM     = 1496
+#   卡牌多热 ×4       = 4 * TOTAL_CARD_NUM     = 1528
 #   攻击式神 ×2       = 2 * HERO_BLOCK         = 58
 #   ────────────────────────────────────────────────
-#   TOTAL                                      = 1837
+#   TOTAL                                      = 1869
 
 BASE_SCALARS     = 5
 PLAYER_SCALARS   = 14
@@ -143,8 +143,8 @@ OBS_DIM = (
     + ATTACKING_HEROES * HERO_BLOCK
 )
 
-assert OBS_DIM == 1837, f"OBS_DIM expected 1837, got {OBS_DIM}"
-assert ACTION_DIM == 776, f"ACTION_DIM expected 776, got {ACTION_DIM}"
+assert OBS_DIM == 1869, f"OBS_DIM expected 1869, got {OBS_DIM}"
+assert ACTION_DIM == 792, f"ACTION_DIM expected 792, got {ACTION_DIM}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -228,14 +228,14 @@ class ObsIdx:
     OPPONENT_FIRE      = PLAYER_DECK + 13     # 对手剩余鬼火
 
     # ── 卡牌多热编码 (4 × TOTAL_CARD_NUM) ─────────────────────────────
-    PLAYER_HAND_START   = OPPONENT_FIRE + 1                          #  283 ~  656
-    STARTING_DECK_START = PLAYER_HAND_START + TOTAL_CARD_NUM         #  657 ~ 1030
-    PLAYER_USED_START   = STARTING_DECK_START + TOTAL_CARD_NUM       # 1031 ~ 1404
-    OPP_USED_START      = PLAYER_USED_START + TOTAL_CARD_NUM         # 1405 ~ 1778
+    PLAYER_HAND_START   = OPPONENT_FIRE + 1                          #  283 ~  664
+    STARTING_DECK_START = PLAYER_HAND_START + TOTAL_CARD_NUM         #  665 ~ 1046
+    PLAYER_USED_START   = STARTING_DECK_START + TOTAL_CARD_NUM       # 1047 ~ 1428
+    OPP_USED_START      = PLAYER_USED_START + TOTAL_CARD_NUM         # 1429 ~ 1810
 
     # ── 正在攻击的式神 (2 × 29) ──────────────────────────────────────
-    PLAYER_ATTACKING_START = OPP_USED_START + TOTAL_CARD_NUM         # 1779 ~ 1807
-    OPP_ATTACKING_START    = PLAYER_ATTACKING_START + HERO_BLOCK     # 1808 ~ 1836
+    PLAYER_ATTACKING_START = OPP_USED_START + TOTAL_CARD_NUM         # 1811 ~ 1839
+    OPP_ATTACKING_START    = PLAYER_ATTACKING_START + HERO_BLOCK     # 1840 ~ 1868
 
 
 # ObsIdx 必须正好铺满 OBS_DIM：改任何一段的宽度都会在这里报错

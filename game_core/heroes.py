@@ -2085,3 +2085,43 @@ class QingFangZhu:
         Listener("deal damage", _qingfangzhu_attacked_cond,
                  (_qingfangzhu_attacked_effect,)),
     )
+
+
+# ══════════════════════════════════════════════════════════════════
+# 41. 源九郎狐 (YuanJiuLangHu) — 紫岩
+#  基础能力：当你使用其他紫岩派系式神的牌时，源九郎狐获得1点生命。
+#  口径（用户裁决 2026-10-11）：
+#  - 「获得1点生命」= GiveBuff("hp")：当前生命与生命上限各+1，气绝后丢失
+#    （火取魔「使用红莲牌获得1生命」同款先例；faq.md：增加生命上限同步
+#    获得等量生命、不触发「回复生命」类效果）；
+#  - 「使用」含响应通道打出的牌（PlayCardEvent.response 不排除，火取魔同款）；
+#  - 「其他紫岩派系式神」= 排除源九郎狐自己的牌；派系/归属经
+#    card.get_corresponding_hero 判定（协战牌按阵容内匹配式神归边，火取魔同款）；
+#  - 源九郎狐气绝期间不触发；0 级时引擎不向其派发监听（game.broadcast 惯例）。
+#  目前无专属卡（cards.json 尚无 YuanJiuLangHu 条目，故不入 hero_names.txt）。
+# ══════════════════════════════════════════════════════════════════
+
+def _yuanjiulanghu_earth_card_cond(e, s):
+    # 「你使用其他紫岩派系式神的牌」：仅己方打出（响应通道也算使用）；气绝
+    # 期间被动不发动（九命猫 T6 惯例）；「其他」排除源九郎狐自己的牌。
+    if not s.is_alive or e.event.card.owner is not s.owner:
+        return False
+    hero = e.event.card.get_corresponding_hero()
+    return hero is not None and hero is not s and hero.type == "earth"
+
+
+def _yuanjiulanghu_earth_card_effect(e, s):
+    # 获得生命走 GiveBuff 事件（当前+1/上限+1，气绝后丢失，用户裁决）。
+    s.owner.game.handle_event(GiveBuff("hp", 1, s, [s]))
+
+
+class YuanJiuLangHu:
+    id = 41
+    name = "源九郎狐"
+    atk = 2
+    hp = 5
+    type = "earth"
+    # "play card" 监听器一律 phase="after"（完成广播）——历史语义即读结算后的
+    # 战场状态，全项目统一（见 manager.Listener 与 PlayCardEvent 的说明）
+    listeners = (Listener("play card", _yuanjiulanghu_earth_card_cond,
+                          (_yuanjiulanghu_earth_card_effect,), phase="after"),)
