@@ -125,10 +125,10 @@ ILLUSION_ZONE_DIM = MAX_ILLUSIONS * ILLUSION_BLOCK
 #   8 式神块          = 8 * HERO_BLOCK         = 232
 #   幻境区 ×2         = 2 * ILLUSION_ZONE_DIM  = 32
 #   牌手标量          = 14
-#   卡牌多热 ×4       = 4 * TOTAL_CARD_NUM     = 1464
+#   卡牌多热 ×4       = 4 * TOTAL_CARD_NUM     = 1496
 #   攻击式神 ×2       = 2 * HERO_BLOCK         = 58
 #   ────────────────────────────────────────────────
-#   TOTAL                                      = 1805
+#   TOTAL                                      = 1837
 
 BASE_SCALARS     = 5
 PLAYER_SCALARS   = 14
@@ -143,8 +143,8 @@ OBS_DIM = (
     + ATTACKING_HEROES * HERO_BLOCK
 )
 
-assert OBS_DIM == 1805, f"OBS_DIM expected 1805, got {OBS_DIM}"
-assert ACTION_DIM == 760, f"ACTION_DIM expected 760, got {ACTION_DIM}"
+assert OBS_DIM == 1837, f"OBS_DIM expected 1837, got {OBS_DIM}"
+assert ACTION_DIM == 776, f"ACTION_DIM expected 776, got {ACTION_DIM}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -228,14 +228,14 @@ class ObsIdx:
     OPPONENT_FIRE      = PLAYER_DECK + 13     # 对手剩余鬼火
 
     # ── 卡牌多热编码 (4 × TOTAL_CARD_NUM) ─────────────────────────────
-    PLAYER_HAND_START   = OPPONENT_FIRE + 1                          #  283 ~  648
-    STARTING_DECK_START = PLAYER_HAND_START + TOTAL_CARD_NUM         #  649 ~ 1014
-    PLAYER_USED_START   = STARTING_DECK_START + TOTAL_CARD_NUM       # 1015 ~ 1380
-    OPP_USED_START      = PLAYER_USED_START + TOTAL_CARD_NUM         # 1381 ~ 1746
+    PLAYER_HAND_START   = OPPONENT_FIRE + 1                          #  283 ~  656
+    STARTING_DECK_START = PLAYER_HAND_START + TOTAL_CARD_NUM         #  657 ~ 1030
+    PLAYER_USED_START   = STARTING_DECK_START + TOTAL_CARD_NUM       # 1031 ~ 1404
+    OPP_USED_START      = PLAYER_USED_START + TOTAL_CARD_NUM         # 1405 ~ 1778
 
     # ── 正在攻击的式神 (2 × 29) ──────────────────────────────────────
-    PLAYER_ATTACKING_START = OPP_USED_START + TOTAL_CARD_NUM         # 1747 ~ 1775
-    OPP_ATTACKING_START    = PLAYER_ATTACKING_START + HERO_BLOCK     # 1776 ~ 1804
+    PLAYER_ATTACKING_START = OPP_USED_START + TOTAL_CARD_NUM         # 1779 ~ 1807
+    OPP_ATTACKING_START    = PLAYER_ATTACKING_START + HERO_BLOCK     # 1808 ~ 1836
 
 
 # ObsIdx 必须正好铺满 OBS_DIM：改任何一段的宽度都会在这里报错
