@@ -27,7 +27,7 @@ class DoubleDQNAgent:
         self.target_net.load_state_dict(self.q_net.state_dict())
         self.target_net.eval()
 
-        self.optimizer = optim.Adam(self.q_net.parameters(), lr=lr)
+        self.optimizer = optim.Adam(self.q_net.parameters(), lr=lr, weight_decay=1e-4)
 
     # ------------------------------------------------------------------
     # ε-greedy 动作选择

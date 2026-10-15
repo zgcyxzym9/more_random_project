@@ -1,6 +1,7 @@
 import sys
 sys.path.insert(0, "E:/more_random_project_vibe")
 
+import torch
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 import os
@@ -13,6 +14,13 @@ from env.actions import OBS_DIM, ACTION_DIM
 
 DEVICE     = "cuda"
 
+# TF32：fp32 matmul 走 tensor core（尾数 23→10 bit），实测 batch=4096 的一次 update
+# 从 9.35ms 降到 5.90ms，训练循环整体约 x1.14（update 占墙钟约一半）。
+# 只影响 matmul 的输入精度，累加与主权重仍是 fp32；不需要 GradScaler，
+# 且不涉及 fp16 的 65504 溢出问题（本项目历史上出现过 Q 网络输出到 1e10）。
+# 若 reward 曲线相对基线有退化，删掉下面这行即可完全还原。
+torch.set_float32_matmul_precision("high")
+
 
 def train(env, agent, episodes=10000):
 
@@ -21,6 +29,7 @@ def train(env, agent, episodes=10000):
     writer  = SummaryWriter(log_dir)
 
     # agent.load_model("./logs/dqn/2026-07-27_15-18-00/dqn_model.pt")
+    env.load_model("./logs/dqn/2026-10-03_22-25-12/dqn_model_4.pt")
 
     # ReplayBuffer 现在需要知道 obs_dim / action_dim / device
     # 所有数据从一开始就住在 GPU 上
@@ -111,5 +120,5 @@ def train(env, agent, episodes=10000):
 train(
     DQNRandomDeckGameEnv(),
     DoubleDQNAgent(obs_dim=OBS_DIM, action_dim=ACTION_DIM, device=DEVICE),
-    episodes=80000,
+    episodes=30000,
 )
