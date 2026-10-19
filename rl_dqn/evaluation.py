@@ -5,14 +5,14 @@ from rl_dqn.agent import DoubleDQNAgent
 from env.env import RandomOpponentGameEnv, DQNOpponentGameEnv
 from env.actions import OBS_DIM
 
-def eval(env, model_path="./logs/dqn/2026-07-12_17-08-29/dqn_model.pt"):
+def eval(env, model_path="./logs/dqn/emb_baseline.pt"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     obs_dim = OBS_DIM
     from env.actions import ACTION_DIM as act_dim
 
     model = DoubleDQNAgent(obs_dim, act_dim, device)
-    model.q_net.load_state_dict(torch.load(model_path))
+    model.q_net.load_state_dict(torch.load(model_path, map_location=device))
     model.q_net.eval()
 
     total = 500

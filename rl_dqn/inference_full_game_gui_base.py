@@ -54,7 +54,7 @@ model = DoubleDQNAgent(OBS_DIM, _ACT_DIM, device)
 # deck1 最终版（finetune_vs_deck3 微调轮产物）——临时接入，换模型时改这里的路径
 model.q_net.load_state_dict(
     torch.load(os.path.join(root_dict,
-              "experiments/deck_strength/results/deck1/finetune_vs_deck3/dqn_model.pt"),
+              "logs/dqn/emb_baseline.pt"),
               map_location=device))
 model.q_net.eval()
 

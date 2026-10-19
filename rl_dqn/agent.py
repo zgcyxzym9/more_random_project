@@ -3,8 +3,10 @@ import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
 import random
+import copy
 
-from .model import QNetwork, QNetworkLN
+from .model import (QNetwork, QNetworkLN, CardEmbQNetwork,
+                    CARD_LO, CARD_HI, TOTAL_CARD_NUM)
 
 
 class DoubleDQNAgent:
@@ -16,15 +18,28 @@ class DoubleDQNAgent:
         gamma: float = 0.99,
         lr: float = 1e-4,
         use_layer_norm: bool = False,
+        model_type: str | None = None,
     ):
         self.device = device
         self.gamma = gamma
         self.action_dim = action_dim
 
-        network_cls = QNetworkLN if use_layer_norm else QNetwork
-        self.q_net      = network_cls(obs_dim, action_dim).to(device)
-        self.target_net = network_cls(obs_dim, action_dim).to(device)
-        self.target_net.load_state_dict(self.q_net.state_dict())
+        # model_type 未显式指定时：latent_cards 为新基线默认；
+        # 旧参数 use_layer_norm=True 仍生效
+        if model_type is None:
+            model_type = "layer_norm" if use_layer_norm else "latent_cards"
+
+        if model_type == "plain":
+            self.q_net = QNetwork(obs_dim, action_dim).to(device)
+        elif model_type == "layer_norm":
+            self.q_net = QNetworkLN(obs_dim, action_dim).to(device)
+        elif model_type == "latent_cards":
+            self.q_net = CardEmbQNetwork(obs_dim, action_dim, CARD_LO, CARD_HI,
+                                         TOTAL_CARD_NUM).to(device)
+        else:
+            raise ValueError(f"未知网络结构: {model_type}")
+
+        self.target_net = copy.deepcopy(self.q_net)
         self.target_net.eval()
 
         self.optimizer = optim.Adam(self.q_net.parameters(), lr=lr, weight_decay=1e-4)

@@ -21,9 +21,10 @@ model = DoubleDQNAgent(OBS_DIM, ACTION_DIM, device)
 import glob as _glob
 import os as _os
 model_path = None
-checkpoints = sorted(_glob.glob(_os.path.join(root_dict, "logs/dqn/*/dqn_model.pt")))
+checkpoints = _glob.glob(_os.path.join(root_dict, "logs/dqn/*/dqn_model.pt"))
 if checkpoints:
-    model_path = checkpoints[-1]
+    # 按修改时间取最新（字典序会把 card_id_action_* 等旧目录排到最后）
+    model_path = max(checkpoints, key=_os.path.getmtime)
     print(f"Loading model from: {model_path}")
     model.q_net.load_state_dict(torch.load(model_path, map_location=device))
 else:
