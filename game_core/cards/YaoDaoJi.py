@@ -20,7 +20,7 @@ from game_core.action import *
 from game_core.event import *
 from game_core.enums import *
 from game_core.selector import *
-from game_core.manager import Listener
+from game_core.manager import Listener, CardEnhance
 from game_core.heroes import _yaodaoji_hit_player, _yaodaoji_source_from
 from game_core.damage_immunity import make_combat_immune_listener, clear_combat_immune
 
@@ -84,6 +84,23 @@ def _yaodaoji_clear_instant_plus(e, s):
             c.buff_def = getattr(c, "buff_def", 0) - 1
 
 
+# ── 基础能力：命中敌方牌手后本回合战斗牌获得瞬发 ──────────────────────────
+# 标记挂在妖刀姬的 counters 上（reset_per_turn，下一次任一方回合开始时自动
+# 过期）；卡牌侧只声明 enhance，判定/打出时读取标记，不修改卡牌本身。因此
+# 注入/新建的卡牌实例同样命中（见 heroes._yaodaoji_grant_instant）。
+def _ydj_instant_mark_active(card):
+    if getattr(card, "owner", None) is None:
+        return False
+    hero = card.get_corresponding_hero()
+    return hero is not None and hero.counters.get("yaodaoji_instant_turn", 0) > 0
+
+
+_YJD_INSTANT_ENHANCE = (
+    CardEnhance(cond=_ydj_instant_mark_active,
+                attributes=(CardAttributes.INSTANT,)),
+)
+
+
 # ── 1勾 战斗牌 ─────────────────────────────────────────────────────────────
 
 class BuXiangZhiRen:
@@ -95,6 +112,7 @@ class BuXiangZhiRen:
     level_req = 1
     buff_def = 1
     is_beginning_card = True
+    enhance = _YJD_INSTANT_ENHANCE
     on_play = (lambda s: _buxiang_on_play(s),)
     after_play = (lambda s: _buxiang_after_play(s),)
 
@@ -122,6 +140,7 @@ class JianQie:
     is_beginning_card = True
     response_trigger = "hero attack"
     response_condition = (lambda s, event, target: _jianqie_response_cond(s, event, target),)
+    enhance = _YJD_INSTANT_ENHANCE
     on_play = (lambda s: _jianqie_on_play(s),)
     after_play = (lambda s: _jianqie_after_play(s),)
 
@@ -162,6 +181,7 @@ class ZhanYi:
     buff_atk = 2
     buff_def = 2
     is_beginning_card = True
+    enhance = _YJD_INSTANT_ENHANCE
 
 
 class YiShan:
@@ -173,6 +193,7 @@ class YiShan:
     level_req = 2
     attributes = (CardAttributes.NO_FIRE_CONSUMPTION,)
     is_beginning_card = True
+    enhance = _YJD_INSTANT_ENHANCE
 
 
 class JinGuZhiDao:
@@ -185,6 +206,7 @@ class JinGuZhiDao:
     buff_atk = 0
     buff_def = 2
     is_beginning_card = True
+    enhance = _YJD_INSTANT_ENHANCE
     on_play = (lambda s: _jinguzhidao_on_play(s),)
 
 

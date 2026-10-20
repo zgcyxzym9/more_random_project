@@ -765,21 +765,17 @@ def _yaodaoji_source_from(e, s):
 
 
 def _yaodaoji_grant_instant(e, s):
-    """妖刀姬对敌方牌手造成伤害：本回合她的手牌中妖刀姬战斗牌获得瞬发。"""
+    """妖刀姬对敌方牌手造成伤害：本回合她的战斗牌获得瞬发。
+
+    只在式神身上挂一个本回合标记（reset_per_turn，下一次任一方回合开始时
+    自动过期）；卡牌的 enhance 在判定/打出时读取该标记，不修改手牌/牌库，
+    注入/新建的卡牌实例同样生效。
+    """
     if not _yaodaoji_hit_player(e.event.target):
         return
-    for c in s.owner.hand.cards:
-        if c.hero == "YaoDaoJi" and c.card_type == CardType.ATTACK \
-                and CardAttributes.INSTANT not in c.attributes:
-            c.attributes.append(CardAttributes.INSTANT)
-
-
-def _yaodaoji_clear_instant(e, s):
-    """本回合开始时，清除上一回合赋予的战斗牌瞬发（瞬发只持续触发回合）。"""
-    for c in s.owner.hand.cards:
-        if c.hero == "YaoDaoJi" and c.card_type == CardType.ATTACK \
-                and CardAttributes.INSTANT in c.attributes:
-            c.attributes.remove(CardAttributes.INSTANT)
+    s.counters.ensure("yaodaoji_instant_turn", initial=0,
+                      persistent=True, reset_per_turn=True)
+    s.counters.set("yaodaoji_instant_turn", 1)
 
 
 def _yaodaoji_count_kill(e, s):
@@ -799,10 +795,6 @@ class YaoDaoJi:
         Listener("damage dealt",
                  lambda e, s: s.is_alive and _yaodaoji_source_from(e, s),
                  (_yaodaoji_grant_instant,)),
-        # 本回合结束（下一次己方回合开始）清除瞬发
-        Listener("begin turn",
-                 lambda e, s: e.next_player == s.owner.opponent,
-                 (_yaodaoji_clear_instant,)),
         # 击杀计数：本局消灭式神数（killer 为 _last_damage_source，战斗击杀即妖刀姬）
         Listener("hero kill",
                  lambda e, s: s.is_alive and getattr(e.event, "killer", None) is s,
