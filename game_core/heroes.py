@@ -1557,22 +1557,40 @@ def _cimu_track_max_atk(e, s):
 
 
 def _cimu_qn_snapshot(e, s):
-    """迁怒判定快照：本次攻击开始时的敌方战斗区占用者。
+    """迁怒判定快照：本次攻击开始时的敌方战斗区占用者与形态状态。
 
     check_death 会在击杀事件前清空 attack_zone，击杀事件时刻无法直接读区。
     地狱之手追猎再攻击准备区式神时敌方战斗区已为空 → 快照 None，
     其击杀不会误触迁怒（符合牌面「消灭敌方战斗区式神」限定）。
+
+    形态同样按攻击发起时快照：双方同归于尽时攻击方 check_death 先于防御方
+    的击杀事件执行，会把 morphed_id 清零（用户裁决 2026-10-20：此时迁怒
+    仍应结算），击杀事件时刻读不到 311。
     """
     s._cimu_qn_zone = s.owner.opponent.attack_zone
+    s._cimu_qn_morph = s.morphed_id
+
+
+def _cimu_qn_clear(e, s):
+    """攻击结算完毕清理迁怒快照：快照只服务于本次攻击内的击杀事件，
+    之后的效果击杀（法术/豪焰等）不应沿用旧的战斗区/形态快照。"""
+    s._cimu_qn_zone = None
+    s._cimu_qn_morph = 0
 
 
 def _cimu_qn_on_kill(e, s):
     """迁怒（形态 311）：茨木童子消灭敌方战斗区式神时，对其准备区式神
     各造成2点伤害。击杀事件在战斗结算内广播，天然先于地狱之手 after_play
-    的再攻击循环（用户裁决 2026-09-27 顺序）。"""
+    的再攻击循环（用户裁决 2026-09-27 顺序）。
+
+    形态判定同时接受事件时刻的 live morphed_id 与攻击发起时的快照：同归于尽
+    时自身 check_death 先清零 morphed_id，靠快照仍能结算（用户裁决 2026-10-20）。
+    保留 live 判定以覆盖非攻击来源（法术/豪焰等）的击杀。
+    """
     killed = e.event.killed
     if (getattr(e.event, "killer", None) is not s
-            or s.morphed_id != 311
+            or not (s.morphed_id == 311
+                    or getattr(s, "_cimu_qn_morph", 0) == 311)
             or killed is not getattr(s, "_cimu_qn_zone", None)):
         return
     # 准备区式神 = 存活且已升级的敌方式神（战斗区占用者已气绝离区；
@@ -1661,10 +1679,14 @@ class CiMuTongZi:
                  lambda e, s: (e.event.attr == "atk" and e.event.value > 0
                                and s.is_alive and s in (e.event.target or [])),
                  (_cimu_track_max_atk,)),
-        # 迁怒：攻击开始时的敌方战斗区快照
+        # 迁怒：攻击开始时的敌方战斗区 / 形态快照
         Listener("hero attack",
                  lambda e, s: getattr(e.event, "hero", None) is s,
                  (_cimu_qn_snapshot,)),
+        # 迁怒：本次攻击结算完毕后清空快照（after 广播晚于战斗内的击杀事件）
+        Listener("hero attack",
+                 lambda e, s: getattr(e.event, "hero", None) is s,
+                 (_cimu_qn_clear,), phase="after"),
         # 迁怒：击杀结算
         Listener("hero kill",
                  lambda e, s: getattr(e.event, "killer", None) is s,
