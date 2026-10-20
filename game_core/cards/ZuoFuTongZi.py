@@ -408,12 +408,18 @@ def _random_morph_for_all(owner, card):
                 result = cb(morph)
                 if isinstance(result, Event):
                     game.handle_event(result)
-        give_buff_atk = h.atk - h.original_atk - h.perm_buff_atk
-        give_buff_hp = h.current_max_hp - h.original_hp - h.perm_buff_hp
+        # 基准同 play_card 的 morph 分支：用当前生效的基础身材，而不是 original_*
+        # （否则已有形态时旧形态面板会被当成加成再叠一次）
+        base_atk = h.morph_base_atk if h.morphed_id != 0 else h.original_atk
+        base_hp = h.morph_base_hp if h.morphed_id != 0 else h.original_hp
+        give_buff_atk = h.atk - base_atk - h.perm_buff_atk
+        give_buff_hp = h.current_max_hp - base_hp - h.perm_buff_hp
         h.atk = morph.atk + h.perm_buff_atk + give_buff_atk
         h.current_max_hp = morph.hp + h.perm_buff_hp + give_buff_hp
         h.hp = h.current_max_hp
         h.morphed_id = morph.id
+        h.morph_base_atk = morph.atk
+        h.morph_base_hp = morph.hp
         if hasattr(morph, "after_play"):
             for cb in morph.after_play:
                 result = cb(morph)

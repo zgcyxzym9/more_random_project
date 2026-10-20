@@ -381,6 +381,11 @@ def _xixue_paperify(player, target):
     target.atk = paper_atk
     target.current_max_hp = paper_hp
     target.hp = paper_hp
+    # 纸人按固定面板登场（永久加成不体现在纸人面板上）：同步「当前基础身材」为
+    # 纸人面板 − 永久加成，保持 stats = morph_base + perm_buff + 临时加成 的不变式。
+    # 否则纸人状态下打出形态牌时，会拿纸人化之前的面板当加成来扣。
+    target.morph_base_atk = paper_atk - target.perm_buff_atk
+    target.morph_base_hp = paper_hp - target.perm_buff_hp
     target.defense = 0
     target.penetration = 0
     target.round_buff_atk = 0

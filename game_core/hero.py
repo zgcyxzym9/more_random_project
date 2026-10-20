@@ -68,6 +68,11 @@ class Hero(Entity):
         # 永久加成（觉醒牌等 get_permanent_buff 累计），形态/气绝/复活时保留
         self.perm_buff_atk = 0
         self.perm_buff_hp = 0
+        # 当前生效的基础身材（形态牌面板；无形态时 = 本体面板）。形态替换时用它
+        # 作为剥离基准，避免把旧形态面板当成临时加成再叠加一次。与 morphed_id
+        # 同步维护：morphed_id == 0 时一律按 original_* 计算，不读本字段。
+        self.morph_base_atk = self.original_atk
+        self.morph_base_hp = self.original_hp
         self.on_upgrade = hero_obj.on_upgrade if hasattr(hero_obj, "on_upgrade") else []
         self.on_death = hero_obj.on_death if hasattr(hero_obj, "on_death") else []
         self.on_revive = hero_obj.on_revive if hasattr(hero_obj, "on_revive") else []
@@ -261,6 +266,9 @@ class Hero(Entity):
             self.round_buff_player_damage = 0
             self.listeners = list(self.original_listeners)
             self.morphed_id = 0
+            # 形态随气绝消灭：基础身材基准回到本体（末尾的 hp/atk 重置同口径）
+            self.morph_base_atk = self.original_atk
+            self.morph_base_hp = self.original_hp
             self.stunned = False
             # 迅捷被式神死亡消耗（faq）：气绝时移除，复活不恢复
             if HeroAttributes.AGILE in self.attributes:

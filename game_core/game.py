@@ -1213,13 +1213,21 @@ class Game:
                 # 保留所有现有加成，叠加在形态牌的新基础值之上
                 # perm_buff  = get_permanent_buff 累计（觉醒等，可跨越形态与死亡）
                 # give_buff  = GiveBuff 效果（不修改 original，死亡后丢失，但形态时保留）
-                give_buff_atk = hero.atk - hero.original_atk - hero.perm_buff_atk
-                give_buff_hp = hero.current_max_hp - hero.original_hp - hero.perm_buff_hp
+                # 基准必须是「当前生效的基础身材」：已结附形态时当前面板 = 旧形态面板
+                # + 加成，拿 original_* 作差会把旧形态面板当成 give_buff 再加一遍。
+                # morph_base_* 由形态应用处写入，morphed_id == 0 时不读，避免读到陈旧值。
+                base_atk = hero.morph_base_atk if hero.morphed_id != 0 else hero.original_atk
+                base_hp = hero.morph_base_hp if hero.morphed_id != 0 else hero.original_hp
+                give_buff_atk = hero.atk - base_atk - hero.perm_buff_atk
+                give_buff_hp = hero.current_max_hp - base_hp - hero.perm_buff_hp
                 # 形态牌不修改 original（original 是真·基础身材，用于死亡→复活时还原）
                 hero.atk = card.atk + hero.perm_buff_atk + give_buff_atk
                 hero.current_max_hp = card.hp + hero.perm_buff_hp + give_buff_hp
                 hero.hp = hero.current_max_hp  # 形态牌满血
                 hero.morphed_id = card.id
+                # 记录本次实际生效的面板（on_play 可能按实例改写 card.atk/hp）
+                hero.morph_base_atk = card.atk
+                hero.morph_base_hp = card.hp
                 # after_play 在身材替换+满血之后执行：进场效果需要基于替换后
                 # 身材判定己方状态的（如丰实/盛开随机治疗"受伤式神"）应写在
                 # after_play；on_play 阶段身材仍是旧形态

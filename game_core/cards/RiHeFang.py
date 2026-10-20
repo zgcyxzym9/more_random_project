@@ -294,6 +294,10 @@ def _richu_on_play(s):
         target.hp = target.current_max_hp
         target.defense = 0
         target.penetration = 0
+        # 形态牌数值贡献已被清除 → 当前基础身材同步回本体面板（morphed_id 不动，
+        # 形态仍在场）；否则之后换形态时会把旧形态面板当成加成再扣一次
+        target.morph_base_atk = target.original_atk
+        target.morph_base_hp = target.original_hp
     else:
         # 牌手：清除出击加成效果（不夜之舞清除先例）
         target.inspiration_atk = 0

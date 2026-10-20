@@ -1095,6 +1095,10 @@ def _gsgb_apply_form(hero, to_form):
     hero.atk = fd["atk"] + hero.perm_buff_atk                # 永久加成跨形态保留
     hero.current_max_hp = fd["hp"] + hero.perm_buff_hp
     hero.hp = hero.current_max_hp                            # 新形态满状态登场
+    # 切换式神的面板同样是「当前基础身材」：主动/倒计时切换会保留结附的形态牌
+    # （morphed_id 不清），基准必须同步，否则之后换形态会把这里的面板当成加成
+    hero.morph_base_atk = fd["atk"]
+    hero.morph_base_hp = fd["hp"]
     if to_form == "Bai":
         hero.countdown_max = 1 if getattr(hero, "_awakened_bai", False) else 3
         hero.countdown = hero.countdown_max
