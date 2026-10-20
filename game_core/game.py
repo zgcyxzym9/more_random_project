@@ -288,6 +288,10 @@ class Game:
         # （先于广播：被魔音扰心拦截时费用同样消耗——既有语义）；法术响应走
         # play_card，由 play_card 内部统一扣费。
         if card.type == "attack":
+            # 增强：与 play_card 开头一致，先实装到即将打出的卡上（含式神临时
+            # 增强）。响应战斗牌不经过 play_card；不实装的话 can_play_card 以
+            # 复制体判定通过（如瞬发 0 火），扣费时真实卡却没有该属性。
+            self._apply_enhance(card)
             self._consume_fire(player, card)
             # 响应牌出牌也广播前置事件（"play card" phase="before"，response=True；
             # step 之外的出牌通道），供监听器在生效前介入（魔音扰心主动效果
