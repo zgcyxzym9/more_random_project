@@ -221,6 +221,7 @@ def _shesheng_on_play(s):
     if hero is not None and hero.is_alive:
         p.game._last_damage_source = hero
         if not p.game._direct_destroy_immune(hero):
+            hero._last_damage_from = hero
             hero.hp = 0
             p.game.resolve_deaths([hero])
     _shesheng_arm_immunity(p)

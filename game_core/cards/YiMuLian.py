@@ -198,6 +198,7 @@ def _fengfuyan_countdown(hero):
         if hero.owner.game._direct_destroy_immune(target):
             return
         hero.owner.game._last_damage_source = hero
+        target._last_damage_from = hero
         target.hp = 0
         hero.owner.game.resolve_deaths([target])
 

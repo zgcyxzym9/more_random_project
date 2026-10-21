@@ -58,6 +58,9 @@ class Hero(Entity):
         self.state = "pending"
         self.is_alive = True
         self.round_until_alive = 0
+        # 最近一次对本式神造成伤害的来源（击杀归属）：反击/同归于尽时攻方
+        # 的死亡须归属防守方，不能读旧全局 _last_damage_source。
+        self._last_damage_from = None
         self.listeners = list(hero_obj.listeners) if hasattr(hero_obj, "listeners") else []
         self.original_listeners = list(hero_obj.listeners) if hasattr(hero_obj, "listeners") else []
         # 初始 HeroAttributes（充能 ENERGY_CHARGE 等）：英雄类用 base_attributes 声明；
@@ -249,10 +252,11 @@ class Hero(Entity):
         game = getattr(self.owner, "game", None)
         if game is not None:
             game.handle_event(AboutToDieEvent(self))
-            # 击杀事件 before 相位（默认监听器同旧时序）；killer 取当前伤害
-            # 来源。不能走 handle_event：其 after 广播紧随 before，而 after
-            # 相位须等 process_death 清理完成后才广播，故事件对象先暂存
-            killer = getattr(game, "_last_damage_source", None)
+            # 击杀事件 before 相位（默认监听器同旧时序）；killer 取本式神
+            # 最近的伤害来源（逐实体归属，反击/同归于尽不再误用旧全局自我归属）
+            killer = getattr(self, "_last_damage_from", None)
+            if killer is None:
+                killer = getattr(game, "_last_damage_source", None)
             self._pending_kill_event = HeroKillEvent(killer, self)
             game.broadcast("hero kill", event=self._pending_kill_event,
                            phase="before")
@@ -293,6 +297,8 @@ class Hero(Entity):
         """气绝口径的清理与面板重置（process_death 与 revive 取消分支共用）。"""
         self.is_alive = False
         self.state = "dead"
+        # 击杀归属随死亡清空：复活后旧来源不得再被引用
+        self._last_damage_from = None
         # 召唤物气绝即离场：衍生物不走复活倒计时（#13 用户裁决⑤；JinRanBuYe/
         # ShiBo 同受影响），从 heroes 移除见 process_death
         self.round_until_alive = 0 if self.is_summoned else 3

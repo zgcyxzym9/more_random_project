@@ -811,6 +811,11 @@ class Game:
                         dmg += getattr(event.source, "round_buff_player_damage", 0)
                     # 免疫此伤害：监听器（卡牌/式神层）把 e 加入 event.immune_targets → 不扣血，
                     # 但贯通的“理论过量”仍按下方逻辑转移（默认机制，免疫不阻断溢出）。
+                    # 逐实体伤害来源（击杀归属）：Hero.process_about_to_die 优先
+                    # 读它，反击/同归于尽不再误用旧全局自我归属；全局保留供
+                    # game_recorder 等旧读方
+                    if isinstance(e, Hero):
+                        e._last_damage_from = event.source
                     if e not in getattr(event, "immune_targets", ()):
                         e.receive_damage(dmg)
                     self.resolve_deaths([e])
@@ -950,6 +955,9 @@ class Game:
                     if isinstance(e, Hero):
                         if e.level == 0:
                             continue
+                    # 逐实体伤害来源（击杀归属）：同 case "deal damage"
+                    if isinstance(e, Hero):
+                        e._last_damage_from = event.source
                     # 免疫此伤害：监听器（卡牌/式神层）把 e 加入 event.immune_targets → 不扣血
                     if e not in getattr(event, "immune_targets", ()):
                         e.receive_damage(event.value)
@@ -1596,6 +1604,11 @@ class Game:
         if target in getattr(combo, "immune_targets", ()):
             self._penetrate_overflow(source, target, actual_damage, hp_before, is_counter)
             return
+
+        # 逐实体伤害来源（击杀归属）：反击致死时攻击方的死亡须归属防守方
+        # （全局 _last_damage_source 此刻仍是攻击方自己）。仅在确认扣血前写
+        if isinstance(target, Hero):
+            target._last_damage_from = source
 
         # 实际扣血：统一走 receive_damage，应用护甲/破甲/幻境/鸮之守护等机制。
         # 护甲减免在此结算（广播时护甲完好，封顶类监听器可按命中时护甲封顶），

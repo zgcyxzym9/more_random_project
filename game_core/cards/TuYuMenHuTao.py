@@ -228,6 +228,7 @@ def _shenshizhendao_on_play(s):
                 # 「改为消灭」已替换掉伤害，用户裁决 2026-09-22）
                 if not h.owner.game._direct_destroy_immune(target):
                     h.owner.game._last_damage_source = h
+                    target._last_damage_from = h
                     target.hp = 0
                     h.owner.game.resolve_deaths([target])
             else:
