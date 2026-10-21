@@ -121,11 +121,14 @@ def _maoche_on_play(s):
     bearer = battle
     state = {"used": False}
 
-    def _on_kill(e, p):
-        if state["used"] or e.event.killed is not bearer:
+    def _on_kill(event, p):
+        if state["used"] or event.event.killed is not bearer:
             return
         state["used"] = True
-        if not bearer.is_alive:
+        # 击杀事件已前移到死亡窗口内（将气绝段）：此刻 bearer 尚未标记、
+        # is_alive 恒为 True，改用死亡窗口标记判定（同批 resolve_deaths
+        # 在判定通过时置位）
+        if getattr(bearer, "_death_in_progress", False):
             bearer.revive()
         _jiuming_attach(jmm, 1)
         _maoche_attack(jmm)

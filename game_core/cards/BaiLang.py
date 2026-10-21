@@ -105,6 +105,11 @@ def _bailang_arm_spell_cleanup(hero):
         death._tag = "bailang_spell_cleanup_death"
         hero.original_listeners = [x for x in hero.original_listeners if getattr(x, "_tag", "") != "bailang_spell_cleanup_death"]
         hero.original_listeners.append(death)
+        # 击杀事件在死亡窗口内（将气绝段）广播，早于监听器重置：只挂
+        # original_listeners 不再能在事件时刻生效（旧流程靠死亡重置监听器
+        # 后才广播击杀事件「顺带」激活它），运行时监听器需同步挂载
+        if not any(getattr(x, "_tag", "") == "bailang_spell_cleanup_death" for x in hero.listeners):
+            hero.listeners.append(death)
         hero._bailang_death_clear_hooked = True
 
 

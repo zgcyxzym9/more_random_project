@@ -382,6 +382,11 @@ class HeroKillEvent(Event):
 
     killer 为击杀者、killed 为被杀者；hero 是 killer 的别名，
     兼容妖刀姬等既有监听器 `e.event.hero == s` 的匹配方式。
+
+    三阶段死亡协议下同一事件对象分两相位广播：before 相位在将气绝段
+    （死亡窗口内，本批将死者均未标记，可读击杀者 live 形态/战斗区）；
+    after 相位由 process_death 在清理完成后补广播（气绝倒计时已写入，
+    「倒计时+X」类效果在此普通累加，如豪焰位 0）。
     """
     def __init__(self, killer, killed):
         self.type = "hero kill"
@@ -394,9 +399,10 @@ class HeroKillEvent(Event):
 
 
 class AboutToDieEvent(Event):
-    """式神将气绝事件：在死亡结算前广播，供响应牌（如「射怪鸟事」）触发。
+    """式神将气绝事件：在死亡标记（process_death）之前广播。
 
-    在 hero.check_death 置死亡态之前广播；响应牌打出后死亡仍照常发生。
+    三阶段死亡协议下由 process_about_to_die 广播（判定通过之后、置死亡态
+    之前）。
     """
     def __init__(self, hero):
         self.type = "about to die"

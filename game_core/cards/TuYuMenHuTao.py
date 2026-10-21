@@ -229,7 +229,7 @@ def _shenshizhendao_on_play(s):
                 if not h.owner.game._direct_destroy_immune(target):
                     h.owner.game._last_damage_source = h
                     target.hp = 0
-                    target.check_death()
+                    h.owner.game.resolve_deaths([target])
             else:
                 h.owner.game.handle_event(DealDamage(3, h, [target]))
 

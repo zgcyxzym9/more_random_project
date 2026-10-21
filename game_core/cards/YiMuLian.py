@@ -199,7 +199,7 @@ def _fengfuyan_countdown(hero):
             return
         hero.owner.game._last_damage_source = hero
         target.hp = 0
-        target.check_death()
+        hero.owner.game.resolve_deaths([target])
 
 
 def _fengfulong_countdown(hero):

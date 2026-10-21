@@ -218,111 +218,141 @@ class Hero(Entity):
 
     # ── 死亡与复活 ──────────────────────────────────────────────────────
 
-    def check_death(self):
-        if self.hp <= 0:
-            # 不死保护：on_before_death 返回 True 则阻止死亡
-            prevented = False
-            for callback in self.on_before_death:
-                if callback(self):
-                    prevented = True
-            if prevented:
-                return
+    def check_death(self) -> bool:
+        """阶段一（纯判定）：将死返回 True，不改任何状态。
 
-            # ── 重入保护 ──────────────────────────────────────────────────
-            # 本函数在「置死亡态之前」广播 MorphLeaveEvent（见下方注释：要让一目连
-            # 等被动在真正气绝前结算倒计时）。但形态离场效果可能造成伤害、把对面
-            # 打死、对面再打回来——此时本式神仍看起来 is_alive / 还带形态 / 监听器
-            # 未清，于是 check_death 会再走一遍完整流程，无限递归（两个觉醒一目连
-            # 各带倒计时形态时必现）。用标记挡掉：我已经在自己的死亡流程里了。
-            # 必须放在 prevented 判断之后——不死保护提前 return 时不能留下标记，
-            # 否则该式神此后永远死不了。
-            if getattr(self, "_death_in_progress", False):
-                return
-            self._death_in_progress = True
+        不死保护：on_before_death 全部跑完（不提前 break），任一返回 True即阻止。
+        """
+        if self.hp > 0:
+            return False
+        if getattr(self, "_death_in_progress", False):
+            return False
+        # 不死保护：on_before_death 返回 True 则阻止死亡
+        prevented = False
+        for callback in self.on_before_death:
+            if callback(self):
+                prevented = True
+        return not prevented
 
-            # 「将气绝」事件：在置死亡态之前广播，供响应牌（如「射怪鸟事」）触发。
-            # 响应牌打出后死亡仍照常发生。局部导入避免循环依赖（同 199 行模式）。
-            from .event import AboutToDieEvent, MorphLeaveEvent
-            game = getattr(self.owner, "game", None)
-            if game is not None:
-                game.handle_event(AboutToDieEvent(self))
-                # 「形态牌被消灭」：式神气绝时形态随其消灭。在置死亡态之前广播，
-                # 让一目连等被动能在式神真正气绝前结算倒计时（与 wiki 行为一致）。
-                if self.morphed_id != 0:
-                    game.handle_event(MorphLeaveEvent(self, self.morphed_id, "destroy"))
+    def process_about_to_die(self):
+        """阶段二（将气绝）：死亡标记前的全部结算。
 
-            self.is_alive = False
-            self.state = "dead"
-            # 召唤物气绝即离场：衍生物不走复活倒计时（#13 用户裁决⑤；JinRanBuYe/
-            # ShiBo 同受影响），从 heroes 移除见本函数末尾
-            self.round_until_alive = 0 if self.is_summoned else 3
-            # 蓄力式神气绝：离开蓄力状态，已蓄力的卡不返还（已在弃牌堆）
-            if self.charging_card is not None:
-                self.charging_card = None
-                if self.owner is not None and self in self.owner.charging_order:
-                    self.owner.charging_order.remove(self)
-            self.round_buff_atk = 0
-            self.combat_buff_atk = 0
-            self.round_buff_player_damage = 0
-            self.listeners = list(self.original_listeners)
-            self.morphed_id = 0
-            # 形态随气绝消灭：基础身材基准回到本体（末尾的 hp/atk 重置同口径）
-            self.morph_base_atk = self.original_atk
-            self.morph_base_hp = self.original_hp
-            self.stunned = False
-            # 迅捷被式神死亡消耗（faq）：气绝时移除，复活不恢复
-            if HeroAttributes.AGILE in self.attributes:
-                self.attributes.remove(HeroAttributes.AGILE)
-            if self.owner.attack_zone == self:
-                self.owner.attack_zone = None
-            # 重置非持久计数器
-            self.counters.reset_all()
+        顺序 AboutToDieEvent → HeroKillEvent(before 相位) → on_death。
+        击杀事件同一对象分两相位广播：before 相位在此（死亡窗口内，本批
+        将死者均未标记）；after 相位由 process_death 在清理完成后补广播，
+        供「气绝倒计时+X」类效果在倒计时已写入后普通累加（如豪焰位 0）。
+        """
+        if not getattr(self, "_death_in_progress", False):
+            return
+        # 局部导入避免循环依赖（同本模块其他事件导入模式）
+        from .event import AboutToDieEvent, Event, HeroKillEvent
+        game = getattr(self.owner, "game", None)
+        if game is not None:
+            game.handle_event(AboutToDieEvent(self))
+            # 击杀事件 before 相位（默认监听器同旧时序）；killer 取当前伤害
+            # 来源。不能走 handle_event：其 after 广播紧随 before，而 after
+            # 相位须等 process_death 清理完成后才广播，故事件对象先暂存
+            killer = getattr(game, "_last_damage_source", None)
+            self._pending_kill_event = HeroKillEvent(killer, self)
+            game.broadcast("hero kill", event=self._pending_kill_event,
+                           phase="before")
+        for event in self.on_death:
+            if isinstance(event(self), Event):
+                self.owner.game.handle_event(event(self))
 
-            # 击杀事件广播（妖刀姬等监听 "hero kill"）
-            # 在 on_death 回调前广播，保证击杀相关效果先于式神死亡效果结算
-            from .event import Event, HeroKillEvent
-            game = getattr(self.owner, "game", None)
-            if game is not None:
-                killer = getattr(game, "_last_damage_source", None)
-                game.handle_event(HeroKillEvent(killer, self))
+    def process_death(self):
+        """阶段三（标记）：置死亡态并按气绝口径清理。
 
-            for event in self.on_death:
-                if isinstance(event(self), Event):
-                    self.owner.game.handle_event(event(self))
+        MorphLeaveEvent 在最前广播，_death_in_progress 最后才清：
+        标记完成前本式神再被伤害不重入。入口守卫同 process_about_to_die。
+        清理完成后补广播击杀事件 after 相位（同一事件对象，见
+        process_about_to_die）；取消死亡（revive）路径本函数被守卫跳过，
+        after 相位自然不广播。
+        """
+        if not getattr(self, "_death_in_progress", False):
+            return
+        from .event import MorphLeaveEvent
+        game = getattr(self.owner, "game", None)
+        if game is not None and self.morphed_id != 0:
+            game.handle_event(MorphLeaveEvent(self, self.morphed_id, "destroy"))
+        self._death_cleanup_and_reset()
+        # 召唤物气绝即离场：死亡流程（响应/击杀事件/on_death）结算完后从
+        # heroes 移除，begin_turn 不再倒计时复活
+        if self.is_summoned and self.owner is not None:
+            self.owner.dismiss_summon(self)
+        # 击杀事件 after 相位：倒计时已写入（默认 3），「气绝倒计时+X」类
+        # 效果在此普通累加
+        kill_ev = getattr(self, "_pending_kill_event", None)
+        if game is not None and kill_ev is not None:
+            game.broadcast("hero kill", event=kill_ev, phase="after")
+        self._pending_kill_event = None
+        # 死亡流程结束，解除流程标记（复活后可再次正常气绝）
+        self._death_in_progress = False
 
-            # 召唤物气绝即离场：死亡流程（响应/击杀事件/on_death）结算完后从
-            # heroes 移除，begin_turn 不再倒计时复活
-            if self.is_summoned and self.owner is not None:
-                self.owner.dismiss_summon(self)
+    def _death_cleanup_and_reset(self):
+        """气绝口径的清理与面板重置（process_death 与 revive 取消分支共用）。"""
+        self.is_alive = False
+        self.state = "dead"
+        # 召唤物气绝即离场：衍生物不走复活倒计时（#13 用户裁决⑤；JinRanBuYe/
+        # ShiBo 同受影响），从 heroes 移除见 process_death
+        self.round_until_alive = 0 if self.is_summoned else 3
+        # 蓄力式神气绝：离开蓄力状态，已蓄力的卡不返还（已在弃牌堆）
+        if self.charging_card is not None:
+            self.charging_card = None
+            if self.owner is not None and self in self.owner.charging_order:
+                self.owner.charging_order.remove(self)
+        self.round_buff_atk = 0
+        self.combat_buff_atk = 0
+        self.round_buff_player_damage = 0
+        self.listeners = list(self.original_listeners)
+        self.morphed_id = 0
+        # 形态随气绝消灭：基础身材基准回到本体（下方 hp/atk 重置同口径）
+        self.morph_base_atk = self.original_atk
+        self.morph_base_hp = self.original_hp
+        self.stunned = False
+        # 迅捷被式神死亡消耗（faq）：气绝时移除，复活不恢复
+        if HeroAttributes.AGILE in self.attributes:
+            self.attributes.remove(HeroAttributes.AGILE)
+        if self.owner.attack_zone == self:
+            self.owner.attack_zone = None
+        # 重置非持久计数器
+        self.counters.reset_all()
 
-            # hp/atk 重置：气绝流程（响应/击杀事件/on_death）全部结算完后执行，
-            # 而非复活时（原在 revive() 中）——与实际游戏一致：气绝后面板即为基础
-            # 值+永久加成，复活时触发的加成（如桃花妖被动）不会再被复活重置覆写。
-            # 放在末尾也覆盖死亡流程中被中途复活的情形（如九命猫 on_death 自复活）
-            self.hp = self.original_hp + self.perm_buff_hp
-            self.current_max_hp = self.original_hp + self.perm_buff_hp
-            self.atk = self.original_atk + self.perm_buff_atk
+        # hp/atk 重置：气绝流程（响应/击杀事件/on_death）全部结算完后执行，
+        # 而非复活时（原在 revive() 中）——与实际游戏一致：气绝后面板即为基础
+        # 值+永久加成，复活时触发的加成（如桃花妖被动）不会再被复活重置覆写
+        self.hp = self.original_hp + self.perm_buff_hp
+        self.current_max_hp = self.original_hp + self.perm_buff_hp
+        self.atk = self.original_atk + self.perm_buff_atk
 
-            # 属性与回调同样回到构造时原值：形态等**非永久**加成一概不跨气绝。
-            # 永久效果（觉醒牌、卡面明写「永久」的牌）走 original_attributes /
-            # original_callbacks 通道，见各牌实现；只写运行时的会被这里清掉。
-            # 必须放在 on_death 循环之后——否则会先清掉本流程正要调用的回调。
-            self.attributes = list(self.original_attributes)
-            # 迅捷被式神死亡消耗（faq）：气绝时移除、复活不恢复——即便它被写进了
-            # original_attributes（如觉醒·镰鼬）也不保留，故在属性还原之后再清一次
-            if HeroAttributes.AGILE in self.attributes:
-                self.attributes.remove(HeroAttributes.AGILE)
-            for f in CALLBACK_FIELDS:
-                setattr(self, f, self.original_callbacks[f])
-
-            # 死亡流程结束，解除重入保护（复活后可再次正常气绝）
-            self._death_in_progress = False
+        # 属性与回调同样回到构造时原值：形态等**非永久**加成一概不跨气绝。
+        # 永久效果（觉醒牌、卡面明写「永久」的牌）走 original_attributes /
+        # original_callbacks 通道，见各牌实现；只写运行时的会被这里清掉。
+        # 必须放在 on_death 循环之后——否则会先清掉死亡流程正要调用的回调。
+        self.attributes = list(self.original_attributes)
+        # 迅捷被式神死亡消耗（faq）：气绝时移除、复活不恢复——即便它被写进了
+        # original_attributes（如觉醒·镰鼬）也不保留，故在属性还原之后再清一次
+        if HeroAttributes.AGILE in self.attributes:
+            self.attributes.remove(HeroAttributes.AGILE)
+        for f in CALLBACK_FIELDS:
+            setattr(self, f, self.original_callbacks[f])
 
     def assign_owner(self, player):
         self.owner = player
 
     def revive(self):
-        # hp/atk 已在气绝流程末尾（check_death）重置，这里不再重复设置
+        # 死亡窗口内（判定已通过、尚未标记）：取消死亡。按气绝口径走一遍清理
+        # （含 MorphLeave / 面板 / 回调重置）后照常复活——净效果与旧流程一致：
+        # 死过一次（全套重置）但存活（九命猫基础/觉醒/向死而生、猫车遗愿）。
+        # 向死而生（round_until_alive>=999，非窗口路径）不走此分支。
+        if getattr(self, "_death_in_progress", False):
+            from .event import MorphLeaveEvent
+            game = getattr(self.owner, "game", None)
+            if game is not None and self.morphed_id != 0:
+                game.handle_event(MorphLeaveEvent(self, self.morphed_id, "destroy"))
+            self._death_cleanup_and_reset()
+            self._death_in_progress = False
+        # hp/atk 已在气绝清理（process_death / 取消分支）中重置，这里不再重复设置
         self.is_alive = True
         self.defense = 0
         self.round_until_alive = 0

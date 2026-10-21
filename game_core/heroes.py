@@ -1557,40 +1557,35 @@ def _cimu_track_max_atk(e, s):
 
 
 def _cimu_qn_snapshot(e, s):
-    """迁怒判定快照：本次攻击开始时的敌方战斗区占用者与形态状态。
+    """迁怒判定快照：本次攻击开始时的敌方战斗区占用者。
 
-    check_death 会在击杀事件前清空 attack_zone，击杀事件时刻无法直接读区。
-    地狱之手追猎再攻击准备区式神时敌方战斗区已为空 → 快照 None，
-    其击杀不会误触迁怒（符合牌面「消灭敌方战斗区式神」限定）。
-
-    形态同样按攻击发起时快照：双方同归于尽时攻击方 check_death 先于防御方
-    的击杀事件执行，会把 morphed_id 清零（用户裁决 2026-10-20：此时迁怒
-    仍应结算），击杀事件时刻读不到 311。
+    击杀事件已前移到死亡窗口内（将气绝段），被击杀者此刻尚未离区，
+    直接读区也可行；保留攻击发起时快照是裁决语义：「只认本次攻击发起时
+    战斗区占用者」——地狱之手追猎再攻击准备区式神等区占变化后的击杀
+    不沿用旧值（快照 None → 不触发，符合牌面「消灭敌方战斗区式神」限定）。
     """
     s._cimu_qn_zone = s.owner.opponent.attack_zone
-    s._cimu_qn_morph = s.morphed_id
 
 
 def _cimu_qn_clear(e, s):
     """攻击结算完毕清理迁怒快照：快照只服务于本次攻击内的击杀事件，
-    之后的效果击杀（法术/豪焰等）不应沿用旧的战斗区/形态快照。"""
+    之后的效果击杀（法术/豪焰等）不应沿用旧的战斗区快照。"""
     s._cimu_qn_zone = None
-    s._cimu_qn_morph = 0
 
 
 def _cimu_qn_on_kill(e, s):
     """迁怒（形态 311）：茨木童子消灭敌方战斗区式神时，对其准备区式神
-    各造成2点伤害。击杀事件在战斗结算内广播，天然先于地狱之手 after_play
-    的再攻击循环（用户裁决 2026-09-27 顺序）。
+    各造成2点伤害。击杀事件在将气绝段广播（标记之前），天然先于地狱之手
+    after_play 的再攻击循环（用户裁决 2026-09-27 顺序）。
 
-    形态判定同时接受事件时刻的 live morphed_id 与攻击发起时的快照：同归于尽
-    时自身 check_death 先清零 morphed_id，靠快照仍能结算（用户裁决 2026-10-20）。
-    保留 live 判定以覆盖非攻击来源（法术/豪焰等）的击杀。
+    形态判定用 live morphed_id：击杀事件时刻本式神未标记（同批
+    resolve_deaths 标记段在全部将气绝之后），同归于尽时也可直接读，
+    攻击发起时的形态快照已无需保留（用户裁决 2026-10-20）。
+    非攻击来源（法术/豪焰等）的击杀同样经 live 判定覆盖。
     """
     killed = e.event.killed
     if (getattr(e.event, "killer", None) is not s
-            or not (s.morphed_id == 311
-                    or getattr(s, "_cimu_qn_morph", 0) == 311)
+            or s.morphed_id != 311
             or killed is not getattr(s, "_cimu_qn_zone", None)):
         return
     # 准备区式神 = 存活且已升级的敌方式神（战斗区占用者已气绝离区；
@@ -1644,10 +1639,12 @@ def _cimu_haoyan_aura(e, s):
 
 
 def _cimu_haoyan_on_kill(e, s):
-    """豪焰击杀结算：对已获得的各豪焰效果执行「击杀式神后」部分。
+    """豪焰击杀结算（击杀事件 before 相位）：执行「击杀后立即」部分。
 
     地狱豪焰的获得发生在该牌 after_play（本次击杀之后），故获得当次的击杀
     不结算新获效果的「击杀后」部分（效果自获得起向未来生效）。
+    位 0「气绝倒计时+1」需倒计时已写入死亡标记，改由 _cimu_haoyan_after_kill
+    在 after 相位结算（2026-10-21 用户方案：击杀事件分两相位广播）。
     """
     if getattr(e.event, "killer", None) is not s:
         return
@@ -1657,8 +1654,23 @@ def _cimu_haoyan_on_kill(e, s):
     from .cards.CiMuTongZi import _HAOYAN_RIDERS
     killed = e.event.killed
     for i, rider in enumerate(_HAOYAN_RIDERS):
-        if (mask >> i) & 1:
+        if (mask >> i) & 1 and i != 0:
             rider(s, killed)
+
+
+def _cimu_haoyan_after_kill(e, s):
+    """豪焰位 0（击杀后该式神气绝倒计时+1）的击杀结算：击杀事件 after 相位。
+
+    死亡标记与清理完成后倒计时已写入（默认 3），普通累加即可生效；召唤物
+    无复活倒计时，加值无影响。取消死亡（九命猫自复活等）不走 process_death，
+    after 相位不广播，本效果自然不触发。
+    """
+    if getattr(e.event, "killer", None) is not s:
+        return
+    if not s.counters.get("cimu_haoyan_mask", 0) & 1:
+        return
+    from .cards.CiMuTongZi import _haoyan_rider_0
+    _haoyan_rider_0(s, e.event.killed)
 
 
 class CiMuTongZi:
@@ -1696,10 +1708,14 @@ class CiMuTongZi:
         # 豪焰共享部分：使用战斗牌 +1/+1（before 阶段，本次战斗即生效）
         Listener("play card", _cimu_haoyan_aura_cond, (_cimu_haoyan_aura,),
                  phase="before"),
-        # 豪焰：击杀结算
+        # 豪焰：击杀结算（before = 「击杀后立即」部分；位 0 倒计时+1 走
+        # after 相位——需死亡标记完成、倒计时已写入）
         Listener("hero kill",
                  lambda e, s: getattr(e.event, "killer", None) is s,
                  (_cimu_haoyan_on_kill,)),
+        Listener("hero kill",
+                 lambda e, s: getattr(e.event, "killer", None) is s,
+                 (_cimu_haoyan_after_kill,), phase="after"),
     )
 
 

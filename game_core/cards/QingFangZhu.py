@@ -217,12 +217,12 @@ def _shesheng_on_play(s):
     p = s.owner
     hero = s.get_corresponding_hero()
     # 消灭青坊主：直接消灭（不屈不介入），凤覆岩倒计时同款
-    # （_last_damage_source 置来源 → hp=0 → check_death；直接消灭免疫照查）。
+    # （_last_damage_source 置来源 → hp=0 → resolve_deaths；直接消灭免疫照查）。
     if hero is not None and hero.is_alive:
         p.game._last_damage_source = hero
         if not p.game._direct_destroy_immune(hero):
             hero.hp = 0
-            hero.check_death()
+            p.game.resolve_deaths([hero])
     _shesheng_arm_immunity(p)
 
 

@@ -813,7 +813,7 @@ class Game:
                     # 但贯通的“理论过量”仍按下方逻辑转移（默认机制，免疫不阻断溢出）。
                     if e not in getattr(event, "immune_targets", ()):
                         e.receive_damage(dmg)
-                    e.check_death()
+                    self.resolve_deaths([e])
                     # 贯通（法术/幻境等非战斗伤害）：理论过量转移给受击式神所属牌手。
                     # 溢出转移段 damage_type="penetrate"：源自攻击但非直接命中段；
                     # 不改变既有 == "combat" 监听行为。
@@ -838,9 +838,10 @@ class Game:
                     e.revive()
                     # 复活完成后再广播 AfterRevive：监听器（桃花妖被动等）看到的
                     # 目标已存活，give buff 不再因气绝跳过而丢失。
-                    # 注意不放 revive() 内——死亡流程中被中途自复活的式神
-                    # （九命猫 on_death）随后还会执行 check_death 末尾的 hp/atk
-                    # 重置，会把加成再冲掉
+                    # 注意不放 revive() 内——死亡窗口内的自复活（九命猫 on_death）
+                    # 走 revive 的取消分支：清理/面板重置先于 on_revive 完成，
+                    # 复活时点的加成不会被再冲掉；事件路径的 AfterRevive 保持
+                    # 在 revive() 返回后广播
                     self.handle_event(AfterRevive(event.source, [e]))
 
             case "hero attack":
@@ -952,7 +953,7 @@ class Game:
                     # 免疫此伤害：监听器（卡牌/式神层）把 e 加入 event.immune_targets → 不扣血
                     if e not in getattr(event, "immune_targets", ()):
                         e.receive_damage(event.value)
-                        e.check_death()
+                        self.resolve_deaths([e])
                         dealt.append(e)
                 # 投射结算后广播 DamageDealt（纯通知）：此前投射通道无伤害事件，
                 # 导致「造成伤害」类监听（五丸/镰鼬/妖狐计数/魂狩反射等）漏触发。
@@ -973,6 +974,11 @@ class Game:
             # ── 新增：永久死亡 ──────────────────────────────────────
             case "permanent death":
                 hero = event.hero
+                # 九命猫 ≥5 九命在 on_death（将气绝段）内发出本事件：此刻她仍在
+                # 死亡窗口（未标记）。先走完标记/清理，再叠加永久气绝——否则下方
+                # round_until_alive=999 会被标记段的气绝默认值（3）覆写回可复活。
+                if getattr(hero, "_death_in_progress", False):
+                    hero.process_death()
                 hero.is_alive = False
                 hero.state = "dead"
                 hero.round_until_alive = 999  # 永不复活
@@ -1442,7 +1448,9 @@ class Game:
         9. FATAL (必杀) — 直接消灭
         10. PENETRATE (贯通) — 过量伤害转移
         11. on_after_damage 回调
-        12. check_death()
+        12. resolve_deaths：攻守双方先全部判定，再逐个将气绝
+            （AboutToDie → HeroKill → on_death），最后一起标记——
+            同归于尽时双方互相可见（防御方击杀事件时刻攻击方未标记）
 
         穿刺 (PIERCING) 不在本层结算：wiki 为「即将造成伤害时，移除目标的
         护甲和屏障」，按伤害实例在 _resolve_single_hit 中判定来源生效，
@@ -1474,9 +1482,9 @@ class Game:
             self._resolve_single_hit(attacker, defender, atk_val, is_extra=True)
             # 第一下即气绝则战斗就此结束（wiki 连击语义）：第二击不再发生，贯通的
             # 第二次过量转移与防御方反击均不存在。判定用 hp 而非 is_alive——
-            # is_alive 要到 check_death 才翻转，战斗中途恒为 True（原实现因此
-            # 失效：第一击击杀后仍会结算第二击并吃到反击）。气绝流程本身仍由
-            # _post_attack_cleanup 的 check_death 统一执行。
+            # is_alive 在死亡窗口内（resolve_deaths 批结算）保持 True，战斗中途
+            # 恒为 True（原实现因此失效：第一击击杀后仍会结算第二击并吃到反击）。
+            # 气绝流程本身仍由 _post_attack_cleanup 的 resolve_deaths 统一执行。
             if isinstance(defender, Hero) and defender.hp <= 0:
                 self._post_attack_cleanup(attacker, defender)
                 return
@@ -1673,17 +1681,36 @@ class Game:
                        event=ArmorBreakApplyEvent(source, target, amount),
                        check_response=False)
 
+    def resolve_deaths(self, entities):
+        # 死亡结算统一入口（2026-10-20 三阶段重构）：按批「判定 → 将气绝 → 标记」。
+        new_deaths = []
+        for e in entities:
+            if e is None:
+                continue
+            if isinstance(e, Hero):
+                if e.check_death():
+                    e._death_in_progress = True
+                    new_deaths.append(e)
+            elif hasattr(e, "check_death"):
+                e.check_death()          # 牌手：hp<=0 置 LOST
+        for e in new_deaths:
+            e.process_about_to_die()
+        for e in new_deaths:
+            e.process_death()
+
     def _post_attack_cleanup(self, attacker, defender):
-        """攻击后清理：on_after_damage 和 check_death。"""
+        """攻击后清理：on_after_damage 后按批结算攻守双方死亡。
+
+        双方先全部判定、再逐个将气绝、最后一起标记（resolve_deaths）：
+        同归于尽时防御方击杀事件时刻攻击方仍未标记（形态/战斗区可 live 读）。
+        攻击方先入批——旧实现也是攻方 check_death 先执行，击杀归属不变。
+        """
         for cb in getattr(attacker, 'on_after_damage', ()):
             cb(defender, 0)
         for cb in getattr(defender, 'on_after_damage', ()):
             cb(attacker, 0)
 
-        if hasattr(attacker, 'check_death'):
-            attacker.check_death()
-        if hasattr(defender, 'check_death'):
-            defender.check_death()
+        self.resolve_deaths([attacker, defender])
 
 
     @staticmethod
