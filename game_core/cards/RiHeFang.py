@@ -221,7 +221,7 @@ def _qiqing_turn(h):
 
 def _yangyan_on_play(s):
     target = s.owner.selected_targets[0]
-    target.stun()
+    s.owner.game.handle_event(StunEvent(target, True))
     return DealDamage(1, s, [target])
 
 

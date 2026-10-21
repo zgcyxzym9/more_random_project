@@ -147,7 +147,7 @@ def _yuji_on_play(s):
     # 移入敌方战斗区（战斗区已有其他式神时自动换下）；已在战斗区则不重复移动
     if target.owner.attack_zone is not target:
         target.move_to_battle()
-    target.stun()
+    s.owner.game.handle_event(StunEvent(target, True))
     hero = s.get_corresponding_hero()
     hero.move_to_battle()
 
@@ -197,7 +197,7 @@ def _yingxiongwuwei_on_play(s):
     # 2. 随机移除一个该式神的幻境
     _ytg_remove_random_illusion(player, target)
     # 3. 眩晕，直到鸦天狗使用牌、攻击或气绝
-    target.stun()
+    s.owner.game.handle_event(StunEvent(target, True))
     _ytg_register_stun_release(player, hero, target, exclude_card=s)
 
 def _ytg_remove_random_illusion(player, target):

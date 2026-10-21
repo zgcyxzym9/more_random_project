@@ -184,7 +184,7 @@ def _jinai_trigger(e, s):
         return
     # 每当一个式神攻击后运势4：失败则被眩晕
     if not s.owner.game.roll_fortune(s, 4):
-        attacker.stun()
+        s.owner.game.handle_event(StunEvent(attacker, True))
 
 
 class FuYunChangLong:
