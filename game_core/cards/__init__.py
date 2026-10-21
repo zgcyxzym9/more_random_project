@@ -39,4 +39,5 @@ from .YanYanLuo import *
 from .QingXingDeng import *
 from .QingFangZhu import *
 from .YuanJiuLangHu import *
+from .PanGuan import *
 from ._ingredients import *

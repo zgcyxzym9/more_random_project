@@ -2159,3 +2159,109 @@ class YuanJiuLangHu:
     # 战场状态，全项目统一（见 manager.Listener 与 PlayCardEvent 的说明）
     listeners = (Listener("play card", _yuanjiulanghu_earth_card_cond,
                           (_yuanjiulanghu_earth_card_effect,), phase="after"),)
+
+
+# ══════════════════════════════════════════════════════════════════
+# 42. 判官 (PanGuan) — 青岚
+#  基础能力：当判官消灭一个式神时，对敌方牌手造成1点伤害且你恢复1点生命。
+#  口径（用户裁决 2026-10-21）：
+#  - 「消灭一个式神」含召唤物（冰墙/金鱼等，虽未实现）与己方式神（描述无
+#    「敌方」限定）；「敌方牌手」永远指对手牌手，击杀己方式神时也不例外；
+#  - 同归于尽（判官攻击敌方判官双方气绝）：双方效果都结算，先结算防守方
+#    （敌方）判官；若敌方判官造成的1点伤害令己方牌手生命为0，敌方获胜
+#    （faq：生命为0时触发的回复依旧判定失败）。依赖逐实体击杀归属
+#    （Hero._last_damage_from，2026-10-21 引擎修复）：旧全局
+#    _last_damage_source 在反击结算时刻仍指向攻方自己，会漏掉敌方判官；
+#  - 判官气绝期间不触发（faq：气绝期间基础效果无法发动）；死亡窗口内同批
+#    将死者 is_alive 仍为 True，标准存活判定即可正确结算同归于尽双方；
+#  - 「恢复1点生命」走 Heal 标准通道（青坊主等回血监听可响应）。
+#  卡牌（cards.json 351-358）在 cards/PanGuan.py；击杀计数（夺命/断罪增强
+#  条件）与无情/夺命增强监听见下方判官段。
+# ══════════════════════════════════════════════════════════════════
+
+def _panguan_kill_count_cond(e, s):
+    # 击杀计数（夺命/断罪增强条件「本局游戏你消灭过的式神」）：己方任意式神
+    # 击杀均计入，不限等级与存活（广播例外名单含 PanGuan，见 game.py broadcast）
+    killer = getattr(e.event, "killer", None)
+    return killer is not None and killer.owner is s.owner
+
+
+def _panguan_kill_count_effect(e, s):
+    s.owner._pg_kill_total = getattr(s.owner, "_pg_kill_total", 0) + 1
+
+
+def _panguan_kill_cond(e, s):
+    # 0 级基础效果不生效（faq 通用规则；广播例外后判官 0 级也收事件，须自带
+    # 门槛）；气绝期间不触发（faq）。基础「判官消灭」=判官本人击杀；
+    # 觉醒「你消灭」=己方任意式神击杀（cards.json 355）。
+    if s.level == 0 or not s.is_alive:
+        return False
+    killer = getattr(e.event, "killer", None)
+    if killer is None:
+        return False
+    if s.is_awakened:
+        return killer.owner is s.owner
+    return killer is s
+
+
+def _panguan_kill_effect(e, s):
+    game = s.owner.game
+    game.handle_event(DealDamage(1, s, [s.owner.opponent]))
+    game.handle_event(Heal(1, s, [s.owner]))
+
+
+def _panguan_wqing_cond(e, s):
+    # 无情（354 形态在场）：敌方式神进入气绝的倒计时+1（after 相位：倒计时
+    # 已写入后普通累加，豪焰同款）。无需判官消灭（用户裁决 6）；自身在同批
+    # 将死（_death_in_progress：反击同归于尽时攻方 after 相位先广播）或已
+    # 气绝（生死无常先消灭己方/攻方同归于尽已标记）时不+1（用户裁决 7/8）。
+    # 召唤物气绝即离场、无复活倒计时。
+    killed = e.event.killed
+    return (s.morphed_id == 354 and s.is_alive
+            and not getattr(s, "_death_in_progress", False)
+            and not killed.is_summoned
+            and killed.owner is s.owner.opponent)
+
+
+def _panguan_wqing_effect(e, s):
+    e.event.killed.round_until_alive += 1
+
+
+def _panguan_duoming_cond(e, s):
+    # 夺命增强标记期（on_play→after_play 恰为本次战斗）：判官为来源的战斗
+    # 伤害实际结算（damage dealt 仅在实际伤害>0 时广播 → 未造成伤害不触发，
+    # 用户裁决 10）
+    return (getattr(s, "_duoming_enhanced", False) and s.is_alive
+            and e.event.source is s and e.event.damage_type == "combat")
+
+
+def _panguan_duoming_effect(e, s):
+    game = s.owner.game
+    for t in e.event.target:
+        if t.state == "dead":
+            continue
+        # 直接消灭尊重尘缚之阵免疫（裁决 12 只豁免死之宣告）；Player 无 level
+        if hasattr(t, "level") and game._direct_destroy_immune(t):
+            continue
+        game._last_damage_source = s
+        if hasattr(t, "level"):
+            t._last_damage_from = s
+        t.hp = 0
+        game.resolve_deaths([t])
+
+
+class PanGuan:
+    id = 42
+    name = "判官"
+    atk = 3
+    hp = 4
+    type = "wind"
+    # 击杀事件同一对象分 before/after 两相位广播：击杀计数与基础/觉醒被动挂
+    # before（默认相位），无情挂 after（倒计时已写入后累加，豪焰同款）；
+    # 夺命增强监听 damage dealt（战斗伤害实际结算后的纯通知）
+    listeners = (
+        Listener("hero kill", _panguan_kill_count_cond, (_panguan_kill_count_effect,)),
+        Listener("hero kill", _panguan_kill_cond, (_panguan_kill_effect,)),
+        Listener("hero kill", _panguan_wqing_cond, (_panguan_wqing_effect,), phase="after"),
+        Listener("damage dealt", _panguan_duoming_cond, (_panguan_duoming_effect,)),
+    )

@@ -128,7 +128,7 @@ ILLUSION_ZONE_DIM = MAX_ILLUSIONS * ILLUSION_BLOCK
 #   卡牌多热 ×4       = 4 * TOTAL_CARD_NUM     = 1528
 #   攻击式神 ×2       = 2 * HERO_BLOCK         = 58
 #   ────────────────────────────────────────────────
-#   TOTAL                                      = 1869
+#   TOTAL                                      = 1901（判官 8 卡 2026-10-21）
 
 BASE_SCALARS     = 5
 PLAYER_SCALARS   = 14
@@ -143,8 +143,8 @@ OBS_DIM = (
     + ATTACKING_HEROES * HERO_BLOCK
 )
 
-assert OBS_DIM == 1869, f"OBS_DIM expected 1869, got {OBS_DIM}"
-assert ACTION_DIM == 792, f"ACTION_DIM expected 792, got {ACTION_DIM}"
+assert OBS_DIM == 1901, f"OBS_DIM expected 1901, got {OBS_DIM}"
+assert ACTION_DIM == 808, f"ACTION_DIM expected 808, got {ACTION_DIM}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

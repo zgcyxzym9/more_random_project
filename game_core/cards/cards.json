@@ -3862,5 +3862,91 @@
     "description": "复活己方所有紫岩式神。本局游戏每个己方回合结束时，己方所有紫岩式神永久获得+1力量和+1生命。（此效果可以叠加，对气绝式神有效）",
     "is_beginning_card": true,
     "level_req": 3
+  },
+  {
+    "id": 351,
+    "type": "spell",
+    "hero": "PanGuan",
+    "name": "墨笔夺魂",
+    "eng_name": "MoBiDuoHun",
+    "description": "使一个敌方式神降低2点力量与1点生命。",
+    "is_beginning_card": true,
+    "level_req": 1
+  },
+  {
+    "id": 352,
+    "type": "spell",
+    "hero": "PanGuan",
+    "name": "勾诀",
+    "eng_name": "GouJue",
+    "description": "消灭一个力量小于等于2的敌方式神。",
+    "is_beginning_card": true,
+    "level_req": 1
+  },
+  {
+    "id": 353,
+    "type": "spell",
+    "hero": "PanGuan",
+    "name": "生死无常",
+    "eng_name": "ShengSiWuChang",
+    "description": "消灭己方战斗区的式神，然后消灭敌方战斗区的式神。响应：当己方战斗区式神被攻击时，自动使用。",
+    "is_beginning_card": true,
+    "level_req": 2
+  },
+  {
+    "id": 354,
+    "type": "morph",
+    "hero": "PanGuan",
+    "name": "无情",
+    "eng_name": "WuQing",
+    "description": "敌方式神进入气绝的倒计时+1。",
+    "is_beginning_card": true,
+    "level_req": 2,
+    "atk": 4,
+    "hp": 5
+  },
+  {
+    "id": 355,
+    "type": "spell",
+    "hero": "PanGuan",
+    "name": "觉醒·判官",
+    "eng_name": "JueXingPanGuan",
+    "description": "使一个敌方式神降低2点力量与1点生命。觉醒：当你消灭一个式神时，对敌方牌手造成1点伤害且你恢复1点生命。",
+    "is_beginning_card": true,
+    "level_req": 2,
+    "buff_atk": 1,
+    "buff_hp": 1
+  },
+  {
+    "id": 356,
+    "type": "attack",
+    "hero": "PanGuan",
+    "name": "夺命",
+    "eng_name": "DuoMing",
+    "description": "必杀，穿刺。增强：本局游戏若你消灭过13个式神，改为「消灭受到判官战斗伤害的角色。」",
+    "is_beginning_card": true,
+    "level_req": 2
+  },
+  {
+    "id": 357,
+    "type": "spell",
+    "hero": "PanGuan",
+    "name": "死之宣告",
+    "eng_name": "SiZhiXuanGao",
+    "description": "消灭一个式神。",
+    "is_beginning_card": true,
+    "level_req": 3
+  },
+  {
+    "id": 358,
+    "type": "morph",
+    "hero": "PanGuan",
+    "name": "断罪",
+    "eng_name": "DuanZui",
+    "description": "增强：本局游戏你每消灭过一个式神，此牌便获得1点力量。",
+    "is_beginning_card": true,
+    "level_req": 3,
+    "atk": 4,
+    "hp": 8
   }
 ]

@@ -188,8 +188,11 @@ class Game:
             # 青坊主例外：轮回（#342）增强计数「本局你每被对手攻击过一次」从开局
             # 起累计（用户裁决 2026-10-10），其基础/觉醒监听器各自以 level/is_awakened
             # 条件自控生效时机。
+            # 判官例外：击杀计数「本局你消灭过的式神」（夺命/断罪增强条件）从
+            # 开局起累计（用户裁决 2026-10-21），其基础/觉醒被动监听器自带
+            # level 门槛自控生效时机（heroes.py 判官段）。
             if (isinstance(entity, Hero) and entity.level == 0
-                    and entity.type_name not in ("ShuWeng", "QingFangZhu")):
+                    and entity.type_name not in ("ShuWeng", "QingFangZhu", "PanGuan")):
                 continue
             for listener in entity.listeners:
                 if listener.matches(event, entity):
