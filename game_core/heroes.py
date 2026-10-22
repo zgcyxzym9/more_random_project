@@ -2265,3 +2265,143 @@ class PanGuan:
         Listener("hero kill", _panguan_wqing_cond, (_panguan_wqing_effect,), phase="after"),
         Listener("damage dealt", _panguan_duoming_cond, (_panguan_duoming_effect,)),
     )
+
+
+# ══════════════════════════════════════════════════════════════════
+# 43. 雪女 (XueNv) — 青岚
+#  基础能力：每回合一次，当你眩晕敌方式神时，将一张「雪球」置入手牌。
+#  口径（2026-10-21，卡牌侧 2026-10-22）：
+#  - 眩晕统一走事件通道（用户指示 2026-10-21）：卡牌/机制一律派发
+#    handle_event(StunEvent(target, True))，由 game 的 "stun" case 调
+#    Hero.stun() 结算，before/after 相位广播由 handle_event 统一提供；
+#    禁止直接调用 Hero.stun()（会绕过监听广播，雪女收不到）；
+#  - 「你眩晕敌方式神」按目标侧判定：被眩晕目标属敌方即触发（现有卡池下
+#    与「施加侧为你」等价——对方的眩晕效果目标恒为己方式神）；己方式神
+#    被崩雪/寒冰之盾等眩晕不触发；
+#  - 重复眩晕已眩晕目标亦触发、召唤物（is_summoned）算式神（判官「消灭
+#    一个式神」含召唤物先例，用户 2026-10-21 未再收紧）；
+#  - 「每回合一次」：reset_per_turn 计数器（青坊主同款：双方回合开始统一
+#    重置；persistent 使气绝 reset_all 不清零，不影响本回合计数）；
+#  - 觉醒被动（366）：眩晕受到雪女伤害的式神（含其卡牌伤害，
+#    _yaodaoji_source_from 同款来源归属）；范围=双方任意式神（用户裁决
+#    5a）；combat/法术/投射统一走 damage dealt 纯通知（白狼觉醒同款）；
+#    法术通道的名义值口径下，伤害被完全吸收时仍会触发（引擎通知不含
+#    实际伤害，未另行裁决，暂按通知即触发）；
+#  - 卡牌（359-369）在 cards/XueNv.py；召唤物冰墙（BingQiang）见下方段。
+# ══════════════════════════════════════════════════════════════════
+
+def _xuenv_stun_cond(e, s):
+    # 0 级由引擎统一跳过（非白名单式神，game.broadcast）；气绝期间基础效果
+    # 不发动（faq），故加 is_alive
+    return (s.is_alive
+            and e.event.target.owner is s.owner.opponent)
+
+
+def _xuenv_stun_effect(e, s):
+    s.counters.ensure("xuenv_snowball_used", initial=0,
+                      persistent=True, reset_per_turn=True)
+    if s.counters.get("xuenv_snowball_used") >= 1:
+        return
+    s.counters.set("xuenv_snowball_used", 1)
+    s.owner.GiveCardToHand(["XueQiu"])
+
+
+def _xuenv_bfb_cond(e, s):
+    # 冰风暴(364)形态：「每当敌方式神攻击后，对其造成1点伤害，然后眩晕受到
+    # 此伤害的式神」。"hero attack" after 相位 + isinstance(HeroAttackEvent)：
+    # 取事件层广播（攻击主体完整结算后才发出、每次攻击恰一次，白狼残心先例），
+    # 裁决1b（冰风暴受战斗伤害气绝则不触发）由此天然满足——死亡窗口内由
+    # _death_in_progress/is_alive 兜底（判官无情先例）；攻击者须存活且属敌方
+    #（自己出击不触发）
+    attacker = getattr(e.event, "hero", None)
+    return (s.morphed_id == 364
+            and s.is_alive
+            and not getattr(s, "_death_in_progress", False)
+            and isinstance(e.event, HeroAttackEvent)
+            and attacker is not None
+            and attacker.is_alive
+            and attacker.owner is not None
+            and attacker.owner is s.owner.opponent)
+
+
+def _xuenv_bfb_effect(e, s):
+    attacker = e.event.hero
+    game = s.owner.game
+    hp_before = attacker.hp
+    game.handle_event(DealDamage(1, s, [attacker]))
+    # 裁决1a：实际受到伤害（护甲全吸/免疫无伤）才眩晕；已死不眩
+    if attacker.is_alive and attacker.hp < hp_before:
+        game.handle_event(StunEvent(attacker, True))
+
+
+def _xuenv_awaken_dmg_cond(e, s):
+    # 觉醒被动：来源=雪女本体或其卡牌（_yaodaoji_source_from 复用），
+    # 受害者中含式神（含雪女自身，用户裁决 5a「双方任意式神」）
+    if not (getattr(s, "is_awakened", False) and s.is_alive):
+        return False
+    if not _yaodaoji_source_from(e, s):
+        return False
+    return any(getattr(t, "entity_type", None) == "hero"
+               for t in e.event.target)
+
+
+def _xuenv_awaken_dmg_effect(e, s):
+    for t in e.event.target:
+        if getattr(t, "entity_type", None) == "hero" and t.is_alive:
+            s.owner.game.handle_event(StunEvent(t, True))
+
+
+class XueNv:
+    id = 43
+    name = "雪女"
+    atk = 2
+    hp = 5
+    type = "wind"
+    listeners = (
+        # 基础能力：每回合一次眩晕敌方摸雪球（after 相位：眩晕结算完成后判定）
+        Listener("stun", _xuenv_stun_cond, (_xuenv_stun_effect,),
+                 phase="after"),
+        # 冰风暴(364)形态：敌方式神攻击后 1 伤+眩晕（morphed_id==364 门控）
+        Listener("hero attack", _xuenv_bfb_cond, (_xuenv_bfb_effect,),
+                 phase="after"),
+        # 觉醒被动（366）：眩晕受到雪女伤害的式神（damage dealt 纯通知，
+        # 战斗/法术/投射统一；is_awakened 门控，未觉醒恒 False）
+        Listener("damage dealt", _xuenv_awaken_dmg_cond,
+                 (_xuenv_awaken_dmg_effect,)),
+    )
+
+
+# ══════════════════════════════════════════════════════════════════
+# 43.5 冰墙 (BingQiang) — 雪女 的召唤物（雪女「冰墙」召唤，卡牌类同名：
+# Card.GetCard 与 Hero.GetHero 分属 card/hero 两个命名空间，互不冲突）
+#  力量0 生命4 青岚派系（wind）召唤物（用户裁决 2026-10-22）。
+#  能力「眩晕对其造成战斗伤害的式神」：damage dealt 纯通知，combat 通道
+#  仅在实际伤害>0 时广播（护甲全吸/免疫不触发，冰风暴裁决1a同口径）；
+#  受致命战斗伤害时死亡结算晚于本广播（将死窗口内 is_alive 仍 True），
+#  仍触发（卡面无死亡排除，冰墙气绝离场但攻击者照常被眩晕）。
+#  能力「不能发动攻击」：HeroAttributes.CANNOT_ATTACK（用户批准 2026-10-22）——
+#  player.py 两处出击门槛过滤动作列表 + game.py step "hero attack" 防御拒绝。
+# ══════════════════════════════════════════════════════════════════
+
+def _bingqiang_stun_cond(e, s):
+    return (s.is_alive
+            and getattr(e.event, "damage_type", None) == "combat"
+            and getattr(e.event.source, "entity_type", None) == "hero"
+            and any(t is s for t in e.event.target))
+
+
+def _bingqiang_stun_effect(e, s):
+    src = e.event.source
+    if src.is_alive:
+        s.owner.game.handle_event(StunEvent(src, True))
+
+
+class BingQiang:
+    id = 205
+    name = "冰墙"
+    atk = 0
+    hp = 4
+    type = "wind"
+    base_attributes = (HeroAttributes.CANNOT_ATTACK,)
+    listeners = (Listener("damage dealt", _bingqiang_stun_cond,
+                          (_bingqiang_stun_effect,)),)

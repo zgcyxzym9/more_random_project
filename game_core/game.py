@@ -860,6 +860,13 @@ class Game:
                     self._drain_response_cleanups()
                     return
 
+                # CANNOT_ATTACK：不能发动攻击（冰墙等召唤物）。player.py 两处出击
+                # 门槛已过滤正常动作列表，这里防御未经动作列表直接注入的 step。
+                if HeroAttributes.CANNOT_ATTACK in event.hero.attributes:
+                    print("trying to attack with a hero that cannot attack")
+                    self._drain_response_cleanups()
+                    return
+
                 # RANGED: 远程式神不进入战斗区，从准备区攻击
                 is_ranged = HeroAttributes.RANGED in event.hero.attributes
                 if not is_ranged:

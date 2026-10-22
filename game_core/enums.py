@@ -30,6 +30,7 @@ class HeroAttributes(IntEnum):
     VALIANT = 16         # 昂扬：出击不消耗出击次数
     ENERGY_CHARGE = 17   # 充能：己方回合开始获得 1 能量
     FUSE = 18            # 融合：进场时与己方场上同组（fuse_group）融合体合并（wiki 关键字-融合）
+    CANNOT_ATTACK = 19   # 不能发动攻击：不列入出击动作，step 注入亦拒绝（冰墙等召唤物）
 
 
 class CardType(IntEnum):

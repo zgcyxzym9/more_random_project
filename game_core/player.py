@@ -264,7 +264,10 @@ class Player():
                     # 尘缚之阵替换锁：需替换被锁占位者的出击不列入动作
                     if self.game._replace_blocked(self, hero):
                         continue
-                    if hero.is_alive and hero.level > 0 and self.attack_available and hero.can_act():
+                    # CANNOT_ATTACK：不能发动攻击的式神（冰墙等）不列入出击动作
+                    if (hero.is_alive and hero.level > 0 and self.attack_available
+                            and hero.can_act()
+                            and HeroAttributes.CANNOT_ATTACK not in hero.attributes):
                         # 迅捷/昂扬 不需要鬼火
                         if HeroAttributes.AGILE in hero.attributes or HeroAttributes.VALIANT in hero.attributes:
                             actions.append(HeroAttack(hero))
@@ -433,7 +436,10 @@ class InferenceOpponent(Player):
                     # 尘缚之阵替换锁：需替换被锁占位者的出击不列入动作
                     if self.game._replace_blocked(self, hero):
                         continue
-                    if hero.is_alive and hero.level > 0 and self.attack_available and hero.can_act():
+                    # CANNOT_ATTACK：不能发动攻击的式神（冰墙等）不列入出击动作
+                    if (hero.is_alive and hero.level > 0 and self.attack_available
+                            and hero.can_act()
+                            and HeroAttributes.CANNOT_ATTACK not in hero.attributes):
                         if self.fire_cnt > 0 or HeroAttributes.AGILE in hero.attributes or HeroAttributes.VALIANT in hero.attributes:
                             actions.append(HeroAttack(hero))
                 return actions
