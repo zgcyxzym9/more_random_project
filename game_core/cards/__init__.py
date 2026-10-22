@@ -41,4 +41,5 @@ from .QingFangZhu import *
 from .YuanJiuLangHu import *
 from .PanGuan import *
 from .XueNv import *
+from .GuHuoNiao import *
 from ._ingredients import *

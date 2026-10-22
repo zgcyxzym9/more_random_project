@@ -2405,3 +2405,98 @@ class BingQiang:
     base_attributes = (HeroAttributes.CANNOT_ATTACK,)
     listeners = (Listener("damage dealt", _bingqiang_stun_cond,
                           (_bingqiang_stun_effect,)),)
+
+
+# ══════════════════════════════════════════════════════════════════
+# 44. 姑获鸟 (GuHuoNiao) — 苍叶
+#  基础能力：姑获鸟攻击后，移回准备区。
+#  口径：
+#  - 「攻击」按 wiki 攻击定义含出击/战斗牌/效果强制攻击，「攻击后」取引擎
+#    统一攻击通道 hero attack 的事件层 after 相位（冰风暴「敌方式神攻击后」
+#    同款）：三类攻击均经 handle_event(HeroAttackEvent)，主体完整结算
+#    （含反击与死亡结算）后才广播、每次攻击恰一次；step 动作层的同名
+#    after 广播（event 为 action 而非 HeroAttackEvent）经 isinstance 过滤；
+#  - 反击致死不回准备区：is_alive 门控（气绝口径：死亡式神不移动，死亡
+#    结算在 after 广播前完成，天然可见）；
+#  - 未实际发生的攻击不触发：尘缚之阵替换锁/攻击者已死等提前 return 的
+#    路径不广播 after；移动仅对战斗区主体生效（attack_zone is s 在 effect
+#    内判定，避免广播 standby→standby 的虚假 MoveEvent）；378 觉醒的
+#    +1力量/回满分支不受该门控——「姑获鸟攻击后」含觉醒后远程从准备区
+#    发起的攻击（2026-10-22 验收测试修正）。
+#  觉醒交互（faq「使用不同的觉醒牌只保留最后使用的觉醒牌效果」，标记
+#  ghn_awaken persistent 跨气绝保留——faq 觉醒不因死亡回退）：
+#  - 觉醒·姑获鸟(377) 替换基础能力：标记==377 时基础监听不生效（远程/
+#    击杀追击在 cards/GuHuoNiao.py）；
+#  - 鹤唳回风(378) 增强基础能力：标记==378 时回准备区后追加获得+1力量
+#    （GiveBuff 非永久，酒吞「获得力量」口径）并恢复所有生命。
+#  瞬发增强触发（370/373/377「当其他己方式神攻击后，本回合此牌获得瞬发」，
+#  卡牌侧 CardEnhance 读 ghn_enh_instant 标记，妖刀姬同款）：触发是卡牌
+#  词条而非式神基础能力，无 is_alive/形态门控，仅排除其本人攻击（「其他」）。
+#  形态被动（morphed_id 门控，雪女段同款）：
+#  - 影翼(371)：每次攻击前获得1点力量——before 相位使加成对本次攻击生效；
+#    GiveBuff 非永久（酒吞口径）。
+#  - 慈乌稚子(376)：其他己方式神攻击后获得迅捷——状态不叠，已有则不重复
+#    追加（迅捷由出击消耗/死亡移除，faq）。
+# ══════════════════════════════════════════════════════════════════
+
+def _guhuoniao_return_cond(e, s):
+    return (s.is_alive
+            and s.counters.get("ghn_awaken", 0) != 377   # 觉醒·姑获鸟替换基础能力
+            and isinstance(e.event, HeroAttackEvent)
+            and getattr(e.event, "hero", None) is s)
+
+
+def _guhuoniao_return_effect(e, s):
+    # 移动仅对战斗区主体生效（准备区发起的攻击不广播虚假 MoveEvent）
+    if s.owner.attack_zone is s:
+        s.move_to_standby()
+    if s.counters.get("ghn_awaken", 0) == 378:   # 鹤唳回风增强基础能力
+        s.owner.game.handle_event(GiveBuff("atk", 1, s, [s]))
+        if s.hp < s.current_max_hp:
+            s.owner.game.handle_event(Heal(s.current_max_hp - s.hp, s, [s]))
+
+
+def _ghn_enh_trigger_cond(e, s):
+    atk = getattr(e.event, "hero", None)
+    return (isinstance(e.event, HeroAttackEvent)
+            and atk is not None
+            and getattr(atk, "owner", None) is s.owner
+            and atk is not s)
+
+
+def _ghn_enh_trigger_effect(e, s):
+    s.counters.ensure("ghn_enh_instant", initial=0,
+                      persistent=True, reset_per_turn=True)
+    s.counters.set("ghn_enh_instant", 1)
+
+
+class GuHuoNiao:
+    id = 44
+    name = "姑获鸟"
+    atk = 3
+    hp = 4
+    type = "wood"
+    listeners = (
+        # 基础能力（377 觉醒后替换 / 378 觉醒后增强，见上）
+        Listener("hero attack", _guhuoniao_return_cond,
+                 (_guhuoniao_return_effect,), phase="after"),
+        # 瞬发增强触发：其他己方式神攻击后（after 相位，标记供卡牌增强读取）
+        Listener("hero attack", _ghn_enh_trigger_cond,
+                 (_ghn_enh_trigger_effect,), phase="after"),
+        # 影翼(371)：每次攻击前获得1点力量（before 相位，本次攻击即含加成）
+        Listener("hero attack",
+                 lambda e, s: (s.is_alive and s.morphed_id == 371
+                               and isinstance(e.event, HeroAttackEvent)
+                               and getattr(e.event, "hero", None) is s),
+                 (lambda e, s: s.owner.game.handle_event(
+                     GiveBuff("atk", 1, s, [s])),)),
+        # 慈乌稚子(376)：其他己方式神攻击后获得迅捷（after 相位，不叠加）
+        Listener("hero attack",
+                 lambda e, s: (s.is_alive and s.morphed_id == 376
+                               and isinstance(e.event, HeroAttackEvent)
+                               and getattr(e.event, "hero", None) is not None
+                               and getattr(e.event.hero, "owner", None) is s.owner
+                               and e.event.hero is not s
+                               and HeroAttributes.AGILE not in s.attributes),
+                 (lambda e, s: s.attributes.append(HeroAttributes.AGILE),)),
+    )

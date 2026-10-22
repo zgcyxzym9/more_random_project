@@ -4063,5 +4063,107 @@
         "description": "眩晕一个敌方式神，获得一张「雪球」。羁绊：雪童子对其发动一次攻击。",
         "is_beginning_card": false,
         "level_req": 1
+    },
+    {
+        "id": 370,
+        "type": "attack",
+        "hero": "GuHuoNiao",
+        "name": "伞剑",
+        "eng_name": "SanJian",
+        "description": "增强：当其他己方式神攻击后，本回合此牌获得瞬发。",
+        "is_beginning_card": true,
+        "level_req": 1,
+        "buff_atk": 2
+    },
+    {
+        "id": 371,
+        "type": "morph",
+        "hero": "GuHuoNiao",
+        "name": "影翼",
+        "eng_name": "YingYi",
+        "description": "姑获鸟每次攻击前获得1点力量。",
+        "is_beginning_card": true,
+        "level_req": 1,
+        "atk": 4,
+        "hp": 4
+    },
+    {
+        "id": 372,
+        "type": "attack",
+        "hero": "GuHuoNiao",
+        "name": "丛云鹤舞",
+        "eng_name": "CongYunHeWu",
+        "description": "直击",
+        "is_beginning_card": true,
+        "level_req": 2
+    },
+    {
+        "id": 373,
+        "type": "morph",
+        "hero": "GuHuoNiao",
+        "name": "金鸾",
+        "eng_name": "JinLuan",
+        "description": "当其他己方式神攻击后，本回合此牌获得瞬发。",
+        "is_beginning_card": true,
+        "level_req": 2,
+        "atk": 6,
+        "hp": 4
+    },
+    {
+        "id": 374,
+        "type": "attack",
+        "hero": "GuHuoNiao",
+        "name": "天翔鹤斩",
+        "eng_name": "TianXiangHeZhan",
+        "description": "贯通 免疫战斗伤害。敌方有未气绝的准备区式神时，本次战斗改为攻击一个敌方准备区式神。",
+        "is_beginning_card": true,
+        "level_req": 2,
+        "buff_atk": 3
+    },
+    {
+        "id": 375,
+        "type": "attack",
+        "hero": "GuHuoNiao",
+        "name": "偷袭",
+        "eng_name": "TouXi",
+        "description": "在敌方回合获得瞬发。响应：当敌方回合结束且战斗区没有式神时，自动使用。",
+        "is_beginning_card": true,
+        "level_req": 2,
+        "buff_atk": 3
+    },
+    {
+        "id": 376,
+        "type": "morph",
+        "hero": "GuHuoNiao",
+        "name": "慈乌稚子",
+        "eng_name": "CiWuZhiZi",
+        "description": "当其他己方式神攻击后，姑获鸟获得迅捷。",
+        "is_beginning_card": true,
+        "level_req": 3,
+        "atk": 8,
+        "hp": 6
+    },
+    {
+        "id": 377,
+        "type": "spell",
+        "hero": "GuHuoNiao",
+        "name": "觉醒·姑获鸟",
+        "eng_name": "JueXingGuHuoNiao",
+        "description": "当其他己方式神攻击后，本回合此牌获得瞬发。觉醒：远程。姑获鸟消灭敌方式神时，再发起攻击。",
+        "is_beginning_card": true,
+        "level_req": 3,
+        "buff_atk": 2
+    },
+    {
+        "id": 378,
+        "type": "spell",
+        "hero": "GuHuoNiao",
+        "name": "鹤唳回风",
+        "eng_name": "HeLiHuiFeng",
+        "description": "觉醒：姑获鸟攻击后，移回准备区，获得+1力量并恢复所有生命。羁绊：妖刀姬发起一次攻击。",
+        "is_beginning_card": false,
+        "level_req": 2,
+        "buff_atk": 1,
+        "buff_hp": 1
     }
 ]

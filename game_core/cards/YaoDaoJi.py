@@ -12,7 +12,8 @@
 - 妖刀万华(169)：形态连击=DOUBLE_STRIKE；morph leave 时移除。
 - 杀念(170)：随机三张妖刀姬战斗牌入手（允许重复）。
 - 觉醒·妖刀姬(171)/刃影叠岚(173)：对牌手造成伤害 → 手牌战斗牌获得 不消耗鬼火 / 瞬发+1/+1；觉醒效果挂 original_listeners 气绝后保留。
-- 刃影鹤唳(172)：协战；姑获鸟分支未实现（TODO）。
+- 刃影鹤唳(172)：协战；姑获鸟分支=鹤唳回风觉醒核心（cards/GuHuoNiao.py
+  _helihuifeng_core，2026-10-22 姑获鸟实装后补齐）。
 """
 import sys
 sys.path.insert(0, "E:/more_random_project_vibe")
@@ -338,8 +339,11 @@ def _renyingheli_on_play(s):
         # 妖刀姬-刃影叠岚
         _renyingdielan_on_play(s)
     elif hero.type_name == "GuHuoNiao":
-        # 姑获鸟-鹤唳回风：姑获鸟未实现，TODO（待姑获鸟实现后完成）
-        pass
+        # 姑获鸟-鹤唳回风：觉醒核心与独立打出共用（cards/GuHuoNiao.py，
+        # 含羁绊：妖刀姬发起一次攻击）
+        from game_core.cards.GuHuoNiao import _helihuifeng_core
+        ghn = next((h for h in s.owner.heroes if h.type_name == "GuHuoNiao"), None)
+        _helihuifeng_core(s, ghn)
 
 
 class RenYingDieLan:
@@ -375,8 +379,8 @@ def _renyingdielan_on_play(s):
         hero.original_listeners = [x for x in hero.original_listeners if getattr(x, "_tag", "") != tag]
     hero.listeners += [l1, l2]
     hero.original_listeners += [l1, l2]
-    # 羁绊：姑获鸟发起一次攻击（姑获鸟未实现，TODO）
+    # 羁绊：姑获鸟发起一次攻击（faq 协战羁绊门控：另一位协战式神存活且
+    # 等级不为 0；经 HeroAttackEvent 标准通道，正义之刺/冰封同款）
     gu_huo = next((h for h in s.owner.heroes if h.type_name == "GuHuoNiao"), None)
     if gu_huo is not None and gu_huo.is_alive and gu_huo.level > 0:
-        # TODO（需引擎/式神支持）：姑获鸟未实现，无法发起攻击
-        pass
+        s.owner.game.handle_event(HeroAttackEvent(s.owner, gu_huo))
