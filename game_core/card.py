@@ -122,7 +122,6 @@ class Card(Entity):
         return self._select_target_static
 
     def get_corresponding_hero(self):
-        from .hero import Hero
         # 协战牌：若已选定打出式神，优先返回
         if getattr(self, "played_by", None) is not None:
             return self.played_by
