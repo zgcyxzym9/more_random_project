@@ -182,7 +182,9 @@ class Game:
     def broadcast(self, event_type, check_response=True, phase="before", **kwargs):
         event = Event(event_type, **kwargs)
         event.phase = phase
-        for entity in self.iter_entities():
+        for entity in (self.player1, self.player2,
+                       *self.player1.hand.cards, *self.player2.hand.cards,
+                       *self.player1.heroes, *self.player2.heroes):
             # 0 级式神的被动技能不生效。书翁例外：「起始手牌+1」是开局即生效的
             # 能力，不随等级解锁，须在书翁尚未升级的首个回合前触发。
             # 青坊主例外：轮回（#342）增强计数「本局你每被对手攻击过一次」从开局
@@ -191,9 +193,10 @@ class Game:
             # 判官例外：击杀计数「本局你消灭过的式神」（夺命/断罪增强条件）从
             # 开局起累计（用户裁决 2026-10-21），其基础/觉醒被动监听器自带
             # level 门槛自控生效时机（heroes.py 判官段）。
-            if (isinstance(entity, Hero) and entity.level == 0
-                    and entity.type_name not in ("ShuWeng", "QingFangZhu", "PanGuan")):
-                continue
+            if entity.entity_type == "hero":
+                if entity.level == 0 and entity.type_name not in (
+                        "ShuWeng", "QingFangZhu", "PanGuan"):
+                    continue
             for listener in entity.listeners:
                 if listener.matches(event, entity):
                     listener.trigger(event, entity)
@@ -234,6 +237,12 @@ class Game:
         """
         responder = self.current_player.opponent
         src = getattr(event, "event", event)   # 解包：broadcast 包装了一层 Event
+        # 如果手牌中没有响应牌，直接返回
+        for card in responder.hand.cards:
+            if card.response_trigger == src.type:
+                break
+        else:
+            return
         target = self._response_target(event)
         responder.sort_hand()  # 响应扫描按整理后的手牌顺序（同优先度从左到右依次响应）
         for card in responder.hand.cards:
