@@ -35,6 +35,7 @@
 import json
 import os
 
+import numpy as np
 import torch
 
 from game_core.action import (EndTurn, UpgradeHero, HeroAttack, PlayCard,
@@ -351,7 +352,8 @@ def decode_action(player, action_id):
 
 def build_action_mask(player, device):
     """反向动作掩码（True=非法）的 bool tensor——接口与 rl_dqn 一致。"""
-    mask = torch.ones(ACTION_DIM, dtype=torch.bool, device=device)
-    for aid in get_legal_action_ids(player):
-        mask[aid] = False
-    return mask
+    mask = np.ones(ACTION_DIM, dtype=bool)
+    ids = get_legal_action_ids(player)
+    if ids:
+        mask[ids] = False
+    return torch.from_numpy(mask).to(device)

@@ -257,6 +257,8 @@ class Env:
 
 
     def get_reward(self, obs_before: torch.Tensor, obs_after: torch.Tensor) -> float:
+        obs_before = obs_before.detach().cpu().numpy()
+        obs_after = obs_after.detach().cpu().numpy()
         o = ObsIdx
         reward = 0.0
 
