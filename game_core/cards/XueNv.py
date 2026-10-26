@@ -32,7 +32,9 @@ heroes.py 雪女段；本文件实现卡牌打出侧逻辑。
   目标=敌方角色（式神+牌手）。
 - 冰霜永冻（协战）：选项按打出式神分支；雪童子-雪刃未实现（刃影鹤唳先例
   pass+TODO）。冰封的羁绊按 faq 协战羁绊门控（另一位协战式神存活且等级
-  不为 0），防御式查找当前永不满足。
+  不为 0），防御式查找当前永不满足。敌方无合法目标（如全体帷幕）时雪女-
+  冰封无事发生、牌照常消耗（2026-10-26 用户裁决 A；引擎层禁止打出待后议
+  ——协战牌无 require_target，不受 get_legal_actions 空目标预检）。
 """
 
 from game_core.event import *
@@ -384,6 +386,7 @@ def _bingshuang_on_play(s):
         prev_selected, prev_state = owner.selected_targets, owner.state
         owner.selected_targets = None
         candidates = _xn_enemy_hero_targets(s)
+        picked = None
         if candidates:
             picked = random_choice(owner, candidates,
                                    context="冰霜永冻: 冰封 选择目标")
@@ -391,7 +394,11 @@ def _bingshuang_on_play(s):
         owner.candidate_targets = []
         owner.pending_card = None
         owner.state = prev_state
-        _bingfeng_core(s)
+        # 敌方无合法目标（如全体帷幕）时无事发生（2026-10-26 用户裁决 A）：
+        # 协战牌无 require_target、不受 get_legal_actions 空目标预检，引擎层
+        # 禁止打出（B 方案）待后议
+        if picked is not None:
+            _bingfeng_core(s)
         owner.selected_targets = prev_selected
     elif hero.type_name == "XueTongZi":
         # 雪童子-雪刃：雪童子未实现，TODO（待雪童子实现后完成）
