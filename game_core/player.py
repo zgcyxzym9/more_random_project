@@ -143,8 +143,7 @@ class Player():
 
     def retract_hero(self):
         if self.attack_zone is not None:
-            self.attack_zone.state = "pending"
-            self.attack_zone = None
+            self.attack_zone.move_to_standby()
 
     def check_death(self):
         if self.hp <= 0:
