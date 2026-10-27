@@ -35,15 +35,16 @@ Architecture
 
 Scene detection
 ---------------
-Primary signal: the player's own card-back stack appears in the lower-right
-  quadrant of the frame (approx x 72-97 %, y 45-87 % of frame size).
-  We look for dark-teal / navy pixels there (H 100-155, S 30-150, V 45-130).
-  Only the PLAYER's deck is used; the opponent's upper-right stack is ignored
-  because opponents can use any deck skin.
-
-Secondary signal: the bright central background (sunburst / glowing orb) that
-  appears during the hero-reveal has a high mean V-channel in the centre of
-  the frame.  Both signals must be true simultaneously.
+Primary signal (opening-board trigger): the player's own card-back stack in
+  the lower-right quadrant is template-matched against a stored crescent-moon
+  patch (TM_CCOEFF_NORMED >= 0.7, region approx x 84-100 %, y 42-90 %, on a
+  canonical-width resize).  Only the PLAYER's deck is involved, so opponent
+  avatar/deck changes are irrelevant, and the match survives the dim overlay
+  that follows the reveal (CCOEFF removes mean/contrast shifts), so the
+  trigger holds from the reveal until mulligan end instead of flashing by.
+Fallback signal: the legacy left-badge + health-30 colour probe, kept for
+  when the player switches deck skin and the template no longer matches; it
+  only fires on brief brightness peaks.
 
 Card location (variance scan)
 -----------------------------
@@ -82,6 +83,15 @@ from rl_dqn.game_frame_capture import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Player card-back (crescent moon) template, cropped from a 1592-wide
+# 2700:1224 game crop at rel (0.905-0.995, 0.57-0.76).  Kept OUT of
+# game_core/assets on purpose: TemplateLibrary loads every image there as a
+# hero template.
+_STACK_TEMPLATE_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "assets", "crescent_stack_template.png",
+)
 
 # ── Optional platform dependencies ───────────────────────────────────────────
 # ─────────────────────────────────────────────────────────────────────────────
@@ -127,6 +137,10 @@ class SceneDetector:
     card_back_ratio    : minimum fraction of probe pixels matching the colour
     centre_rel         : region to check for bright background
     centre_min_v       : minimum mean V for the bright-background check
+
+    The opening-board trigger used by automatic recognition lives in
+    is_fixed_board_scene: a template match of the player's crescent card-back
+    stack (bottom-right), with the legacy badge/health probe as fallback.
     """
 
     def __init__(
@@ -142,6 +156,9 @@ class SceneDetector:
         health_min_white:       float                      = 0.12,
         health_min_red:         float                      = 0.07,
         health_min_edge:        float                      = 0.07,
+        stack_min_ncc:          float                      = 0.7,
+        canonical_width:        int                        = 1592,
+        stack_region_rel: Tuple[float,float,float,float]   = (0.84, 0.42, 0.16, 0.48),
     ):
         self.probe_rel       = probe_rel
         self.lo              = np.array(card_back_hsv_lo,  np.uint8)
@@ -154,12 +171,61 @@ class SceneDetector:
         self.health_min_white       = health_min_white
         self.health_min_red         = health_min_red
         self.health_min_edge        = health_min_edge
+        self.stack_min_ncc   = stack_min_ncc
+        self.canonical_width = canonical_width
+        self.stack_region_rel = stack_region_rel
+        self.stack_template  = cv2.imread(_STACK_TEMPLATE_PATH, cv2.IMREAD_GRAYSCALE)
+        if self.stack_template is None:
+            logger.warning(
+                "SceneDetector: stack template not found: %s "
+                "(legacy badge/health checks only)", _STACK_TEMPLATE_PATH)
 
     def is_hero_scene(self, frame: np.ndarray) -> bool:
         return self.is_fixed_board_scene(frame)
 
     def is_fixed_board_scene(self, frame: np.ndarray) -> bool:
-        """Detect the stable opening board scene by the two left player badges."""
+        """Opening-board trigger for automatic hero recognition.
+
+        Primary: the PLAYER's own card-back stack (lower-right) matches the
+        crescent template with NCC >= stack_min_ncc.  The stack appears the
+        moment the hero reveal settles and stays visible (the following dim
+        overlay barely moves TM_CCOEFF_NORMED), and only the player's own
+        deck skin is involved, so opponent avatar/deck changes are irrelevant.
+
+        Fallback: legacy left-badge + health-30 probe, for when the template
+        does not match (e.g. the player switched deck skin); it only fires on
+        brief brightness peaks.
+        """
+        return self._stack_ncc(frame) >= self.stack_min_ncc or \
+            self._legacy_fixed_board_scene(frame)
+
+    def _stack_ncc(self, frame: np.ndarray) -> float:
+        """Max NCC of the crescent template inside the lower-right stack
+        region, computed on a canonical-width resize so the template scale is
+        independent of the projection window size."""
+        if self.stack_template is None:
+            return 0.0
+        H, W = frame.shape[:2]
+        if W != self.canonical_width:
+            scale = self.canonical_width / W
+            frame = cv2.resize(
+                frame,
+                (self.canonical_width, max(1, int(round(H * scale)))),
+                interpolation=cv2.INTER_AREA,
+            )
+        H, W = frame.shape[:2]
+        rx, ry, rw, rh = self.stack_region_rel
+        x0, y0 = int(rx * W), int(ry * H)
+        x1, y1 = min(W, int((rx + rw) * W)), min(H, int((ry + rh) * H))
+        roi = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY)
+        th, tw = self.stack_template.shape[:2]
+        if roi.shape[0] < th or roi.shape[1] < tw:
+            return 0.0
+        res = cv2.matchTemplate(roi, self.stack_template, cv2.TM_CCOEFF_NORMED)
+        return float(res.max())
+
+    def _legacy_fixed_board_scene(self, frame: np.ndarray) -> bool:
+        """Old two-badge + health-30 trigger; only passes at brightness peaks."""
         H, W = frame.shape[:2]
         regions = [
             (0.00, 0.00, 0.14, 0.20),  # opponent badge + health 30
@@ -253,6 +319,7 @@ class SceneDetector:
         fixed_scene = self.is_fixed_board_scene(frame)
         reveal_scene = ratio >= self.card_back_ratio and mean_v >= self.centre_min_v
         return {"card_back_ratio": ratio, "centre_mean_v": mean_v,
+                "stack_ncc": self._stack_ncc(frame),
                 "health_top": health["top"], "health_bottom": health["bottom"],
                 "health_ok": health["ok"],
                 "fixed_scene": fixed_scene, "reveal_scene": reveal_scene,
