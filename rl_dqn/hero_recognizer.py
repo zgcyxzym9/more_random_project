@@ -500,15 +500,18 @@ class FixedBoardLocator:
 
 class TemplateLibrary:
     """
-    Loads hero face templates from assets_dir (filename stem = eng_name).
+    Loads hero face templates from assets_dir.  One hero may own several
+    images (e.g. skins): files are named "<eng_name>_<suffix>.<ext>"
+    (plain "<eng_name>.<ext>" works too) and the part before the first "_"
+    is the hero eng_name all templates of a file belong to.
     Matches crops via normalised cross-correlation.
     """
 
     def __init__(self, assets_dir: str, template_size: Tuple[int,int] = (100,140)):
         self.size      = template_size
         self.feature_size = (260, 370)
-        self.templates: dict[str, np.ndarray] = {}
-        self.features: dict[str, Tuple[List[cv2.KeyPoint], Optional[np.ndarray]]] = {}
+        self.templates: dict[str, List[np.ndarray]] = {}
+        self.features: dict[str, List[Tuple[List[cv2.KeyPoint], Optional[np.ndarray]]]] = {}
         self._sift = cv2.SIFT_create(nfeatures=1200) if hasattr(cv2, "SIFT_create") else None
         self._matcher = cv2.BFMatcher(cv2.NORM_L2) if self._sift is not None else None
         self._load(assets_dir)
@@ -517,19 +520,28 @@ class TemplateLibrary:
         if not os.path.isdir(assets_dir):
             logger.warning("TemplateLibrary: dir not found: %s", assets_dir)
             return
+        n_imgs = 0
         for fname in os.listdir(assets_dir):
             stem, ext = os.path.splitext(fname)
             if ext.lower() not in {".png",".jpg",".jpeg",".webp"}:
                 continue
+            hero_name = stem.split("_")[0]
+            if not hero_name:
+                logger.warning("TemplateLibrary: skip file without hero "
+                               "name prefix: %s", fname)
+                continue
             img = cv2.imread(os.path.join(assets_dir, fname), cv2.IMREAD_GRAYSCALE)
             if img is None: continue
-            self.templates[stem] = cv2.resize(img, self.size,
-                                              interpolation=cv2.INTER_AREA)
+            self.templates.setdefault(hero_name, []).append(
+                cv2.resize(img, self.size, interpolation=cv2.INTER_AREA))
+            n_imgs += 1
             if self._sift is not None:
                 feat_img = cv2.resize(img, self.feature_size,
                                       interpolation=cv2.INTER_AREA)
-                self.features[stem] = self._sift.detectAndCompute(feat_img, None)
-        logger.info("TemplateLibrary: %d templates loaded", len(self.templates))
+                self.features.setdefault(hero_name, []).append(
+                    self._sift.detectAndCompute(feat_img, None))
+        logger.info("TemplateLibrary: %d heroes / %d template images loaded",
+                    len(self.templates), n_imgs)
 
     def reload(self, assets_dir: str):
         self.templates.clear()
@@ -547,22 +559,26 @@ class TemplateLibrary:
             _kp, des = self._sift.detectAndCompute(feat_crop, None)
             if des is not None:
                 best_n, best_s = "unknown", 0.0
-                for name, (_tmpl_kp, tmpl_des) in self.features.items():
-                    if tmpl_des is None:
-                        continue
-                    matches = self._matcher.knnMatch(tmpl_des, des, k=2)
-                    good = [m for m, n in matches if m.distance < 0.75 * n.distance]
-                    score = min(1.0, len(good) / 80.0)
-                    if score > best_s:
-                        best_s, best_n = score, name
+                for name, feats in self.features.items():
+                    for _tmpl_kp, tmpl_des in feats:
+                        if tmpl_des is None:
+                            continue
+                        matches = self._matcher.knnMatch(tmpl_des, des, k=2)
+                        good = [m for m, n in matches
+                                if m.distance < 0.75 * n.distance]
+                        score = min(1.0, len(good) / 80.0)
+                        if score > best_s:
+                            best_s, best_n = score, name
                 return (best_n, best_s)
 
         resized = cv2.resize(grey, self.size, interpolation=cv2.INTER_AREA)
         best_n, best_s = "unknown", -1.0
-        for name, tmpl in self.templates.items():
-            s = float(cv2.matchTemplate(resized, tmpl, cv2.TM_CCOEFF_NORMED).max())
-            if s > best_s:
-                best_s, best_n = s, name
+        for name, tmpls in self.templates.items():
+            for tmpl in tmpls:
+                s = float(cv2.matchTemplate(resized, tmpl,
+                                            cv2.TM_CCOEFF_NORMED).max())
+                if s > best_s:
+                    best_s, best_n = s, name
         return (best_n, best_s)
 
 
